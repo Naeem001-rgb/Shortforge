@@ -133,12 +133,22 @@ test("import inspiration, save permission, upload own video and render a caption
   await expect(
     page.getByText("Keep the inspiration. Check the permission."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Write an original script" }).click();
+  await page.route("**/api/clips/*/extract-script", (route) =>
+    route.fulfill({
+      status: 400,
+      contentType: "application/json",
+      body: JSON.stringify({
+        detail:
+          "Captions unavailable for this test. Paste a script or use Gemini.",
+      }),
+    }),
+  );
+  await page.getByRole("button", { name: "Open script", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "Start an original story." }),
+    page.getByRole("heading", { name: "Same story. Your words." }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Write original script", exact: true })
+    .getByRole("button", { name: "Write from topic instead", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText(/Gemini|key/i);
   await page.getByRole("button", { name: "Add footage" }).click();
@@ -157,7 +167,7 @@ test("import inspiration, save permission, upload own video and render a caption
   await expect(page.getByText("Footage ready", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Script", exact: true }).click();
   await page
-    .getByLabel("Original transcript", { exact: false })
+    .getByLabel("Original script", { exact: false })
     .fill("A small idea becomes a new story.");
   await page
     .getByLabel("Your new script")

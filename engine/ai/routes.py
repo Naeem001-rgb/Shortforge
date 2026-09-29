@@ -47,8 +47,8 @@ class TTSRequest(BaseModel):
 @router.post("/rewrite")
 def rewrite(payload: RewriteRequest):
     clip = db.get_clip(payload.clip_id)
-    if payload.mode == "rewrite":
-        db.require_editable(payload.clip_id)
+    # Script work is available for Library references as requested. Footage
+    # downloads and video edits retain their separate permission checks.
     try:
         if payload.mode == "original":
             # Unknown footage is never fetched or transcribed for this mode.

@@ -20,7 +20,7 @@ Narrated mode collects clips meeting both count limits without requiring credits
 1. Add a YouTube link. It should be labeled **Inspiration** and its footage editing locked.
 2. Open details. Copy the permission request; save a real permission note when received. Alternatively fetch verified YouTube data using your own API key.
 3. Upload a video you own through Add a video → Upload footage.
-4. Open it in Studio → Script. Paste text manually or click Transcribe after installing a local model.
+4. Open it in Studio → Script. Paste text manually or click Extract original script after installing a local Whisper model.
 5. Confirm missing models show a useful explanation, without downloading anything automatically.
 
 ## M3 — Edit and export
@@ -34,7 +34,7 @@ OCR detection needs Tesseract installed separately. Without it, a suggested band
 
 ## M4 — AI, voices and publish kit
 1. Add a Gemini API key in Settings, using a free project, and save.
-2. In Studio → Script, paste or transcribe an authorized video's script and Rewrite. Check its original/new word counts and edit the result.
+2. Open a Library Short → Open script. Available original-language captions automatically fill and save Original script. If unavailable, paste the narration or click Transcribe with Gemini. Then Rewrite script and compare the original/new counts, tone and facts.
 3. In Voice lab, add your own authorized reference recording. Confirm it says model needed until Chatterbox is configured.
 4. Choose the already available basic eSpeak voice, or set up Piper/Chatterbox via VOICE.md. Generate audio, then select Replace or Mix in Studio → Voice.
 5. Export, generate the Publish kit, copy a title/description, and manually upload in YouTube Studio.
@@ -67,4 +67,12 @@ cd extension
 node tests/browser-fixture.mjs
 ```
 
-Live YouTube DOM collection, actual Google/Microsoft/ElevenLabs calls, and installed Whisper/Piper/Chatterbox inference require the user's environment and were not validated with live accounts during development.
+Live YouTube Scout collection was verified separately (see PROGRESS.md). Actual Google/Microsoft/ElevenLabs calls and installed Whisper/Piper/Chatterbox inference need the user's configured providers and remain unverified without them. Script extraction browser tests mock external transcription/generation while exercising real project saving. Gemini transcription is always an explicit action; opening Script uses free captions first.
+
+## Original script extraction and faithful rewriting
+1. Open a collected Short's details and choose **Open script**. Wait for captions to load into **Original script**, or review the actionable extraction error.
+2. If captions are unavailable, set your Gemini key in Settings and click **Transcribe with Gemini**. It requests verbatim speech from the public YouTube URL; review for transcription errors. No API request is made without a key.
+3. Click **Rewrite script**. Confirm it uses the narration you see, preserves the meaning/tone/language, and shows both word counts. It aims for exact equality and returns the closest draft after at most three requests.
+4. Edit and Save. Leave/reopen the project: saved originals and rewrites must persist without automatic replacement. **Extract again** explicitly reloads the original narration and keeps the rewritten draft.
+5. Open a Short whose extraction failed, switch to another project, then come back. The free caption attempt should run again by itself rather than leaving the field blank.
+6. Existing footage permissions still apply to downloading/editing/exporting video; working on a script does not change those settings.

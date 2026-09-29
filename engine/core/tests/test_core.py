@@ -120,7 +120,24 @@ def test_unknown_clip_is_blocked_before_tool_or_source_checks(client):
     assert client.put(f"/api/clips/{clip['id']}/transcript", json={"text": "stolen", "words": []}).status_code == 403
     assert client.post("/api/export", json={"clip_id": clip["id"]}).status_code == 403
     assert client.post("/api/captions/detect", json={"clip_id": clip["id"]}).status_code == 403
-    assert client.post("/api/rewrite", json={"clip_id": clip["id"], "text": "Existing narration", "mode": "rewrite"}).status_code == 403
+
+
+def test_library_reference_can_rewrite_script_without_unlocking_footage(client, monkeypatch):
+    from engine.ai import routes as writing_routes
+    clip = import_one(client)
+    received = []
+    def generate(text, settings):
+        received.append(text)
+        return {"original_text": text, "rewritten_text": "Different narration", "words_original": 2,
+                "words_rewritten": 2, "within_tolerance": True, "exact_word_count": True, "attempts": 1}
+    monkeypatch.setattr(writing_routes, "rewrite_script", generate)
+    response = client.post("/api/rewrite", json={"clip_id": clip["id"], "text": "Existing narration", "mode": "rewrite"})
+    assert response.status_code == 200
+    assert received == ["Existing narration"]
+    detail = client.get(f"/api/clips/{clip['id']}").json()
+    assert detail["script"]["original_text"] == "Existing narration"
+    assert detail["license_status"] == "unknown"
+    assert client.post(f"/api/clips/{clip['id']}/download").status_code == 403
 
 
 def test_uploaded_video_is_owned_and_can_be_served_with_ranges(client):

@@ -13,8 +13,8 @@ from fastapi import APIRouter, BackgroundTasks, Body, File, Form, HTTPException,
 from fastapi.responses import FileResponse, StreamingResponse
 import httpx
 
-from . import db, media
-from .models import ClipBatch, ClipPatch, SettingsPatch, TranscribeInput, TranscriptInput
+from . import db, media, script_extraction
+from .models import ClipBatch, ClipPatch, ExtractScriptInput, SettingsPatch, TranscribeInput, TranscriptInput
 
 
 router = APIRouter(prefix="/api")
@@ -276,6 +276,16 @@ def transcribe(clip_id: str, background_tasks: BackgroundTasks, body: Transcribe
     prevent_duplicate_job(clip_id, "transcribe")
     job = db.new_job("transcribe", clip_id)
     background_tasks.add_task(media.transcribe_job, job["id"], clip_id, path, body.model)
+    return job
+
+
+@router.post("/clips/{clip_id}/extract-script")
+def extract_script(clip_id: str, background_tasks: BackgroundTasks, body: ExtractScriptInput = Body(default=ExtractScriptInput())):
+    # Text extraction is independent of permission to download or reuse footage.
+    db.get_clip(clip_id)
+    prevent_duplicate_job(clip_id, "extract-script")
+    job = db.new_job("extract-script", clip_id)
+    background_tasks.add_task(script_extraction.extract_script_job, job["id"], clip_id, body.provider, body.replace_existing)
     return job
 
 

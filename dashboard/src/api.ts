@@ -119,9 +119,14 @@ function storedJob(scope: string): Job | null {
     return null;
   }
 }
-export function useJob(onComplete?: () => void, scope = "workspace") {
+export function useJob(onComplete?: (job: Job) => void, scope = "workspace") {
   const [job, setJob] = useState<Job | null>(() => storedJob(scope));
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => {
+    const saved = storedJob(scope);
+    return saved?.status === "failed"
+      ? saved.error || "The job stopped. Please try again."
+      : "";
+  });
   const [submitting, setSubmitting] = useState(false);
   const inFlight = useRef(false);
   const callback = useRef(onComplete);
@@ -146,7 +151,7 @@ export function useJob(onComplete?: () => void, scope = "workspace") {
         const next = await api<Job>(`/jobs/${job.id}`);
         if (stopped) return;
         remember(next);
-        if (next.status === "completed") callback.current?.();
+        if (next.status === "completed") callback.current?.(next);
         else if (next.status === "failed")
           setError(next.error || "The job stopped. Please try again.");
         else timer = setTimeout(poll, 1000);
@@ -175,7 +180,7 @@ export function useJob(onComplete?: () => void, scope = "workspace") {
       try {
         const next = await post<Job>(path, body);
         remember(next);
-        if (next.status === "completed") callback.current?.();
+        if (next.status === "completed") callback.current?.(next);
         return next;
       } catch (e) {
         setError((e as Error).message);

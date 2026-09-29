@@ -27,6 +27,7 @@ For Scout: start the app, open `chrome://extensions`, enable Developer mode, cho
 
 - Library, uploads, manual script editing, light/dark/system themes, search and filters.
 - Scout discovery with optional credits and count-qualified narration candidates, permission notes, CSV links, archive.
+- Original-script extraction from public captions, optional Gemini transcription, and rewrites targeting the same tone, context, language, and exact word count.
 - CPU video rendering, trim/zoom, approximate blur/cover/crop caption cleanup, ten caption presets, audio mixing, exports.
 - Saved voice-reference profiles and consent records.
 - Basic eSpeak voiceover when eSpeak NG is installed (it is available on this laptop).

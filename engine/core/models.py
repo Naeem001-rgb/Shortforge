@@ -41,6 +41,11 @@ class TranscribeInput(StrictModel):
     model: Literal["base", "small"] | None = None
 
 
+class ExtractScriptInput(StrictModel):
+    provider: Literal["auto", "gemini"] = "auto"
+    replace_existing: bool = False
+
+
 class TranscriptWord(StrictModel):
     word: str = Field(min_length=1, max_length=200)
     start: float = Field(ge=0, allow_inf_nan=False)

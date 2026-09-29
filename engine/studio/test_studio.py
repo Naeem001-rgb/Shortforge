@@ -93,8 +93,8 @@ class StudioAPITests(unittest.TestCase):
             connection.execute("INSERT INTO clips (id,title,description,license_status,created_at) VALUES (?,?,?,?,?)", (identity, "A topic", "Metadata only", status, db.now()))
         return identity
 
-    def test_unknown_cannot_export_detect_or_rewrite_via_direct_api(self):
-        for route in ("/api/export", "/api/captions/detect", "/api/rewrite"):
+    def test_unknown_cannot_export_or_detect_captions_via_direct_api(self):
+        for route in ("/api/export", "/api/captions/detect"):
             response = self.client.post(route, json={"clip_id": self.unknown, "text": "borrowed transcript"})
             self.assertEqual(response.status_code, 403, response.text)
         with db.connect() as connection:

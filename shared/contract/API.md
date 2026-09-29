@@ -24,6 +24,7 @@ POST /api/upload multipart `file`, `title` optional -> Clip (license owned; max 
 POST /api/clips/{id}/enrich -> Clip (YouTube free key required)
 POST /api/clips/{id}/download -> Job (gate first; background yt-dlp)
 POST /api/clips/{id}/transcribe {model?:'base'|'small'} -> Job (gate, source required; installed local model only, no silent download)
+POST /api/clips/{id}/extract-script {provider?:'auto'|'gemini',replace_existing?:false} -> Job type 'extract-script'. Text extraction is available to all Library clips. Auto reuses saved text, then tries original-language public YouTube captions or an existing authorized local source with installed Whisper. No video download or cloud calls in Auto. Gemini explicitly sends the public YouTube URL to the configured model for verbatim transcription. Result: {text,words,source,language,word_count,original_updated}. Persists transcript and scripts.original_text together, preserving rewritten text and concurrent edits. replace_existing:true bypasses saved text only for an explicit re-extraction. Unknown/missing speech fails honestly; never derive an original script from title/description.
 PUT /api/clips/{id}/transcript {text,words:[{word,start,end}]} -> {text,words}
 GET /api/jobs/{id} -> Job
 GET /api/jobs/{id}/events -> SSE `data: {Job}\n\n` until completed/failed.
@@ -32,7 +33,7 @@ GET /api/settings -> {gemini_model, youtube_api_key_set, gemini_api_key_set, ele
 PUT /api/settings partial settings + gemini_api_key?, youtube_api_key?, elevenlabs_api_key? -> same masked settings. Unknown setting keys rejected.
 
 ## AI API (engine/ai)
-POST /api/rewrite {clip_id, text, mode?:'rewrite'|'original', topic?:string} -> {original_text,rewritten_text,words_original,words_rewritten,within_tolerance,attempts}. Gemini configurable model default gemini-3.8-flash, missing key is actionable 400. Original mode for unknown license accepts topic/title/description only; reject rewrite mode for unknown clips. Retry max twice and report counts honestly.
+POST /api/rewrite {clip_id, text, mode?:'rewrite'|'original', topic?:string} -> {original_text,rewritten_text,words_original,words_rewritten,within_tolerance,exact_word_count?,attempts}. Gemini configurable model default gemini-3.8-flash, missing key is actionable 400. Script rewriting is available to all Library references independently of footage permissions. Rewrite preserves original language, tone, perspective, context, fact sequence, names/numbers/qualifiers and hook/payoff, targets the exact whitespace word count, retries max twice, and retains the closest draft without padding or truncation. Semantic preservation is instructed, not guaranteed. Original mode separately writes from topic/title/description, not a transcription.
 PUT /api/scripts/{clip_id} {original_text,rewritten_text} -> Script
 POST /api/seo {clip_id,text} -> {titles:[{title,reason,characters}],description,tags:string[]}. Preserve attribution if CC.
 GET /api/voices -> {voices:[{id,name,provider,language,description,available,cloned}],providers:[{id,name,available,note}]}

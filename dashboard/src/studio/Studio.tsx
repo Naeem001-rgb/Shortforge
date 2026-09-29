@@ -85,20 +85,40 @@ export function Studio({
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
+  const autoExtracted = useRef(false);
+  const originalNow = useRef(original);
+  originalNow.current = original;
+  const extractionStartedWith = useRef<string | null>(null);
   const load = async () => {
     if (!selected) return;
     try {
       const c = await api<Clip>(`/clips/${selected}`);
       setClip(c);
-      setOriginal((previous) => previous || c.transcript?.text || "");
+      setOriginal(
+        (previous) =>
+          previous || c.script?.original_text || c.transcript?.text || "",
+      );
       refresh();
     } catch (e) {
       setError((e as Error).message);
     }
   };
-  const task = useJob(() => {
+  const task = useJob((job) => {
+    if (
+      job.type === "extract-script" &&
+      job.result?.original_updated &&
+      typeof job.result.text === "string" &&
+      (originalNow.current === extractionStartedWith.current ||
+        !originalNow.current.trim())
+    ) {
+      setOriginal(job.result.text);
+    }
     load();
-    setMessage("Your file is ready.");
+    setMessage(
+      job.type === "extract-script"
+        ? "Original script saved. Review the transcription, then rewrite it."
+        : "Your file is ready.",
+    );
   }, selected);
   useEffect(() => {
     setError("");
@@ -112,6 +132,7 @@ export function Studio({
     setTime(0);
     setAudioMode("original");
     setCaptionMode("none");
+    autoExtracted.current = false;
     if (selected)
       api<Clip>(`/clips/${selected}`)
         .then((c) => {
@@ -136,6 +157,37 @@ export function Studio({
   const captionText = rewritten.trim() || original.trim();
   const activePreset = presets.find((p) => p.id === preset);
   const permitted = clip ? editable(clip) : false;
+  const extracting = task.busy && task.job?.type === "extract-script";
+  useEffect(() => {
+    if (
+      !clip?.video_id ||
+      tool !== "script" ||
+      original.trim() ||
+      task.busy ||
+      autoExtracted.current
+    )
+      return;
+    // A remembered job is not a reason to skip: a still-running job is already
+    // covered by task.busy, and a completed one repopulates `original`. Only a
+    // previous failure lands here, and that deserves one free retry per visit.
+    autoExtracted.current = true;
+    // Opening a script only uses public captions. Cloud transcription requires
+    // the separate Gemini button, so browsing never spends the user's quota.
+    extractionStartedWith.current = original;
+    void task.start(`/clips/${selected}/extract-script`, {
+      provider: "auto",
+    });
+  }, [clip, tool, original, selected, task.busy, task.start]);
+  const extract = (provider: "auto" | "gemini") => {
+    setError("");
+    setMessage("");
+    autoExtracted.current = true;
+    extractionStartedWith.current = original;
+    void task.start(`/clips/${selected}/extract-script`, {
+      provider,
+      replace_existing: Boolean(original.trim()),
+    });
+  };
   const act = async (action: () => Promise<void>) => {
     setWorking(true);
     setError("");
@@ -159,22 +211,26 @@ export function Studio({
       });
       setMessage("Script saved to this project.");
     });
-  const rewrite = () =>
+  const rewrite = (fromTopic = false) =>
     act(async () => {
       if (!clip) return;
       const r = await post<
-        Script & { within_tolerance: boolean; attempts: number }
+        Script & {
+          within_tolerance: boolean;
+          exact_word_count: boolean;
+          attempts: number;
+        }
       >("/rewrite", {
         clip_id: selected,
-        text: permitted ? original : "",
-        mode: permitted ? "rewrite" : "original",
-        topic: permitted ? "" : clip.title + "\n" + clip.description,
+        text: fromTopic ? "" : original,
+        mode: fromTopic ? "original" : "rewrite",
+        topic: fromTopic ? clip.title + "\n" + clip.description : "",
       });
       setRewritten(r.rewritten_text);
-      if (!permitted) setOriginal(r.original_text);
+      if (fromTopic) setOriginal(r.original_text);
       setMessage(
-        permitted
-          ? `Original ${r.words_original} words → new ${r.words_rewritten} words. ${r.within_tolerance ? "Within 5% of the original." : "Still outside 5% after retries; please adjust before recording."}`
+        !fromTopic
+          ? `Original ${r.words_original} words → new ${r.words_rewritten} words. ${r.exact_word_count ? "Exact word count matched." : r.within_tolerance ? "Within 5% of the original; review the wording and tone." : "Closest draft after retries; the word count still needs adjustment."}`
           : "An original script is ready. Add your own footage to create the video.",
       );
       load();
@@ -304,39 +360,28 @@ export function Studio({
               {tool === "script" ? (
                 <div className="script-workspace">
                   <div className="section-heading">
-                    <h2>
-                      {permitted
-                        ? "Same story. Your words."
-                        : "Start an original story."}
-                    </h2>
+                    <h2>Same story. Your words.</h2>
                     <button
                       className="button secondary small"
                       onClick={save}
-                      disabled={working}
+                      disabled={working || task.busy}
                     >
                       <Save size={15} /> Save
                     </button>
                   </div>
-                  {!permitted && (
-                    <Notice kind="info">
-                      This writes from the topic and description. To export,
-                      create a project with your own or authorized footage and
-                      paste the script there.
-                    </Notice>
-                  )}
                   <div className="script-columns">
                     <label className="field">
-                      {permitted ? "Original transcript" : "Topic and context"}
+                      Original script
                       <textarea
                         rows={16}
-                        value={
-                          permitted
-                            ? original
-                            : clip.title + "\n" + clip.description
-                        }
-                        readOnly={!permitted}
+                        value={original}
+                        disabled={extracting}
                         onChange={(e) => setOriginal(e.target.value)}
-                        placeholder="Transcribe your video or paste its script here."
+                        placeholder={
+                          extracting
+                            ? "Extracting the spoken script…"
+                            : "Extract the Short’s narration or paste its original script here."
+                        }
                       />
                       <small>{wordCount(original)} words</small>
                     </label>
@@ -568,7 +613,7 @@ export function Studio({
                   {
                     {
                       edit: "A clean canvas for a fresh story.",
-                      script: "Keep the facts. Find a fresh voice.",
+                      script: "Keep the tone. Match the length.",
                       voice: "A voiceover that feels like you.",
                       captions: "Readable, rhythmic, unmistakably yours.",
                       export: "The last step before your next Short.",
@@ -702,27 +747,46 @@ export function Studio({
               {tool === "script" && (
                 <>
                   <div className="property-section">
-                    <h3>
-                      {permitted
-                        ? "Start with a transcript"
-                        : "Start with the topic"}
-                    </h3>
+                    <h3>Extract the original script</h3>
                     <p className="help-text">
-                      {permitted
-                        ? "Transcribe locally, or paste your script into the original column. Whisper needs a separately installed model."
-                        : "An original script uses only this Short’s topic and description."}
+                      {clip.video_id
+                        ? "Loads available captions in the original language and saves them to this project. No API key needed."
+                        : "Transcribe your video with an installed local Whisper model, or paste the original script."}
                     </p>
-                    {permitted && (
+                    {(clip.video_id || source) && (
                       <button
                         className="button secondary full"
-                        disabled={!source || task.busy}
-                        onClick={() =>
-                          task.start(`/clips/${selected}/transcribe`)
-                        }
+                        disabled={task.busy || working}
+                        onClick={() => extract("auto")}
                       >
-                        <AudioLines size={16} /> Transcribe video
+                        {extracting ? (
+                          <LoaderCircle size={16} className="spin" />
+                        ) : (
+                          <AudioLines size={16} />
+                        )}
+                        {extracting
+                          ? "Extracting script…"
+                          : original.trim()
+                            ? "Extract again"
+                            : "Extract original script"}
                       </button>
                     )}
+                    {clip.video_id &&
+                      (task.error || task.job?.status === "failed") && (
+                        <>
+                          <button
+                            className="button secondary full"
+                            disabled={task.busy || working}
+                            onClick={() => extract("gemini")}
+                          >
+                            <WandSparkles size={16} /> Transcribe with Gemini
+                          </button>
+                          <p className="help-text">
+                            Uses your Gemini key and quota. Sends this public
+                            YouTube URL to Google for transcription.
+                          </p>
+                        </>
+                      )}
                     {clip.transcript?.text &&
                       original !== clip.transcript.text && (
                         <button
@@ -738,26 +802,34 @@ export function Studio({
                   <div className="property-section">
                     <h3>Find a new way to say it.</h3>
                     <p className="help-text">
-                      {permitted
-                        ? "Preserves the language, facts, and tone. Aims for a word count within 5% of the original."
-                        : "Creates a fresh narration. Add your own visuals in a new project."}
+                      Keeps the language, tone, context, and facts. Targets the
+                      exact original word count, with up to two retries.
                     </p>
                     <button
                       className="button primary full"
-                      onClick={rewrite}
-                      disabled={working || (permitted && !original.trim())}
+                      onClick={() => rewrite()}
+                      disabled={working || task.busy || !original.trim()}
                     >
                       {working ? (
                         <LoaderCircle size={16} className="spin" />
                       ) : (
                         <WandSparkles size={16} />
                       )}{" "}
-                      {permitted ? "Rewrite script" : "Write original script"}
+                      Rewrite script
                     </button>
                     <p className="help-text">
                       Uses the Gemini key in Settings. Review the result for
                       accuracy.
                     </p>
+                    {!original.trim() && (
+                      <button
+                        className="button ghost full"
+                        disabled={working || task.busy}
+                        onClick={() => rewrite(true)}
+                      >
+                        Write from topic instead
+                      </button>
+                    )}
                   </div>
                   <div className="property-section script-counts">
                     <span>

@@ -751,7 +751,7 @@ function ClipDetail({
           {clip.workflow_status === "archived" ? "Restore" : "Archive"}
         </button>
         <button className="button primary" onClick={onOpen}>
-          {editable(clip) ? "Open in Studio" : "Write an original script"}
+          {editable(clip) ? "Open in Studio" : "Open script"}
           <ArrowRight size={16} />
         </button>
       </div>

@@ -103,11 +103,8 @@ def transcribe_job(job_id: str, clip_id: str, path: Path, model_name: str | None
         db.require_editable(clip_id)
         db.update_job(job_id, status="running", progress=10)
         transcript = transcribe_file(path, model_name)
-        import json
-        with db.connect() as conn:
-            conn.execute("INSERT INTO transcripts(clip_id,text,words) VALUES (?,?,?) ON CONFLICT(clip_id) DO UPDATE SET text=excluded.text,words=excluded.words",
-                         (clip_id, transcript["text"], json.dumps(transcript["words"])))
-            conn.execute("UPDATE clips SET workflow_status='transcribed' WHERE id=?", (clip_id,))
+        from .script_extraction import persist_original_transcript
+        persist_original_transcript(clip_id, transcript)
         db.update_job(job_id, status="completed", progress=100, result=transcript)
     except Exception as exc:
         db.update_job(job_id, status="failed", error=str(exc))
