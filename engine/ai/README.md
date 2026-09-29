@@ -10,6 +10,14 @@ Set `gemini_api_key` and `gemini_model` in Settings. The default model is `gemin
 
 The [Piper engine](https://github.com/OHF-Voice/piper1-gpl) is GPL-3.0. Install `piper-tts` into the engine's Python environment separately, then obtain a voice `.onnx` file and matching `.onnx.json` file. Select the `.onnx` path in Settings. The app invokes the [documented CLI](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md) locally and supports speed from 0.9–1.1. Read that voice's `MODEL_CARD` before choosing it for monetized videos: the [official voice documentation](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md) explains that each voice can have different restrictions. No speech-model files are bundled. Studio separately bundles an openly licensed subtitle font.
 
+## eSpeak: basic voice without a model download
+
+If `espeak-ng` or `espeak` is already installed, **eSpeak · basic local voice** is immediately available for English narration. It runs on CPU, needs no API key, and has a clearly synthetic sound. It is not a neural model or a cloned voice. Piper remains the default option for users who install a neural voice model.
+
+The app passes text over stdin to the existing executable and saves a WAV file. Speed is 175 words per minute multiplied by the selected 0.9–1.1 speed setting. Pitch remains at 0 in this adapter. Captions use the new audio's duration and are labeled approximate when a local Whisper model is unavailable.
+
+[eSpeak NG](https://github.com/espeak-ng/espeak-ng) is maintained by the eSpeak NG developers and derives from Jonathan Duddington's eSpeak. Its engine is distributed under [GPL version 3 or later](https://github.com/espeak-ng/espeak-ng/blob/master/COPYING). ShortForge invokes the separately installed program; it does not bundle the engine, install a subscription, or require a paid voice plan. The source script remains the user's responsibility.
+
 ## Your own voice: optional local Chatterbox
 
 Uploading a reference saves a reusable voice profile and speaker-consent record; it does not train a new model. Use a clear recording, 6–30 seconds and under 20 MB, of your own or an authorized voice. The transcript is optional. WAV, MP3, M4A, OGG, FLAC and WebM are accepted after checking the media duration. Deleting a profile also deletes its stored reference asset and audio file.

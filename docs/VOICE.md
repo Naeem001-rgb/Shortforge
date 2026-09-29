@@ -4,6 +4,10 @@ The app runs on this machine's Python 3.14. Optional speech libraries have narro
 
 No speech models or large machine-learning dependencies were installed during the build. Saving a reference recording does not mean a model has been installed or trained. Model setup may require gigabytes and CPU generation can be slow; choose this separately when disk space and memory allow.
 
+## Available now: basic local voice
+
+This laptop already has eSpeak NG installed. In Voice lab, select **eSpeak · basic local voice**, choose a project, paste your script and Generate voiceover. It works without an API key or model download. Its sound is noticeably synthetic; use it to try the full workflow at no cost. Piper and Chatterbox offer the optional neural-voice paths below. A real eSpeak generation was tested during development.
+
 ## Piper: ordinary local voiceover
 
 1. Install `piper-tts` into the engine environment: `.venv/bin/python -m pip install piper-tts`.

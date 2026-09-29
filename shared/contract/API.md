@@ -36,8 +36,8 @@ POST /api/rewrite {clip_id, text, mode?:'rewrite'|'original', topic?:string} -> 
 PUT /api/scripts/{clip_id} {original_text,rewritten_text} -> Script
 POST /api/seo {clip_id,text} -> {titles:[{title,reason,characters}],description,tags:string[]}. Preserve attribution if CC.
 GET /api/voices -> {voices:[{id,name,provider,language,description,available,cloned}],providers:[{id,name,available,note}]}
-POST /api/tts {clip_id,text,provider:'piper'|'edge'|'elevenlabs'|'clone',voice_id,speed:0.9..1.1,pitch?:number} -> Job. Only background generation. No model installs. Re-align voice if whisper installed, otherwise explicit timing approximation label. Do not reuse old transcript timing for new voice.
-POST /api/voices/clone multipart file, name, consent ('true'), reference_text -> {id,name,provider:'clone',language,description,available,cloned:true}. Stores reference and consent for future local F5-TTS usage. Report unavailable until model dependencies/local checkpoint configured. Never pretend profile creation trained a model.
+POST /api/tts {clip_id,text,provider:'piper'|'edge'|'elevenlabs'|'clone'|'espeak',voice_id,speed:0.9..1.1,pitch?:number} -> Job. Only background generation. No model installs. Re-align voice if whisper installed, otherwise explicit timing approximation label. Do not reuse old transcript timing for new voice.
+POST /api/voices/clone multipart file, name, consent ('true'), reference_text optional -> {id,name,provider:'clone',language,description,available,cloned:true}. Stores reference and consent for future local Chatterbox / Chatterbox Nano usage. Report unavailable until model dependencies/local checkpoint configured. Never pretend profile creation trained a model.
 DELETE /api/voices/{id} -> {ok:true}
 
 ## Studio API (engine/studio)

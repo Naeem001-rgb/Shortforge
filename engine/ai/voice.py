@@ -42,6 +42,7 @@ def provider_list(settings: dict) -> list[dict]:
     clone_available, clone_note = clone_readiness(settings)
     return [
         {"id": "piper", "name": "Piper · local & free", "available": piper, "note": "CPU voice. Install Piper and select a local .onnx model plus its .onnx.json file. Check that voice's MODEL_CARD for commercial rights; licenses vary."},
+        {"id": "espeak", "name": "eSpeak · basic local voice", "available": bool(shutil.which("espeak-ng") or shutil.which("espeak")), "note": "Free local CPU narration using the installed eSpeak engine. Basic synthetic sound, not a neural voice or clone. No key or model download is required. eSpeak NG is GPL-3.0-or-later; the app uses your separately installed executable."},
         {"id": "edge", "name": "Edge · optional online", "available": installed("edge_tts"), "note": "Unofficial online service; may stop working. Its library license does not grant commercial rights to Microsoft's voices. Check service terms before monetized use."},
         {"id": "elevenlabs", "name": "ElevenLabs · your key", "available": bool(settings.get("elevenlabs_api_key")), "note": "Optional paid service. ElevenLabs' free plan does not include commercial use. Requests use your account credits."},
         {"id": "clone", "name": "Your voice · local Chatterbox", "available": clone_available, "note": clone_note},
@@ -52,6 +53,7 @@ def builtin_voices(settings: dict) -> list[dict]:
     available = {p["id"]: p["available"] for p in provider_list(settings)}
     rows = [
         ("piper-local", "My local Piper voice", "piper", "Model language", "Uses the voice model selected in Settings."),
+        ("espeak-en", "eSpeak · basic local voice", "espeak", "English", "Ready-to-use English narration when eSpeak is installed. Basic synthetic sound; not a neural voice or clone."),
         ("en-US-AriaNeural", "Aria", "edge", "English (US)", "Clear conversational voice. Online, unofficial service."),
         ("en-US-GuyNeural", "Guy", "edge", "English (US)", "Warm narration voice. Online, unofficial service."),
         ("en-GB-SoniaNeural", "Sonia", "edge", "English (UK)", "British narration. Online, unofficial service."),
@@ -73,6 +75,18 @@ def synthesize(text: str, provider: str, voice_id: str, speed: float, pitch: flo
             process = subprocess.run(command, input=text, text=True, capture_output=True, timeout=600)
         if process.returncode:
             raise ValueError("Piper could not generate speech. Check that the .onnx and .onnx.json files match, and that Piper is installed.")
+    elif provider == "espeak":
+        executable = shutil.which("espeak-ng") or shutil.which("espeak")
+        if not executable:
+            raise ValueError("eSpeak is not installed. Choose another ready voice or install eSpeak NG separately, then restart the app.")
+        voice_names = {"espeak-en": "en"}
+        if voice_id not in voice_names:
+            raise ValueError("Choose one of the available eSpeak voices.")
+        command = [executable, "--stdin", "-w", str(output), "-s", str(round(175 * speed)), "-v", voice_names[voice_id]]
+        with LOCAL_VOICE_LOCK:
+            process = subprocess.run(command, input=text, text=True, encoding="utf-8", capture_output=True, timeout=120)
+        if process.returncode:
+            raise ValueError("eSpeak could not generate speech. Check that its English voice data is installed, then try again.")
     elif provider == "edge":
         import edge_tts
         mp3 = output.with_suffix(".mp3")

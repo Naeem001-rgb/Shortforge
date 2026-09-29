@@ -38,7 +38,7 @@ class SEORequest(BaseModel):
 class TTSRequest(BaseModel):
     clip_id: str
     text: str = Field(min_length=1, max_length=12000)
-    provider: Literal["piper", "edge", "elevenlabs", "clone"] = "piper"
+    provider: Literal["piper", "espeak", "edge", "elevenlabs", "clone"] = "piper"
     voice_id: str = Field(default="piper-local", max_length=100)
     speed: float = Field(default=1, ge=0.9, le=1.1)
     pitch: float = Field(default=0, ge=-50, le=50)

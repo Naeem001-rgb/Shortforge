@@ -36,7 +36,7 @@ OCR detection needs Tesseract installed separately. Without it, a suggested band
 1. Add a Gemini API key in Settings, using a free project, and save.
 2. In Studio → Script, paste or transcribe an authorized video's script and Rewrite. Check its original/new word counts and edit the result.
 3. In Voice lab, add your own authorized reference recording. Confirm it says model needed until Chatterbox is configured.
-4. Set up Piper or Chatterbox via VOICE.md; generate audio, then select Replace or Mix in Studio → Voice.
+4. Choose the already available basic eSpeak voice, or set up Piper/Chatterbox via VOICE.md. Generate audio, then select Replace or Mix in Studio → Voice.
 5. Export, generate the Publish kit, copy a title/description, and manually upload in YouTube Studio.
 
 ## M5 — Interface checks
@@ -51,8 +51,7 @@ OCR detection needs Tesseract installed separately. Without it, a suggested band
 From the project root:
 
 ```bash
-.venv/bin/python -m pytest engine/core/tests -q
-.venv/bin/python -m unittest engine.ai.test_writing engine.studio.test_studio -v
+.venv/bin/python -m pytest engine -q
 npm --prefix extension test
 npm --prefix extension run build
 npm --prefix dashboard run build

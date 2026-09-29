@@ -29,6 +29,7 @@ For Scout: start the app, open `chrome://extensions`, enable Developer mode, cho
 - Scout credit/narration metadata discovery, permission notes, CSV links, archive.
 - CPU video rendering, trim/zoom, approximate blur/cover/crop caption cleanup, ten caption presets, audio mixing, exports.
 - Saved voice-reference profiles and consent records.
+- Basic eSpeak voiceover when eSpeak NG is installed (it is available on this laptop).
 
 Optional setup enables Gemini rewrite/SEO, verified YouTube metadata, local transcription, and synthesized or cloned voices. All missing dependencies produce instructions instead of fabricated results. See [VOICE.md](docs/VOICE.md).
 

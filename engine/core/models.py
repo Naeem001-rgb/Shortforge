@@ -75,7 +75,7 @@ class SettingsPatch(StrictModel):
     min_views: int | None = Field(default=None, ge=0, le=100000000000)
     target_count: int | None = Field(default=None, ge=1, le=500)
     scout_mode: Literal["credits", "narrated", "auto"] | None = None
-    tts_provider: Literal["piper", "edge", "elevenlabs", "clone"] | None = None
+    tts_provider: Literal["piper", "edge", "elevenlabs", "clone", "espeak"] | None = None
     piper_model: str | None = Field(default=None, max_length=4096)
     whisper_model: str | None = Field(default=None, max_length=4096)
     clone_model_path: str | None = Field(default=None, max_length=4096)
