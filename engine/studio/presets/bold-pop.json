@@ -1,0 +1,15 @@
+{
+  "id": "bold-pop",
+  "name": "Bold Pop",
+  "font": "DejaVu Sans",
+  "size": 72,
+  "weight": 700,
+  "fill": "#FFFFFF",
+  "stroke": 5,
+  "shadow": 3,
+  "highlight": "#0A84FF",
+  "box": false,
+  "position": 0.72,
+  "animation": "pop",
+  "description": "Big, punchy words with a quick scale-in."
+}

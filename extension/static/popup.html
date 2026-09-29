@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ShortForge Scout</title><link rel="stylesheet" href="popup.css"></head>
+<body>
+  <header>
+    <div class="brand"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="8" fill="currentColor"/><path d="m12 8 7 6-7 6V8Z" fill="var(--surface)"/></svg><span>ShortForge <span class="secondary">Scout</span></span></div>
+    <a class="icon-link" href="http://localhost:5173" target="_blank" rel="noopener" aria-label="Open ShortForge dashboard" title="Open dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M15 3h6v6m-11 5L21 3M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/></svg></a>
+  </header>
+  <main>
+    <section class="intro"><h1>Find your next Short.</h1><p>Collect promising videos while you browse.</p></section>
+    <form id="settings" novalidate>
+      <label for="mode">Look for</label>
+      <div class="select-wrap"><select id="mode" name="mode"><option value="narrated">Narrated Shorts</option><option value="auto">Credits first, then narrated</option><option value="credits">Credited sources only</option></select><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div>
+      <p id="mode-help" class="hint">Matches title and description hints. Listen to confirm narration; AI audio is not verified.</p>
+      <div class="fields"><div><label for="target">Target</label><input id="target" name="target" type="number" inputmode="numeric" min="1" max="500" step="1" value="30"></div><div><label for="minLikes">Min. likes</label><input id="minLikes" name="minLikes" type="number" inputmode="numeric" min="0" step="1" value="5000"></div><div><label for="minViews">Min. views</label><input id="minViews" name="minViews" type="number" inputmode="numeric" min="0" step="1" value="10000"></div></div>
+    </form>
+    <section class="session" aria-label="Scout progress">
+      <div class="progress-heading"><strong id="progress-label">Ready to scout</strong><span id="status" class="status">Idle</span></div>
+      <progress id="progress" max="30" value="0" aria-labelledby="progress-label"></progress>
+      <div class="numbers"><span>Scanned <b id="scanned">0</b></span><span>Matched <b id="matched">0 / 30</b></span></div>
+      <p id="reason" aria-live="polite">Open a YouTube Short, then start scouting.</p>
+      <div class="actions"><button id="start" class="primary" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m8 4 13 8-13 8V4Z"/></svg><span id="start-label">Start scouting</span></button><button id="pause" type="button" disabled>Pause</button><button id="stop" type="button" disabled>Stop</button></div>
+      <div id="pending-row" class="pending" hidden><span id="pending-text"></span><button id="retry" type="button">Retry</button></div>
+    </section>
+    <p id="error" role="alert" hidden></p>
+    <details id="activity"><summary>Recent activity <span id="saved-count"></span></summary><ol id="logs"><li>Your scouting activity will appear here.</li></ol></details>
+    <footer><button id="selftest" class="text-button" type="button">Self-test</button><span>Read-only · 4–9 sec pace</span></footer>
+    <div id="checks" role="status" hidden></div>
+    <p class="footnote">Hidden counts are skipped. Collected clips are inspiration until reuse rights are confirmed in your Library.</p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

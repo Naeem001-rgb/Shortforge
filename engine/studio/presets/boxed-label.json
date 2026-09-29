@@ -1,0 +1,15 @@
+{
+  "id": "boxed-label",
+  "name": "Boxed Label",
+  "font": "DejaVu Sans",
+  "size": 58,
+  "weight": 700,
+  "fill": "#FFFFFF",
+  "stroke": 12,
+  "shadow": 0,
+  "highlight": "#0A84FF",
+  "box": true,
+  "position": 0.72,
+  "animation": "fade",
+  "description": "High-contrast text inside a dark label."
+}

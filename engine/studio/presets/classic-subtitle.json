@@ -1,0 +1,15 @@
+{
+  "id": "classic-subtitle",
+  "name": "Classic Subtitle",
+  "font": "DejaVu Sans",
+  "size": 52,
+  "weight": 400,
+  "fill": "#FFFFFF",
+  "stroke": 2,
+  "shadow": 1,
+  "highlight": "#0A84FF",
+  "box": false,
+  "position": 0.86,
+  "animation": "none",
+  "description": "Familiar, readable subtitles with a fine outline."
+}

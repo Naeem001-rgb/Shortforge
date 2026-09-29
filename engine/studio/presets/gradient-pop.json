@@ -1,0 +1,15 @@
+{
+  "id": "gradient-pop",
+  "name": "Gradient Pop",
+  "font": "DejaVu Sans",
+  "size": 68,
+  "weight": 700,
+  "fill": "#FFFFFF",
+  "stroke": 4,
+  "shadow": 2,
+  "highlight": "#0A84FF",
+  "box": false,
+  "position": 0.72,
+  "animation": "gradient",
+  "description": "A stepped color blend across each line."
+}

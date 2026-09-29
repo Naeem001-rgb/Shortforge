@@ -1,0 +1,15 @@
+{
+  "id": "lower-third",
+  "name": "Lower Third",
+  "font": "DejaVu Sans",
+  "size": 48,
+  "weight": 500,
+  "fill": "#FFFFFF",
+  "stroke": 9,
+  "shadow": 0,
+  "highlight": "#0A84FF",
+  "box": true,
+  "position": 0.86,
+  "animation": "slide",
+  "description": "A compact lower-third label with a short rise."
+}

@@ -1,0 +1,15 @@
+{
+  "id": "typewriter",
+  "name": "Typewriter",
+  "font": "DejaVu Sans",
+  "size": 56,
+  "weight": 500,
+  "fill": "#FFFFFF",
+  "stroke": 2,
+  "shadow": 1,
+  "highlight": "#0A84FF",
+  "box": false,
+  "position": 0.76,
+  "animation": "typewriter",
+  "description": "Words appear one by one as you speak."
+}

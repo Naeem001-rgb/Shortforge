@@ -1,0 +1,15 @@
+{
+  "id": "outline-comic",
+  "name": "Outline Comic",
+  "font": "DejaVu Sans",
+  "size": 74,
+  "weight": 700,
+  "fill": "#FFE26A",
+  "stroke": 6,
+  "shadow": 3,
+  "highlight": "#0A84FF",
+  "box": false,
+  "position": 0.7,
+  "animation": "pop",
+  "description": "Bold yellow lettering with a dark outline."
+}

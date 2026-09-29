@@ -1,0 +1,15 @@
+{
+  "id": "clean-minimal",
+  "name": "Clean Minimal",
+  "font": "DejaVu Sans",
+  "size": 54,
+  "weight": 400,
+  "fill": "#FFFFFF",
+  "stroke": 1,
+  "shadow": 1,
+  "highlight": "#0A84FF",
+  "box": false,
+  "position": 0.78,
+  "animation": "fade",
+  "description": "Lightweight lines with a quiet fade."
+}

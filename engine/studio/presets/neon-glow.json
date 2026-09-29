@@ -1,0 +1,15 @@
+{
+  "id": "neon-glow",
+  "name": "Neon Glow",
+  "font": "DejaVu Sans",
+  "size": 66,
+  "weight": 700,
+  "fill": "#FFFFFF",
+  "stroke": 3,
+  "shadow": 4,
+  "highlight": "#3BF5CF",
+  "box": false,
+  "position": 0.7,
+  "animation": "glow",
+  "description": "Soft colored glow behind clear white text."
+}

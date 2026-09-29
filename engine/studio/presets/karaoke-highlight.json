@@ -1,0 +1,15 @@
+{
+  "id": "karaoke-highlight",
+  "name": "Karaoke Highlight",
+  "font": "DejaVu Sans",
+  "size": 64,
+  "weight": 700,
+  "fill": "#FFFFFF",
+  "stroke": 3,
+  "shadow": 1,
+  "highlight": "#0A84FF",
+  "box": false,
+  "position": 0.74,
+  "animation": "karaoke",
+  "description": "Words fill with color as they are spoken."
+}
