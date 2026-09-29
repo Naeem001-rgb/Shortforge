@@ -1,0 +1,2 @@
+# ShortForge design
+The user's supplied Apple-style world is binding: Inter, soft near-white and charcoal surfaces, blue actions, Lucide line icons. Mode: Operate. The workbench prioritizes media and keeps technical setup in Settings. Library starts empty with a prominent import route and a practical discovery guide. Studio uses a portrait canvas and contextual controls. Light/dark/system are equally supported; no remote fonts or fabricated sample data.

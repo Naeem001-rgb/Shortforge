@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+data/*
+!data/.gitkeep
+test-results/
+playwright-report/
+.impeccable/

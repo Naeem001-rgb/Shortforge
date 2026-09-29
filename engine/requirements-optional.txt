@@ -1,0 +1,8 @@
+# Install only the packages you choose. Use Python 3.11 or 3.12 for speech models.
+# faster-whisper: CPU transcription; model downloaded separately with user consent.
+faster-whisper>=1.1
+# Piper: free local TTS; download a voice with suitable license separately.
+piper-tts>=1.3
+# Optional network TTS; unofficial, service availability and terms may change.
+edge-tts>=7
+# Voice cloning is intentionally separate: see docs/VOICE.md for F5-TTS.
