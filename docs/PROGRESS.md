@@ -45,3 +45,13 @@ A preinstalled eSpeak NG voice is now available as an explicitly labeled basic l
 - Actual launcher checked, main library left empty, and live health returned200. The ready voice list includes installed eSpeak; optional neural models remain uninstalled.
 
 The test suite emits one upstream Starlette/httpx deprecation warning; it does not affect test results. Live YouTube and provider/model limitations listed above still apply.
+
+## September 29, 2026 — Scout 0.1.1 collection fix
+
+Investigated the report of 36 scanned Shorts and no matches in Narrated mode. That mode incorrectly required narration keywords in titles/descriptions, so eligible narrated videos with ordinary titles could be rejected. Removed that requirement: clips with readable counts meeting both limits are now collected for narration review, without credits or keywords. Narration remains unverified because Scout does not analyze audio. Explicit mode selection also overrides a stale saved credit phase, and changing mode or count limits allows previously skipped videos to be checked again.
+
+Improved extraction for newer like buttons and structured statistics, precise accessible counts, hidden elements, and delayed description panels/counts. Description prose cannot substitute for actual view counts; unreadable counts still skip. The popup now shows the last Short's counts and decision, and records skip reasons in Recent activity. Updated guidance in the dashboard and extension and rebuilt `extension/dist` as version 0.1.1.
+
+Validation: **20 Scout tests passed**, including a 30-match run from noncredited, keyword-free candidates at exactly 5,000 likes / 10,000 views; extension type-check/build and dashboard production build passed. Expanded synthetic YouTube browser checks passed for delayed loading, modern markup, hidden counts, precise accessible values, and unknown views. Popup tests passed in light/dark for the paused 36-scanned case, missing-count diagnostics, successful matches, live state updates, and Self-test; dark diagnostics screenshot reviewed. Live YouTube collection still requires verification in the user's Chrome.
+
+To activate: reload Scout at `chrome://extensions`, refresh the YouTube Shorts tab, then Stop and Start scouting for a fresh session. Check Last Short / Recent activity if anything is skipped.

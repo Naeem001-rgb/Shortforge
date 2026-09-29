@@ -7,15 +7,19 @@ export interface Candidate {
   credit_snippet: string; thumbnail_url: string; discovery_mode?: 'credits' | 'narrated';
 }
 export interface LogEntry { at: number; text: string }
+export interface ScanResult {
+  video_id: string; title: string; likes: number | null; views: number | null;
+  mode: 'credits' | 'narrated'; matched: boolean; reason: string;
+}
 export interface ScoutState {
   status: Status; settings: Settings; activeMode: 'credits' | 'narrated'; tabId: number | null;
   scanned: number; matched: number; saved: number; creditMisses: number; reason: string;
-  pending: Candidate[]; knownIds: string[]; seenIds: string[]; logs: LogEntry[];
+  pending: Candidate[]; knownIds: string[]; seenIds: string[]; logs: LogEntry[]; lastScan: ScanResult | null;
 }
 export const DEFAULTS: Settings = { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated' };
 export function initialState(): ScoutState {
   return { status: 'idle', settings: { ...DEFAULTS }, activeMode: 'narrated', tabId: null,
     scanned: 0, matched: 0, saved: 0, creditMisses: 0,
-    reason: 'Open a YouTube Short, then start scouting.', pending: [], knownIds: [], seenIds: [], logs: [] };
+    reason: 'Open a YouTube Short, then start scouting.', pending: [], knownIds: [], seenIds: [], logs: [], lastScan: null };
 }
 export interface SelectorCheck { name: string; found: boolean; required: boolean }

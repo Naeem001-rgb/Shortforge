@@ -8,6 +8,9 @@ async function load() {
   if (!state) {
     const stored = await chrome.storage.local.get('scout');
     state = { ...initialState(), ...stored.scout };
+    // Only Auto has a separate phase. Explicit choices always win over a
+    // stale phase saved by an older extension worker.
+    if (state.settings.mode !== 'auto') state.activeMode = state.settings.mode;
   }
   return state;
 }
@@ -61,14 +64,20 @@ function settingsFrom(value: unknown): Settings {
   }
   return { target: candidate.target, minLikes: candidate.minLikes, minViews: candidate.minViews, mode: candidate.mode };
 }
+function filtersChanged(previous: Settings, next: Settings): boolean {
+  return previous.mode !== next.mode || previous.minLikes !== next.minLikes || previous.minViews !== next.minViews;
+}
 async function handle(message: Record<string, unknown>, sender: chrome.runtime.MessageSender): Promise<unknown> {
   await load();
   if (message.type === 'state') return { state };
   if (message.type === 'hello') return { running: state.status === 'running' && state.tabId === sender.tab?.id };
   if (message.type === 'saveSettings') {
-    const previous = state.settings.mode;
+    const previous = state.settings;
     state.settings = settingsFrom(message.settings);
-    if (previous !== state.settings.mode) { state.activeMode = state.settings.mode === 'narrated' ? 'narrated' : 'credits'; state.creditMisses = 0; }
+    // Re-read the current Short after changing filters; otherwise a prior skip
+    // would remain cached even when the video meets the newly chosen criteria.
+    if (filtersChanged(previous, state.settings)) state.seenIds = [];
+    if (previous.mode !== state.settings.mode) { state.activeMode = state.settings.mode === 'narrated' ? 'narrated' : 'credits'; state.creditMisses = 0; }
     await save(); return { state };
   }
   if (message.type === 'start' || message.type === 'resume') {
@@ -84,6 +93,7 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
       state = { ...initialState(), knownIds: state.knownIds, settings, tabId: tab.id!, activeMode: settings.mode === 'narrated' ? 'narrated' : 'credits' };
     } else {
       if (state.tabId !== tab.id) throw new Error('Resume in the same YouTube tab, or Stop and start a new session.');
+      if (filtersChanged(state.settings, settings)) state.seenIds = [];
       if (settings.mode !== state.settings.mode) { state.activeMode = settings.mode === 'narrated' ? 'narrated' : 'credits'; state.creditMisses = 0; }
       state.settings = settings;
     }
@@ -114,24 +124,29 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
     if (state.seenIds.includes(clip.video_id)) return { running: true, repeat: true };
     state.seenIds.push(clip.video_id); state.scanned += 1;
     const duplicate = state.knownIds.includes(clip.video_id) || state.pending.some(item => item.video_id === clip.video_id);
+    if (state.settings.mode !== 'auto') state.activeMode = state.settings.mode;
     const decision = matchesCandidate(clip, state.settings, state.activeMode);
+    const reason = duplicate ? 'Already in your Library or waiting to save' : decision.reason;
+    const matched = !duplicate && decision.matched;
+    state.lastScan = { video_id: clip.video_id, title: clip.title, likes: clip.likes, views: clip.views, mode: state.activeMode, matched, reason };
+    const counts = `${clip.likes?.toLocaleString('en-US') ?? 'unreadable'} likes; ${clip.views?.toLocaleString('en-US') ?? 'unreadable'} views`;
+    log(`${matched ? 'Matched' : 'Skipped'}: ${clip.title.slice(0, 70) || clip.video_id} — ${counts}. ${reason}`);
     if (!duplicate && decision.matched) {
       const match = { ...clip, discovery_mode: state.activeMode };
       state.pending.push(match); state.matched += 1; state.creditMisses = 0;
-      log(`Matched: ${clip.title.slice(0, 100) || clip.video_id}`);
       // Persist before making the network request so a stopped worker cannot lose a match.
       await save(); await flush();
     } else if (state.settings.mode === 'auto' && state.activeMode === 'credits') {
       state.creditMisses += 1;
       if (state.creditMisses >= 30) {
-        state.activeMode = 'narrated'; state.reason = 'Switched to narration hints after 30 Shorts without a new credited match.';
+        state.activeMode = 'narrated'; state.reason = 'Switched to narrated candidates after 30 Shorts without a new credited match. Credits and keywords are no longer required.';
         log(state.reason);
       }
     }
     if (state.status === 'running' && (state.matched >= state.settings.target || state.scanned >= 500)) {
       state.status = 'complete'; state.reason = state.matched >= state.settings.target ? 'Target reached. Your clips are in the Library.' : 'Reached the 500-Short session limit.'; log(state.reason);
     }
-    await save(); return { running: state.status === 'running', reason: duplicate ? 'Already in your Library' : decision.reason };
+    await save(); return { running: state.status === 'running', reason };
   }
   return { state };
 }

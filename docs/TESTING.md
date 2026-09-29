@@ -14,7 +14,7 @@
 4. Choose Narrated Shorts (credits optional) or Auto (credits first, fallback after 30 misses). Set your thresholds and click Start.
 5. Check the Library for matches. Pause if YouTube requires verification. Unknown counts are skipped, so collecting 30 is not guaranteed.
 
-The scout recognizes narration hints in public metadata; it cannot prove a voice is AI generated. Selector diagnostics are provided because YouTube changes its layout. It never likes, subscribes, comments, or posts.
+Narrated mode collects clips meeting both count limits without requiring credits or narration keywords. It cannot verify narration or prove a voice is AI generated. Check **Last Short** and **Recent activity** for the extracted counts and any skip reason. Selector diagnostics are provided because YouTube changes its layout. It never likes, subscribes, comments, or posts.
 
 ## M2 — Permissions, footage and transcript
 1. Add a YouTube link. It should be labeled **Inspiration** and its footage editing locked.

@@ -5,8 +5,8 @@ const button = (id: string) => byId<HTMLButtonElement>(id);
 let current = initialState();
 let busy = false;
 const hints: Record<Settings['mode'], string> = {
-  narrated: 'Matches title and description hints. Listen to confirm narration; AI audio is not verified.',
-  auto: 'Starts with credited sources. Switches to narration hints after 30 Shorts without a new credited match.',
+  narrated: 'Saves clips meeting your limits. No credits or keywords required. Review narration in Library.',
+  auto: 'Starts with credited sources. After 30 misses, collects clips meeting your limits for narration review.',
   credits: 'Looks for attribution in descriptions. Credit alone does not grant permission to reuse a video.',
 };
 function settings(): Settings {
@@ -32,6 +32,13 @@ function render(state: ScoutState, populate = false) {
   byId('matched').textContent = `${state.matched} / ${state.settings.target}`;
   byId('reason').textContent = state.reason;
   byId('saved-count').textContent = state.saved ? `${state.saved} saved` : '';
+  const lastScan = byId('last-scan');
+  lastScan.hidden = !state.lastScan;
+  if (state.lastScan) {
+    const scan = state.lastScan;
+    const count = (value: number | null) => value?.toLocaleString() ?? 'unreadable';
+    lastScan.textContent = `Last Short: ${count(scan.likes)} likes · ${count(scan.views)} views. ${scan.matched ? 'Matched' : 'Skipped'} — ${scan.reason}`;
+  }
   byId('start-label').textContent = busy ? 'Connecting…' : state.status === 'paused' ? 'Resume' : state.status === 'running' ? 'Scouting…' : 'Start scouting';
   button('start').disabled = busy || state.status === 'running';
   button('pause').disabled = busy || state.status !== 'running';

@@ -63,9 +63,18 @@ export function hasNarrationHints(text: string): boolean {
 }
 
 export function matchesCandidate(clip: Candidate, settings: Settings, mode: 'credits' | 'narrated'): { matched: boolean; reason: string } {
-  if (clip.likes === null || clip.views === null) return { matched: false, reason: 'Likes or views hidden / unavailable' };
-  if (clip.likes < settings.minLikes || clip.views < settings.minViews) return { matched: false, reason: 'Below your minimum counts' };
+  const unreadable = (value: number | null) => !Number.isSafeInteger(value) || value === null || value < 0;
+  if (unreadable(clip.likes) || unreadable(clip.views)) {
+    const missing = [unreadable(clip.likes) ? 'likes' : '', unreadable(clip.views) ? 'views' : ''].filter(Boolean).join(' and ');
+    return { matched: false, reason: `Could not read ${missing}. Open the description and run Self-test.` };
+  }
+  if (clip.likes! < settings.minLikes || clip.views! < settings.minViews) {
+    const below = [clip.likes! < settings.minLikes ? `likes ${clip.likes!.toLocaleString('en-US')} < ${settings.minLikes.toLocaleString('en-US')}` : '', clip.views! < settings.minViews ? `views ${clip.views!.toLocaleString('en-US')} < ${settings.minViews.toLocaleString('en-US')}` : ''].filter(Boolean).join('; ');
+    return { matched: false, reason: `Below your limits: ${below}` };
+  }
   if (mode === 'credits' && !clip.credit_target) return { matched: false, reason: 'No credited source found' };
-  if (mode === 'narrated' && !hasNarrationHints(`${clip.title}\n${clip.description}`)) return { matched: false, reason: 'No narration hints in the metadata' };
-  return { matched: true, reason: mode === 'credits' ? 'Credited source found' : 'Narration hints found; review audio in Library' };
+  // Narrators rarely identify their format in the description. Keywords are a
+  // useful hint, but their absence is not evidence that a clip has no narration.
+  // Collect eligible candidates for review without requiring credits or keywords.
+  return { matched: true, reason: mode === 'credits' ? 'Credited source found' : hasNarrationHints(`${clip.title}\n${clip.description}`) ? 'Narration hints found; review audio in Library' : 'Meets your limits; review narration in Library' };
 }

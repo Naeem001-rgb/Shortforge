@@ -11,6 +11,55 @@ let advancedAt = 0;
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const send = (message: object) => chrome.runtime.sendMessage(message);
 const text = (node: HTMLElement | null) => node?.innerText?.trim() || '';
+function labeledCount(value: string, kind: 'likes' | 'views'): number | null {
+  const forward = countFromLabel(value, kind);
+  if (forward !== null) return forward;
+  // A stat card can render its label above the number, without a colon.
+  const label = kind === 'likes' ? 'likes?' : 'views?';
+  const reverse = value.trim().match(new RegExp(`^${label}\\s*[:：]?\\s*(\\d[\\d.,\\u00a0\\u202f\\u2009 ]*\\s*[KMB]?)$`, 'i'));
+  return reverse ? parseCount(reverse[1]) : null;
+}
+function countInNodes(nodes: HTMLElement[], kind: 'likes' | 'views', allowBare = false): number | null {
+  for (const node of nodes.filter(visible)) {
+    const labels = [node, ...all(node, SELECTORS.accessibleLabels)]
+      .filter(visible).map(item => item.getAttribute('aria-label') || '');
+    const values = [...labels, text(node)];
+    for (const value of values) {
+      const count = labeledCount(value, kind);
+      if (count !== null) return count;
+    }
+    if (allowBare) for (const value of values) {
+      const count = parseCount(value);
+      if (count !== null) return count;
+    }
+  }
+  return null;
+}
+function readCounts(root: HTMLElement, panel: HTMLElement | null): { likes: number | null; views: number | null } {
+  const scopes = panel ? [panel, root] : [root];
+  const stats = scopes.flatMap(scope => all(scope, SELECTORS.stats));
+  return {
+    likes: countInNodes(all(root, SELECTORS.like), 'likes', true) ?? countInNodes(stats, 'likes'),
+    views: countInNodes(scopes.flatMap(scope => all(scope, SELECTORS.viewCount)), 'views', true)
+      ?? countInNodes(stats, 'views')
+      ?? countInNodes(scopes.flatMap(scope => all(scope, SELECTORS.views)), 'views'),
+  };
+}
+async function waitForDescriptionPanel(): Promise<HTMLElement | null> {
+  const started = Date.now();
+  const deadline = started + 1800;
+  do {
+    const panel = first(document, SELECTORS.descriptionPanel);
+    if (panel) {
+      // Preserve the description's initial rendering grace period as well as waiting for the panel.
+      const remaining = 450 - (Date.now() - started);
+      if (remaining > 0) await wait(remaining);
+      return panel;
+    }
+    await wait(100);
+  } while (Date.now() < deadline);
+  return null;
+}
 function challenge(): string | null {
   for (const node of all(document, SELECTORS.challenges).filter(visible)) {
     if (node instanceof HTMLIFrameElement) return 'A verification check appeared. Complete it yourself, then resume.';
@@ -22,18 +71,18 @@ async function descriptionPanel(root: HTMLElement): Promise<{ panel: HTMLElement
   let panel = first(document, SELECTORS.descriptionPanel);
   if (panel) return { panel, opened: false };
   const direct = first(root, SELECTORS.descriptionOpen);
-  if (direct) { direct.click(); await wait(450); }
+  if (direct) { direct.click(); panel = await waitForDescriptionPanel(); }
   else {
     const more = first(root, SELECTORS.moreOpen);
     if (more) {
       more.click(); await wait(250);
       // Opening this one informational panel is the only menu action Scout takes.
       const description = all(document, SELECTORS.menuItems).find(item => visible(item) && /^description$/i.test(text(item)));
-      if (description) { description.click(); await wait(450); }
+      if (description) { description.click(); panel = await waitForDescriptionPanel(); }
       else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
     }
   }
-  panel = first(document, SELECTORS.descriptionPanel);
+  panel ??= first(document, SELECTORS.descriptionPanel);
   return { panel, opened: Boolean(panel) };
 }
 async function readClip(): Promise<Candidate> {
@@ -44,24 +93,21 @@ async function readClip(): Promise<Candidate> {
   const channel = first(root, SELECTORS.channel);
   const channelHref = channel?.getAttribute('href') || '';
   const channelHandle = channelHref.match(/\/@([^/?]+)/)?.[1] || text(channel).match(/@([^\s]+)/)?.[1] || '';
-  const likeNode = first(root, SELECTORS.like);
-  let likes: number | null = null;
-  if (likeNode) {
-    likes = countFromLabel(likeNode.getAttribute('aria-label') || '', 'likes')
-      ?? parseCount(likeNode.getAttribute('aria-label')) ?? parseCount(text(likeNode));
-    // The accessible count may live on a nested label instead of the button.
-    if (likes === null) for (const item of all(root, SELECTORS.like)) likes ??= parseCount(text(item)) ?? parseCount(item.getAttribute('aria-label'));
-  }
   const { panel, opened } = await descriptionPanel(root);
   try {
+    // YouTube often opens an empty panel before its counts arrive from the network.
+    const deadline = Date.now() + 1800;
+    let counts = readCounts(root, panel);
+    while ((counts.likes === null || counts.views === null) && Date.now() < deadline) {
+      if (videoIdFromUrl(location.href) !== id) break;
+      await wait(100);
+      counts = readCounts(root, panel);
+    }
     if (videoIdFromUrl(location.href) !== id) throw new Error('The Short changed while reading. Resume once the video has loaded.');
     const description = text(first(panel || root, SELECTORS.description));
-    const metadata = [panel ? text(panel) : '', ...all(root, SELECTORS.views).map(text)].join('\n');
-    const views = countFromLabel(metadata, 'views');
-    likes ??= countFromLabel(metadata, 'likes');
     const credit = detectCredit(description, channelHandle);
     return { video_id: id, url: `https://www.youtube.com/shorts/${id}`, title, channel_name: text(channel), channel_handle: channelHandle ? `@${channelHandle}` : '', description,
-      likes, views, credit_target: credit?.target || '', credit_snippet: credit?.snippet || '', thumbnail_url: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` };
+      ...counts, credit_target: credit?.target || '', credit_snippet: credit?.snippet || '', thumbnail_url: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` };
   } finally {
     if (opened && panel) first(panel, SELECTORS.descriptionClose)?.click();
   }

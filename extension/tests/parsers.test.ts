@@ -57,3 +57,20 @@ test('mode and thresholds require known counts while narration does not require 
   assert.equal(matchesCandidate({ ...clip, views: 9999 }, DEFAULTS, 'narrated').matched, false);
   assert.ok(matchesCandidate({ ...clip, credit_target: '@creator' }, DEFAULTS, 'credits').matched);
 });
+test('narrated candidates are not rejected for ordinary titles, empty descriptions or missing credits', () => {
+  const clip: Candidate = { video_id: 'tleaVXWF3YI', url: '', title: 'Wait for the ending', description: '', channel_name: '', channel_handle: '', likes: 5000, views: 10000, credit_target: '', credit_snippet: '', thumbnail_url: '' };
+  for (const title of ['Wait for the ending', 'He never expected this', '', 'یہ کیسے ہوا']) {
+    const result = matchesCandidate({ ...clip, title }, DEFAULTS, 'narrated');
+    assert.equal(result.matched, true, title);
+    assert.match(result.reason, /review narration/);
+  }
+  assert.equal(matchesCandidate(clip, DEFAULTS, 'credits').matched, false);
+});
+test('skip decisions explain the actual missing count or failed threshold', () => {
+  const clip: Candidate = { video_id: 'tleaVXWF3YI', url: '', title: 'Wait for it', description: '', channel_name: '', channel_handle: '', likes: 8000, views: 25000, credit_target: '', credit_snippet: '', thumbnail_url: '' };
+  assert.match(matchesCandidate({ ...clip, views: null }, DEFAULTS, 'narrated').reason, /Could not read views/);
+  assert.match(matchesCandidate({ ...clip, likes: 4999 }, DEFAULTS, 'narrated').reason, /likes 4,999 < 5,000/);
+  assert.match(matchesCandidate({ ...clip, views: 9999 }, DEFAULTS, 'narrated').reason, /views 9,999 < 10,000/);
+  assert.equal(matchesCandidate({ ...clip, likes: Number.NaN }, DEFAULTS, 'narrated').matched, false);
+  assert.equal(matchesCandidate({ ...clip, views: Number.POSITIVE_INFINITY }, DEFAULTS, 'narrated').matched, false);
+});

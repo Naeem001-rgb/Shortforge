@@ -11,7 +11,7 @@
     <form id="settings" novalidate>
       <label for="mode">Look for</label>
       <div class="select-wrap"><select id="mode" name="mode"><option value="narrated">Narrated Shorts</option><option value="auto">Credits first, then narrated</option><option value="credits">Credited sources only</option></select><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div>
-      <p id="mode-help" class="hint">Matches title and description hints. Listen to confirm narration; AI audio is not verified.</p>
+      <p id="mode-help" class="hint">Saves clips meeting your limits. No credits or keywords required. Review narration in Library.</p>
       <div class="fields"><div><label for="target">Target</label><input id="target" name="target" type="number" inputmode="numeric" min="1" max="500" step="1" value="30"></div><div><label for="minLikes">Min. likes</label><input id="minLikes" name="minLikes" type="number" inputmode="numeric" min="0" step="1" value="5000"></div><div><label for="minViews">Min. views</label><input id="minViews" name="minViews" type="number" inputmode="numeric" min="0" step="1" value="10000"></div></div>
     </form>
     <section class="session" aria-label="Scout progress">
@@ -20,6 +20,7 @@
       <div class="numbers"><span>Scanned <b id="scanned">0</b></span><span>Matched <b id="matched">0 / 30</b></span></div>
       <p id="reason" aria-live="polite">Open a YouTube Short, then start scouting.</p>
       <div class="actions"><button id="start" class="primary" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m8 4 13 8-13 8V4Z"/></svg><span id="start-label">Start scouting</span></button><button id="pause" type="button" disabled>Pause</button><button id="stop" type="button" disabled>Stop</button></div>
+      <p id="last-scan" class="hint" hidden></p>
       <div id="pending-row" class="pending" hidden><span id="pending-text"></span><button id="retry" type="button">Retry</button></div>
     </section>
     <p id="error" role="alert" hidden></p>

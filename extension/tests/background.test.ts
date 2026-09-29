@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import vm from 'node:vm';
 import type { Candidate, ScoutState } from '../src/types';
+import { initialState } from '../src/types';
 
-async function harness(existingIds: string[] = []) {
+async function harness(existingIds: string[] = [], initial?: ScoutState) {
   let handler: Function;
-  let stored: Record<string, unknown> = {};
+  let stored: Record<string, unknown> = initial ? { scout: initial } : {};
   let online = true;
   const known = new Set(existingIds);
   const sends: object[] = [];
@@ -65,7 +66,7 @@ test('credit-first fallback changes after 30 misses and does not imply audio ver
   for (let i = 0; i < 30; i++) await h.message({ type: 'scan', clip: clip(i) }, true);
   assert.equal(h.state().activeMode, 'narrated');
   assert.equal(h.state().matched, 0);
-  await h.message({ type: 'scan', clip: clip(31) }, true);
+  await h.message({ type: 'scan', clip: clip(31, { title: 'Wait for the ending', description: '' }) }, true);
   assert.equal(h.state().matched, 1);
   assert.equal(h.state().saved, 1);
 });
@@ -90,4 +91,62 @@ test('challenge pauses only the active tab, and stopped sessions ignore in-fligh
   assert.equal(h.state().matched, 0);
   await h.message({ type: 'stop' });
   assert.equal(h.state().status, 'stopped');
+});
+test('narrated mode saves a full target without credits or narration keywords', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings });
+  for (let i = 0; i < 36; i++) {
+    await h.message({ type: 'scan', clip: clip(i, { title: 'Wait for the ending', description: '', likes: 5000, views: 10000 }) }, true);
+  }
+  assert.equal(h.state().matched, 30);
+  assert.equal(h.state().saved, 30);
+  assert.equal(h.known.size, 30);
+  assert.equal(h.state().scanned, 30);
+  assert.equal(h.state().status, 'complete');
+  assert.equal(h.state().lastScan?.matched, true);
+  assert.equal(h.state().lastScan?.mode, 'narrated');
+});
+test('explicit narrated mode overrides a stale saved credits phase after a worker reload', async () => {
+  const h = await harness([], { ...initialState(), status: 'running', activeMode: 'credits', tabId: 7 });
+  await h.message({ type: 'scan', clip: clip(1, { title: 'Wait for the ending' }) }, true);
+  assert.equal(h.state().activeMode, 'narrated');
+  assert.equal(h.state().saved, 1);
+  assert.equal(h.state().lastScan?.mode, 'narrated');
+});
+test('changing credits to narrated while paused takes effect immediately on resume', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings: { ...settings, mode: 'credits' } });
+  await h.message({ type: 'scan', clip: clip(1, { title: 'Wait for the ending' }) }, true);
+  assert.equal(h.state().saved, 0);
+  assert.match(h.state().lastScan!.reason, /No credited source/);
+  await h.message({ type: 'pause' });
+  await h.message({ type: 'saveSettings', settings });
+  await h.message({ type: 'resume', tabId: 7, settings });
+  await h.message({ type: 'scan', clip: clip(1, { title: 'Wait for the ending' }) }, true);
+  assert.equal(h.state().saved, 1);
+});
+test('lowering a threshold on resume rechecks a previously skipped Short', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings });
+  await h.message({ type: 'scan', clip: clip(1, { likes: 4999 }) }, true);
+  assert.equal(h.state().saved, 0);
+  await h.message({ type: 'pause' });
+  await h.message({ type: 'resume', tabId: 7, settings: { ...settings, minLikes: 4000 } });
+  await h.message({ type: 'scan', clip: clip(1, { likes: 4999 }) }, true);
+  assert.equal(h.state().saved, 1);
+});
+test('last scan and recent activity expose missing views, low counts, and duplicates', async () => {
+  const h = await harness([clip(3).video_id]);
+  await h.message({ type: 'start', tabId: 7, settings });
+  await h.message({ type: 'scan', clip: clip(1, { views: null }) }, true);
+  assert.equal(h.state().lastScan?.likes, 8000);
+  assert.equal(h.state().lastScan?.views, null);
+  assert.match(h.state().logs[0].text, /Skipped:.*8,000 likes; unreadable views/);
+  await h.message({ type: 'scan', clip: clip(2, { likes: 4999 }) }, true);
+  assert.match(h.state().lastScan!.reason, /likes 4,999 < 5,000/);
+  await h.message({ type: 'scan', clip: clip(3) }, true);
+  assert.match(h.state().lastScan!.reason, /Already in your Library/);
+  await h.message({ type: 'pause' });
+  assert.match(h.state().lastScan!.reason, /Already in your Library/);
+  assert.equal(h.state().matched, 0);
 });

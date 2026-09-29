@@ -108,9 +108,9 @@ export function ScoutPage({
             <div>
               <h3>Narrated Shorts</h3>
               <p>
-                Look for story, voiceover, and caption signals in the title and
-                description. These are leads to review, not proof of an AI
-                voice.
+                Collect videos meeting your likes and views limits, without
+                requiring credits or keywords. Review the results to confirm
+                narration.
               </p>
             </div>
           </div>
@@ -120,7 +120,7 @@ export function ScoutPage({
               <h3>Credit-first, with a fallback</h3>
               <p>
                 Auto mode looks for creator credits first. After 30 misses, it
-                switches to narrated Shorts.
+                switches to candidates for narration review.
               </p>
             </div>
           </div>
