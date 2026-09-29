@@ -60,6 +60,22 @@ async function waitForDescriptionPanel(): Promise<HTMLElement | null> {
   } while (Date.now() < deadline);
   return null;
 }
+function descriptionMenuItem(): HTMLElement | null {
+  const item = all(document, SELECTORS.menuItems).find(node => visible(node)
+    && /^description$/i.test(text(node).replace(/\s+/g, ' ')));
+  if (!item) return null;
+  // Modern list-item hosts do not necessarily handle clicks themselves.
+  return item.matches(SELECTORS.menuAction.join(',')) ? item : first(item, SELECTORS.menuAction) || item;
+}
+async function waitForDescriptionMenuItem(): Promise<HTMLElement | null> {
+  const deadline = Date.now() + 1800;
+  do {
+    const item = descriptionMenuItem();
+    if (item) return item;
+    await wait(100);
+  } while (Date.now() < deadline);
+  return null;
+}
 function challenge(): string | null {
   for (const node of all(document, SELECTORS.challenges).filter(visible)) {
     if (node instanceof HTMLIFrameElement) return 'A verification check appeared. Complete it yourself, then resume.';
@@ -67,23 +83,36 @@ function challenge(): string | null {
   }
   return null;
 }
-async function descriptionPanel(root: HTMLElement): Promise<{ panel: HTMLElement | null; opened: boolean }> {
+async function descriptionPanel(root: HTMLElement): Promise<{ panel: HTMLElement; opened: boolean }> {
   let panel = first(document, SELECTORS.descriptionPanel);
   if (panel) return { panel, opened: false };
   const direct = first(root, SELECTORS.descriptionOpen);
-  if (direct) { direct.click(); panel = await waitForDescriptionPanel(); }
-  else {
-    const more = first(root, SELECTORS.moreOpen);
-    if (more) {
-      more.click(); await wait(250);
-      // Opening this one informational panel is the only menu action Scout takes.
-      const description = all(document, SELECTORS.menuItems).find(item => visible(item) && /^description$/i.test(text(item)));
-      if (description) { description.click(); panel = await waitForDescriptionPanel(); }
-      else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
-    }
+  if (direct) {
+    direct.click(); panel = await waitForDescriptionPanel();
+    if (panel) return { panel, opened: true };
   }
-  panel ??= first(document, SELECTORS.descriptionPanel);
-  return { panel, opened: Boolean(panel) };
+  // A direct control may be present but inert. Retry through the same menu
+  // a viewer uses, and allow that menu to render asynchronously.
+  let description = descriptionMenuItem();
+  if (!description) {
+    const more = first(root, SELECTORS.moreOpen);
+    if (!more) {
+      throw new Error(direct
+        ? 'Clicked Description, but its panel did not open. Open Description manually, then resume.'
+        : 'Could not find this Short’s menu button. Reload the YouTube tab, then resume.');
+    }
+    more.click();
+    description = await waitForDescriptionMenuItem();
+  }
+  if (!description) {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+    throw new Error('Opened the Short’s menu, but could not find Description. Open Description manually, then resume.');
+  }
+  // Description is the only menu action Scout takes.
+  description.click();
+  panel = await waitForDescriptionPanel();
+  if (!panel) throw new Error('Clicked Description, but its panel did not open. Open Description manually, then resume.');
+  return { panel, opened: true };
 }
 async function readClip(): Promise<Candidate> {
   const id = videoIdFromUrl(location.href);
@@ -159,12 +188,15 @@ function run() {
 }
 async function selftest(): Promise<SelectorCheck[]> {
   const root = activeShort();
+  const panel = first(document, SELECTORS.descriptionPanel);
+  const counts = root ? readCounts(root, panel) : { likes: null, views: null };
   return [
     { name: 'YouTube Shorts URL', found: Boolean(videoIdFromUrl(location.href)) && location.pathname.startsWith('/shorts/'), required: true },
     { name: 'Active Short', found: Boolean(root), required: true },
     { name: 'Video title', found: Boolean(root && first(root, SELECTORS.title)), required: true },
-    { name: 'Like count element', found: Boolean(root && first(root, SELECTORS.like)), required: true },
-    { name: 'Description access', found: Boolean(first(document, SELECTORS.descriptionPanel) || (root && (first(root, SELECTORS.descriptionOpen) || first(root, SELECTORS.moreOpen)))), required: true },
+    { name: 'Readable like count', found: counts.likes !== null, required: true },
+    { name: panel ? 'Readable view count' : 'Readable view count (open Description first)', found: counts.views !== null, required: true },
+    { name: 'Description access', found: Boolean(panel || (root && (first(root, SELECTORS.descriptionOpen) || first(root, SELECTORS.moreOpen)))), required: true },
     { name: 'Next-video button (keyboard fallback)', found: Boolean(first(document, SELECTORS.next)), required: false },
     { name: 'No verification prompt', found: !challenge(), required: true },
   ];

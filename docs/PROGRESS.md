@@ -55,3 +55,20 @@ Improved extraction for newer like buttons and structured statistics, precise ac
 Validation: **20 Scout tests passed**, including a 30-match run from noncredited, keyword-free candidates at exactly 5,000 likes / 10,000 views; extension type-check/build and dashboard production build passed. Expanded synthetic YouTube browser checks passed for delayed loading, modern markup, hidden counts, precise accessible values, and unknown views. Popup tests passed in light/dark for the paused 36-scanned case, missing-count diagnostics, successful matches, live state updates, and Self-test; dark diagnostics screenshot reviewed. Live YouTube collection still requires verification in the user's Chrome.
 
 To activate: reload Scout at `chrome://extensions`, refresh the YouTube Shorts tab, then Stop and Start scouting for a fresh session. Check Last Short / Recent activity if anything is skipped.
+
+## September 29, 2026 — Scout 0.1.2, verified against live YouTube
+
+The user reported readable views in Description still being missed. Opened real YouTube in a separate Chromium profile and inspected the actual three-dot menu → Description flow. The earlier synthetic tests incorrectly supplied a direct Description button and never tested this menu. YouTube's current menu uses actionable `button[role="menuitem"]` elements within `yt-list-item-view-model`; Scout only searched older menu renderers. Added those controls, the `engagement-panel-structured-description` target, and current `view-count-factoid-renderer` / `factoid-renderer` stat selectors. Delayed menus now get bounded polling, and a failed direct control falls back to the menu. Opening failures pause with the exact failed step. Self-test now checks actual readable counts without clicking; users open Description first to expose its views.
+
+Loaded the real unpacked MV3 extension in the test browser and used the running local engine, without mocked YouTube pages or mocked saving. Initial live collection saved `tleaVXWF3YI` with 25,000 likes / 3,055,379 views. A subsequent session scanned four Shorts: skipped that duplicate, saved three new clips, and stopped at target 3. The engine API confirmed all four new clips persisted:
+
+| Video ID | Likes | Views |
+| --- | ---: | ---: |
+| tleaVXWF3YI | 25,000 | 3,055,379 |
+| ERtnwBo-IKY | 359,000 | 29,960,880 |
+| oCtP8HDfYVU | 174,000 | 13,086,193 |
+| XO5IukfwGb0 | 791,000 | 41,706,932 |
+
+Reopened the last Short's Description manually and compared its 41,706,932 views with the stored count: exact match. All live Self-test checks passed with the panel open. Live screenshots are in `extension/tests/screenshots/live-youtube-description.png` and `live-scout-complete.png`. This verifies menu opening, stats extraction, navigation, deduplication, target stop, and real Library persistence on the observed layout; it does not verify narration or every YouTube layout.
+
+Validation also passed: 20 extension unit tests, TypeScript/build, and browser regressions for modern/legacy delayed menus, top-level More, inert direct controls, existing open panels, missing Description, readable Self-test counts, and no social clicks. Built `extension/dist` version 0.1.2. Reload Scout and refresh the YouTube tab to activate it in the user's normal Chrome profile.

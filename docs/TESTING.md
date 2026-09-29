@@ -10,7 +10,7 @@
 ## M1 — Scout and Library
 1. Open `chrome://extensions` in Chrome; enable Developer mode.
 2. Click Load unpacked; select ShortForge's `extension/dist` folder.
-3. Open a YouTube Short, click the Scout extension, and run Self-test.
+3. Open a YouTube Short. Use its three-dot menu → Description, then run Scout's Self-test to check readable likes and views. During scouting this panel opens automatically.
 4. Choose Narrated Shorts (credits optional) or Auto (credits first, fallback after 30 misses). Set your thresholds and click Start.
 5. Check the Library for matches. Pause if YouTube requires verification. Unknown counts are skipped, so collecting 30 is not guaranteed.
 

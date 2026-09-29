@@ -31,8 +31,14 @@ try {
     document.getElementById('next').onclick = () => history.pushState({}, '', '/shorts/test0000001');
   });
   await page.addScriptTag({ path: resolve('dist/content.js') });
+  const closedChecks = await page.evaluate(() => new Promise(resolve => fixture.listeners[0]({ type: 'selftest' }, {}, resolve)));
+  assert.equal(closedChecks.checks.find(check => check.name === 'Readable view count (open Description first)').found, false);
+  assert.equal(await page.evaluate(() => document.getElementById('panel').style.display), 'none', 'Self-test must not click Description');
+  await page.click('#open');
   const checks = await page.evaluate(() => new Promise(resolve => fixture.listeners[0]({ type: 'selftest' }, {}, resolve)));
   assert.ok(checks.checks.filter(check => check.required).every(check => check.found));
+  assert.equal(await page.evaluate(() => document.getElementById('panel').style.display), 'block', 'Self-test must leave an already open panel alone');
+  await page.click('#close');
   await page.evaluate(() => fixture.listeners[0]({ type: 'run' }, {}, () => {}));
   await page.waitForFunction(() => fixture.messages.filter(message => message.type === 'scan').length === 2, { timeout: 10000 });
   const scans = await page.evaluate(() => fixture.messages.filter(message => message.type === 'scan'));
@@ -110,5 +116,7 @@ try {
     markup: '<div id="like-button"><button aria-label="Like this video along with 7,250 other people">7.2K</button></div>',
     expected: { likes: 7250, views: null },
   });
-  console.log('Browser fixture passed: description, counts, credits, navigation, selector health, verification pause, modern viewmodels, delayed counts, hidden stats, precise accessible counts, and unavailable views. This is not a live YouTube test.');
+  const { checkDescriptionMenus } = await import('./menu-fixture.mjs');
+  await checkDescriptionMenus(browser);
+  console.log('Browser fixture passed: description, counts, credits, navigation, read-only selector health, verification pause, modern viewmodels, delayed counts, hidden stats, precise accessible counts, actual YouTube menu/factoid markup, and menu failure pauses. This is not a live YouTube test.');
 } finally { await browser.close(); }

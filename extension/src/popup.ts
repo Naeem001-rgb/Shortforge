@@ -88,7 +88,7 @@ button('selftest').addEventListener('click', async () => {
       const indicator = document.createElement('strong'); indicator.textContent = check.found ? 'OK' : check.required ? 'Fail' : 'Note';
       row.append(indicator, document.createTextNode(check.name)); target.append(row);
     }
-    const note = document.createElement('p'); note.className = 'hint'; note.textContent = 'This checks page elements, not collection success. If a required item fails, reload YouTube. Counts may still be hidden.'; target.append(note);
+    const note = document.createElement('p'); note.className = 'hint'; note.textContent = 'This reads the current page without clicking. Open the Short’s three-dot menu → Description to check views, then run Self-test again. Scouting opens that panel automatically.'; target.append(note);
   } catch (cause) { target.textContent = cause instanceof Error ? cause.message : 'Reload the YouTube tab and try again.'; }
 });
 chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.scout) render(changes.scout.newValue); });
