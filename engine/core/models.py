@@ -46,6 +46,21 @@ class ExtractScriptInput(StrictModel):
     replace_existing: bool = False
 
 
+class ClipDeleteInput(StrictModel):
+    ids: list[str] = Field(min_length=1, max_length=200)
+
+    @field_validator("ids")
+    @classmethod
+    def clean_ids(cls, value: list[str]) -> list[str]:
+        # Repeats would be reported twice; blanks and runaway ids are junk.
+        cleaned = list(dict.fromkeys(i for i in value if i))
+        if not cleaned:
+            raise ValueError("Choose at least one video to delete.")
+        if any(len(i) > 64 for i in cleaned):
+            raise ValueError("Unrecognized video reference.")
+        return cleaned
+
+
 class TranscriptWord(StrictModel):
     word: str = Field(min_length=1, max_length=200)
     start: float = Field(ge=0, allow_inf_nan=False)

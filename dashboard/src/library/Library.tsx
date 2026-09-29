@@ -16,10 +16,11 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Clip } from "../api";
 import { api, count, editable, post, useJob } from "../api";
 import {
@@ -52,6 +53,8 @@ export function LibraryPage({
   const [view, setView] = useState("grid");
   const [detail, setDetail] = useState<Clip | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   const active = clips.filter((c) => c.workflow_status !== "archived");
   const visible = (
@@ -78,9 +81,35 @@ export function LibraryPage({
           ? (b.likes || 0) - (a.likes || 0)
           : b.created_at.localeCompare(a.created_at),
     );
+  const visibleIds = useMemo(() => visible.map((c) => c.id), [visible]);
+  const knownIds = useMemo(() => new Set(clips.map((c) => c.id)), [clips]);
+  // Only clips that truly left the library are dropped, never ones a filter is
+  // hiding, so the count in the bulk bar stays honest.
+  useEffect(() => {
+    setSelected((current) => {
+      const kept = current.filter((id) => knownIds.has(id));
+      return kept.length === current.length ? current : kept;
+    });
+  }, [knownIds]);
+  // Selections survive filtering and searching, so a stray keystroke never
+  // silently shrinks a delete. Select all only touches what is on screen.
+  const allSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (selectAllRef.current)
+      selectAllRef.current.indeterminate =
+        !allSelected && visibleIds.some((id) => selected.includes(id));
+  }, [selected, allSelected, visibleIds]);
   const toggle = (id: string) =>
     setSelected((v) =>
       v.includes(id) ? v.filter((x) => x !== id) : [...v, id],
+    );
+  const toggleAll = () =>
+    setSelected((current) =>
+      allSelected
+        ? current.filter((id) => !visibleIds.includes(id))
+        : [...new Set([...current, ...visibleIds])],
     );
   const archive = async () => {
     try {
@@ -98,6 +127,26 @@ export function LibraryPage({
       setError((e as Error).message);
     }
   };
+  const remove = async () => {
+    setDeleting(true);
+    setError("");
+    try {
+      const result = await post<{ deleted: string[]; missing: string[] }>(
+        "/clips/delete-bulk",
+        { ids: selected },
+      );
+      setSelected([]);
+      setConfirming(false);
+      refresh();
+      if (result.deleted.length === 0)
+        setError("Those videos were already gone. The library is up to date.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const csv = () => {
     const rows = clips.filter((c) => selected.includes(c.id));
     const safe = (s: string) =>
@@ -198,14 +247,27 @@ export function LibraryPage({
         </div>
       </div>
       <div className="filter-row">
-        <div className="search-input">
-          <Search size={17} />
-          <input
-            aria-label="Search videos"
-            placeholder="Search your videos…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+        <div className="filter-row-start">
+          <label className="select-all">
+            <input
+              ref={selectAllRef}
+              type="checkbox"
+              aria-label="Select all videos in this view"
+              checked={allSelected}
+              disabled={visible.length === 0}
+              onChange={toggleAll}
+            />
+            <span>Select all</span>
+          </label>
+          <div className="search-input">
+            <Search size={17} />
+            <input
+              aria-label="Search videos"
+              placeholder="Search your videos…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
         </div>
         <div className="filter-selects">
           <select
@@ -239,6 +301,15 @@ export function LibraryPage({
           </button>
           <button className="button secondary small" onClick={archive}>
             <Archive size={15} /> Archive
+          </button>
+          <button
+            className="button danger small"
+            onClick={() => {
+              setError("");
+              setConfirming(true);
+            }}
+          >
+            <Trash2 size={15} /> Delete
           </button>
           <IconButton label="Clear selection" onClick={() => setSelected([])}>
             <X size={16} />
@@ -463,6 +534,56 @@ export function LibraryPage({
           </button>
         </div>
       </div>
+      {confirming && (
+        <Modal
+          title="Delete videos"
+          onClose={() => !deleting && setConfirming(false)}
+        >
+          <p className="confirm-copy">
+            You are about to permanently delete{" "}
+            <strong>
+              {selected.length} {selected.length === 1 ? "video" : "videos"}
+            </strong>
+            . This also removes the saved script, transcript, and any downloaded
+            footage, voiceover, or exported MP4 on this computer. It cannot be
+            undone.
+          </p>
+          <ul className="confirm-list">
+            {selected
+              .slice(0, 5)
+              .map((id) => clips.find((c) => c.id === id)?.title || "A video")
+              .map((title) => (
+                <li key={title}>{title}</li>
+              ))}
+            {selected.length > 5 && <li>and {selected.length - 5} more…</li>}
+          </ul>
+          <Notice kind="info">
+            Archive keeps the entry and hides it from your library. Delete
+            removes it for good.
+          </Notice>
+          <div className="detail-actions">
+            <button
+              className="button secondary"
+              onClick={() => setConfirming(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </button>
+            <button
+              className="button danger"
+              onClick={remove}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <LoaderCircle size={16} className="spin" />
+              ) : (
+                <Trash2 size={16} />
+              )}{" "}
+              {deleting ? "Deleting…" : "Delete permanently"}
+            </button>
+          </div>
+        </Modal>
+      )}
       {detail && (
         <ClipDetail
           clip={clips.find((c) => c.id === detail.id) || detail}

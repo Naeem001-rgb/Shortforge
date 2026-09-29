@@ -320,15 +320,74 @@ def test_whisper_is_cpu_and_never_downloads_models(client, monkeypatch):
     assert calls[0][1]["device"] == "cpu"
 
 
-def test_delete_removes_db_relations_but_not_files(client):
+def test_delete_removes_db_relations_and_the_videos_files(client):
     clip = upload_one(client)
     path = db.resolve_data_path(clip["assets"][0]["path"])
     db.save_script(clip["id"], "Before", "After")
     db.new_job("test", clip["id"])
     assert client.delete(f"/api/clips/{clip['id']}").json() == {"ok": True}
     assert client.get(f"/api/clips/{clip['id']}").status_code == 404
-    assert path.exists()
+    assert not path.exists()
     with db.connect() as conn:
         assert conn.execute("SELECT COUNT(*) FROM assets").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM scripts").fetchone()[0] == 0
         assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+
+
+def test_delete_removes_voiceover_and_export_sidecars_but_keeps_voice_references(client):
+    clip = upload_one(client)
+    voice = db.DATA_DIR / "voiceovers" / "job-1.wav"
+    voice.parent.mkdir(parents=True, exist_ok=True)
+    voice.write_bytes(b"narration")
+    voice.with_suffix(".timing.json").write_text("{}", encoding="utf-8")
+    export = db.DATA_DIR / "exports" / "job-2.mp4"
+    export.parent.mkdir(parents=True, exist_ok=True)
+    export.write_bytes(b"rendered")
+    export.with_suffix(".ass").write_text("dialogue", encoding="utf-8")
+    for kind, path in (("voiceover", voice), ("export", export)):
+        db.add_asset(clip["id"], kind, path)
+    # A voice-clone reference is owned by its profile, not by this clip.
+    reference = db.DATA_DIR / "voices" / "mine.wav"
+    reference.parent.mkdir(parents=True, exist_ok=True)
+    reference.write_bytes(b"my voice")
+    db.add_asset(None, "reference", reference)
+
+    client.delete(f"/api/clips/{clip['id']}")
+    assert not voice.exists()
+    assert not voice.with_suffix(".timing.json").exists()
+    assert not export.exists()
+    assert not export.with_suffix(".ass").exists()
+    assert reference.exists()
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM assets WHERE kind='reference'").fetchone()[0] == 1
+
+
+def test_delete_ignores_asset_paths_outside_the_data_folder(client):
+    clip = upload_one(client)
+    outside = db.DATA_DIR.parent / "not-ours.mp4"
+    outside.write_bytes(b"someone else's file")
+    with db.connect() as conn:
+        conn.execute("UPDATE assets SET path=? WHERE clip_id=?", (str(outside), clip["id"]))
+    assert client.delete(f"/api/clips/{clip['id']}").json() == {"ok": True}
+    assert outside.exists()
+    outside.unlink()
+
+
+def test_bulk_delete_reports_an_honest_count_and_ignores_unknown_ids(client):
+    first, second = upload_one(client), import_one(client)
+    result = client.post("/api/clips/delete-bulk", json={"ids": [first["id"], second["id"], "missing-id", first["id"]]}).json()
+    assert result["deleted"] == [first["id"], second["id"]]
+    assert result["missing"] == ["missing-id"]
+    assert client.get("/api/clips").json()["clips"] == []
+    for body in ({"ids": []}, {"ids": ["a"], "unexpected": 1}):
+        assert client.post("/api/clips/delete-bulk", json=body).status_code == 422
+    assert client.post("/api/clips/delete-bulk", json={"ids": [first["id"]]}).json()["missing"] == [first["id"]]
+
+
+def test_bulk_delete_keeps_going_when_one_clip_is_already_gone(client):
+    first, second = upload_one(client), import_one(client)
+    client.delete(f"/api/clips/{first['id']}")
+    result = client.post("/api/clips/delete-bulk", json={"ids": [first["id"], second["id"]]}).json()
+    assert result["deleted"] == [second["id"]]
+    assert result["missing"] == [first["id"]]
+

@@ -134,6 +134,51 @@ def asset_dict(row) -> dict:
     return asset
 
 
+# Deleting a clip should also give the disk space back, not just the row.
+# A voice reference recording belongs to its voice profile, not to a clip.
+CLIP_OWNED_ASSETS = ("source", "voiceover", "export")
+
+
+def _prune_empty_folders(directory: Path) -> None:
+    """Remove folders a deleted clip left behind, stopping at the data root."""
+    root = DATA_DIR.resolve()
+    while directory != root and directory.is_relative_to(root):
+        try:
+            directory.rmdir()
+        except OSError:
+            return
+        directory = directory.parent
+
+
+def _remove_clip_files(rows) -> None:
+    for row in rows:
+        if row["kind"] not in CLIP_OWNED_ASSETS:
+            continue
+        try:
+            path = resolve_data_path(row["path"])
+        except HTTPException:
+            continue
+        # Voiceover and export jobs leave a timing/subtitle sidecar behind.
+        for candidate in (path, path.with_suffix(".timing.json"), path.with_suffix(".ass")):
+            try:
+                candidate.unlink()
+            except OSError:
+                pass
+        _prune_empty_folders(path.parent)
+
+
+def delete_clip(clip_id: str) -> None:
+    """Delete a clip, its related rows, and the media files it owns."""
+    with connect() as conn:
+        if conn.execute("SELECT 1 FROM clips WHERE id=?", (clip_id,)).fetchone() is None:
+            raise HTTPException(404, "Clip not found.")
+        rows = conn.execute(
+            "SELECT path,kind FROM assets WHERE clip_id=?", (clip_id,)
+        ).fetchall()
+        conn.execute("DELETE FROM clips WHERE id=?", (clip_id,))
+    _remove_clip_files(rows)
+
+
 def add_asset(clip_id: str | None, kind: str, path: Path) -> dict:
     if kind not in {"source", "voiceover", "export", "reference"}:
         raise ValueError("Unsupported asset kind")

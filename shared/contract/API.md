@@ -19,7 +19,8 @@ GET /api/clips -> {clips:Clip[]} (optional q, license_status, workflow_status, s
 POST /api/clips {clips: partial Clip[]} -> {clips:Clip[],added:number}; accepts URL-only YouTube import (canonicalize, validate ID); all new external clips license_status=unknown regardless of client; API enrichment can promote CC. Don't auto-seed database.
 GET /api/clips/{id} -> Clip detail
 PATCH /api/clips/{id} {title?, license_status?:'permission'|'unknown', permission_note?, workflow_status?} -> Clip. Permission requires nonempty note. Client cannot claim cc_by or owned.
-DELETE /api/clips/{id} -> {ok:true} (delete DB records only; no arbitrary file deletes)
+DELETE /api/clips/{id} -> {ok:true}. Removes the clip, its cascaded jobs/scripts/transcript/assets, and the media files it owns (source, voiceover + `.timing.json`, export + `.ass`) so disk space is reclaimed. Voice-clone `reference` recordings are owned by a voice profile and are never deleted here. Every path is re-resolved through the data-folder guard, so a tampered asset row cannot delete files outside `data/`. Empty per-clip folders are pruned.
+POST /api/clips/delete-bulk {ids:string[]} (1-200, de-duplicated) -> {deleted:string[],missing:string[]}. Deletes each existing clip and reports ids that were already gone; a missing id never aborts the rest. Empty list or unknown fields are rejected.
 POST /api/upload multipart `file`, `title` optional -> Clip (license owned; max 500 MB video)
 POST /api/clips/{id}/enrich -> Clip (YouTube free key required)
 POST /api/clips/{id}/download -> Job (gate first; background yt-dlp)

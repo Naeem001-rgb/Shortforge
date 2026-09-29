@@ -16,6 +16,17 @@
 
 Narrated mode collects clips meeting both count limits without requiring credits or narration keywords. It cannot verify narration or prove a voice is AI generated. Check **Last Short** and **Recent activity** for the extracted counts and any skip reason. Selector diagnostics are provided because YouTube changes its layout. It never likes, subscribes, comments, or posts.
 
+## Select all and delete
+1. In Library, tick **Select all** next to the search box. The bar should read the full count and every visible card should be checked.
+2. Untick one card. **Select all** should show a dash, and the count should drop by one.
+3. Type in the search box. The selection must stay the same; narrowing the list is for looking, not for changing what will be deleted.
+4. Filter to a smaller list and click **Select all** again. Only the rows on screen are added or removed, and the bar shows the real total.
+5. Click **Delete**. The dialog names the count, previews the titles, and says the script, transcript, download, voiceover, and export are removed for good.
+6. Click **Cancel** first. Nothing should be deleted.
+7. Click **Delete**, then **Delete permanently**. The videos should leave the Library and disappear from disk in `data/`.
+8. To confirm files are really gone, close the app, open `data/downloads`, `data/voiceovers`, and `data/exports`, and check the removed video's files are no longer there.
+9. A **Voice lab** reference recording must survive deleting the clip that used it.
+
 ## M2 — Permissions, footage and transcript
 1. Add a YouTube link. It should be labeled **Inspiration** and its footage editing locked.
 2. Open details. Copy the permission request; save a real permission note when received. Alternatively fetch verified YouTube data using your own API key.

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
 const root = path.resolve(import.meta.dirname, "../..");
@@ -110,6 +111,100 @@ test("library, theme, navigation, settings and responsive layout", async ({
   ).toBeTruthy();
   expect(errors).toEqual([]);
 });
+test("select all and permanently delete the chosen videos", async ({
+  page,
+  request,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const titles = ["Selectable one", "Selectable two", "Selectable three"];
+  const ids: string[] = [];
+  for (const title of titles) {
+    const response = await request.post("/api/clips", {
+      data: {
+        clips: [
+          {
+            url: `https://www.youtube.com/shorts/${randomBytes(8).toString("base64url")}`,
+            title,
+          },
+        ],
+      },
+    });
+    expect(response.ok()).toBeTruthy();
+    ids.push((await response.json()).clips[0].id);
+  }
+  try {
+    await page.goto("/");
+    const selectAll = page.getByLabel("Select all videos in this view");
+    await expect(selectAll).toBeVisible();
+    // Nothing matches the search yet, so the control is inert.
+    await page.getByLabel("Search videos").fill("no such video anywhere");
+    await expect(page.getByText("No videos in this view.")).toBeVisible();
+    await expect(selectAll).toBeDisabled();
+
+    await page.getByLabel("Search videos").fill("Selectable");
+    await expect(page.getByText("3 selected")).toBeHidden();
+    await selectAll.click();
+    await expect(page.getByText("3 selected")).toBeVisible();
+    for (const title of titles)
+      await expect(page.getByLabel(`Select ${title}`)).toBeChecked();
+
+    // Searching must not silently shrink a selection before a delete.
+    await page.getByLabel("Search videos").fill("Selectable one");
+    await expect(page.locator(".clip-card")).toHaveCount(1);
+    await expect(page.getByText("3 selected")).toBeVisible();
+    // Select all only touches the rows on screen, so it drops just that one.
+    await selectAll.click();
+    await expect(page.getByText("2 selected")).toBeVisible();
+    await page.getByLabel("Search videos").fill("");
+    await expect(page.locator(".clip-card")).toHaveCount(3);
+    await expect(page.getByLabel("Select Selectable one")).not.toBeChecked();
+    await expect(page.getByLabel("Select Selectable two")).toBeChecked();
+    await selectAll.click();
+    await expect(page.getByText("3 selected")).toBeVisible();
+    // Half-selected is reported as a mixed state, not a plain tick.
+    await page.getByLabel("Select Selectable three").uncheck();
+    await expect(selectAll).not.toBeChecked();
+    expect(await selectAll.evaluate((el) => el.indeterminate)).toBe(true);
+    // appearance:none drops the native dash, so a visible mark must be drawn.
+    expect(
+      await selectAll.evaluate((el) => getComputedStyle(el).backgroundImage),
+    ).toContain("data:image/svg+xml");
+    await expect(page.getByText("2 selected")).toBeVisible();
+
+    await selectAll.click();
+    await expect(page.getByText("3 selected")).toBeVisible();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Delete videos" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("3 videos");
+    await expect(dialog).toContainText("cannot be undone");
+    for (const title of titles) await expect(dialog).toContainText(title);
+
+    // Cancelling must not delete anything.
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(dialog).toBeHidden();
+    for (const title of titles)
+      await expect(page.getByRole("heading", { name: title })).toBeVisible();
+
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "Delete videos" })
+      .getByRole("button", { name: "Delete permanently" })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: "Delete videos" }),
+    ).toBeHidden();
+    for (const title of titles)
+      await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
+    for (const id of ids)
+      expect((await request.get(`/api/clips/${id}`)).status()).toBe(404);
+    expect(errors).toEqual([]);
+  } finally {
+    for (const id of ids) await request.delete(`/api/clips/${id}`);
+  }
+});
+
 test("import inspiration, save permission, upload own video and render a captioned Short", async ({
   page,
   request,

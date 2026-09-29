@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 import httpx
 
 from . import db, media, script_extraction
-from .models import ClipBatch, ClipPatch, ExtractScriptInput, SettingsPatch, TranscribeInput, TranscriptInput
+from .models import ClipBatch, ClipDeleteInput, ClipPatch, ExtractScriptInput, SettingsPatch, TranscribeInput, TranscriptInput
 
 
 router = APIRouter(prefix="/api")
@@ -183,10 +183,24 @@ def patch_clip(clip_id: str, patch: ClipPatch):
 
 @router.delete("/clips/{clip_id}")
 def delete_clip(clip_id: str):
-    db.get_clip(clip_id)
-    with db.connect() as conn:
-        conn.execute("DELETE FROM clips WHERE id = ?", (clip_id,))
+    db.delete_clip(clip_id)
     return {"ok": True}
+
+
+@router.post("/clips/delete-bulk")
+def delete_clips(body: ClipDeleteInput):
+    """Delete several videos at once so the library reports one honest count."""
+    deleted, missing = [], []
+    for clip_id in body.ids:
+        try:
+            db.delete_clip(clip_id)
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            missing.append(clip_id)
+        else:
+            deleted.append(clip_id)
+    return {"deleted": deleted, "missing": missing}
 
 
 def video_header_valid(header: bytes, suffix: str) -> bool:
