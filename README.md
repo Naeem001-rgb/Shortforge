@@ -5,7 +5,7 @@ A local creative workspace for narrated YouTube Shorts. Discover videos with a C
 ## Start on this Linux machine
 
 ```bash
-cd /home/naeem/Documents/ShortForge
+cd ShortForge
 ./start.sh
 ```
 
