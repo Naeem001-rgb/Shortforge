@@ -145,6 +145,13 @@ class EditorTests(unittest.TestCase):
         self.assertEqual(imported.status_code,200,imported.text)
         self.assertEqual(imported.json()['media_type'],'audio')
         self.assertGreater(max(imported.json()['waveform']),.03)
+        # A streamed container, like Chrome MediaRecorder, has no seekable
+        # duration header. It must be decoded before duration validation.
+        streamed=subprocess.run([self.ffmpeg,'-v','error','-i',str(self.red),'-vn','-c:a','libopus','-f','webm','pipe:1'],capture_output=True,check=True).stdout
+        imported=self.client.post(f'/api/editor/{self.clip}/media',data={'role':'voiceover'},files={'file':('live-recording.webm',streamed,'audio/webm')})
+        self.assertEqual(imported.status_code,200,imported.text)
+        self.assertAlmostEqual(imported.json()['duration'],3,delta=.05)
+        self.assertGreater(max(imported.json()['waveform']),.03)
 
     def test_track_hidden_muted_freeze_reverse_and_effects(self):
         hidden=self.project(self.item(fit='cover',duration=.3))

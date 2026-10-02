@@ -140,6 +140,23 @@ def normalize_browser_video(path: Path) -> Path:
         raise
 
 
+def normalize_browser_audio(path: Path) -> Path:
+    """Decode streamed recordings before requiring seekable duration metadata."""
+    output=path.with_name(path.stem+'-playable.wav')
+    try:
+        process=subprocess.run([ffmpeg_binary(),'-v','error','-nostdin','-y','-protocol_whitelist','file,pipe',
+                                '-i',str(path),'-vn','-map','0:a:0','-ac','2','-ar','48000',
+                                '-c:a','pcm_s16le',str(output)],
+                               capture_output=True,text=True,timeout=1200)
+        if process.returncode:
+            raise ValueError('This audio could not be decoded. Try another recording, WAV, or MP3.')
+        probe_media(output)
+        return output
+    except BaseException:
+        output.unlink(missing_ok=True)
+        raise
+
+
 def editor_media(asset: dict) -> dict:
     path = db.resolve_data_path(asset['path'])
     if not path.is_file():

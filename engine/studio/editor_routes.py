@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 from engine.core import db
 from engine.core.routes import prevent_duplicate_job, video_header_valid
-from .editor_media import editor_media, project_media, probe_media, validate_project_media, normalize_browser_video, get_editor_asset, media_thumbnail, IMAGE_SUFFIXES
+from .editor_media import editor_media, project_media, probe_media, validate_project_media, normalize_browser_video, normalize_browser_audio, get_editor_asset, media_thumbnail, IMAGE_SUFFIXES
 from .editor_models import EditorExport, Project, TimelineItem, StrictModel
 from pydantic import Field
 from .editor_render import render_project, compatibility_issues
@@ -113,6 +113,12 @@ def finish_upload(clip_id,path,role,name):
         valid = False
     if not valid:
         raise ValueError('The file contents do not match supported media. Choose a real video, image, or audio recording.')
+    normalized_audio=False
+    if suffix=='.webm' and role not in {'video','image'}:
+        # MediaRecorder's streamed WebM has no duration header. Decode first;
+        # FFmpeg verifies a real audio stream and the WAV has exact duration.
+        converted=normalize_browser_audio(path)
+        path.unlink(missing_ok=True); path=converted; normalized_audio=True
     metadata=probe_media(path)
     if role in {'video','image'} and metadata['media_type'] not in {'video','image'}:
         raise ValueError('Choose a video or image file for the visual track.')
@@ -134,7 +140,7 @@ def finish_upload(clip_id,path,role,name):
         if converted != path:
             path.unlink(missing_ok=True)
             path=converted
-    else:
+    elif not normalized_audio:
         converted=path.with_suffix('.wav')
         if converted==path: converted=path.with_name(path.stem+'-playable.wav')
         process=subprocess.run([ffmpeg_binary(),'-v','error','-nostdin','-y','-protocol_whitelist','file,pipe','-i',str(path),'-vn','-map','0:a:0','-ac','2','-ar','48000','-c:a','pcm_s16le',str(converted)],capture_output=True,text=True,timeout=1200)
