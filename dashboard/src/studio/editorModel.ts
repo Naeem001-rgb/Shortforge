@@ -433,7 +433,7 @@ export function trimItem(
   return {
     ...item,
     start: item.start + front,
-    source_in: item.reverse ? item.source_in + (item.duration-end)*item.speed : item.source_in + front * item.speed,
+    source_in: item.kind === "text" ? 0 : item.reverse ? item.source_in + (item.duration-end)*item.speed : item.source_in + front * item.speed,
     duration,
     keyframes,
     ...(item.caption_words ? {caption_words:item.caption_words.filter(w => w.end>front && w.start<end).map(w=>({...w,start:Math.max(0,w.start-front),end:Math.min(duration,w.end-front)}))} : {}),

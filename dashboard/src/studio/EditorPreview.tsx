@@ -53,7 +53,7 @@ export function EditorPreview({project,media,time,playing,selected,onTime,onPlay
   const pick=(event:PointerEvent<HTMLCanvasElement>)=>{
     const box=event.currentTarget.getBoundingClientRect(),x=(event.clientX-box.left)/box.width*100-50,y=(event.clientY-box.top)/box.height*100-50;
     const candidates=project.items.filter(i=>i.kind!=="audio"&&time>=i.start&&time<i.start+i.duration&&!project.tracks?.find(t=>t.id===i.track)?.hidden).sort((a,b)=>b.track-a.track||b.start-a.start);
-    const hit=candidates.find(i=>{const v=displayAt(i,time-i.start);return i.kind!=="text"||Math.abs(x-v.x)<44*v.scale&&Math.abs(y-v.y)<i.font_size/project.height*100*1.5*v.scale;});onSelect(hit?.id||"");
+    const hit=candidates.find(i=>{const v=displayAt(i,time-i.start);return i.kind!=="text"||Math.abs(x-v.x)<44*v.scale&&Math.abs(y-v.y)<i.font_size/project.height*100*1.5*v.scale;});if(hit?.id===selected)begin(event,"move");else onSelect(hit?.id||"");
   };
   const begin=(event:PointerEvent,mode:"move"|"scale"|"rotate")=>{
     if(!selectedItem||!onChange||project.tracks?.find(t=>t.id===selectedItem.track)?.locked)return;
@@ -80,7 +80,7 @@ export function EditorPreview({project,media,time,playing,selected,onTime,onPlay
         <canvas ref={canvas} aria-label="Video canvas" style={{width:"100%",height:"100%",display:"block"}} onPointerDown={pick}/>
         {!project.items.some(i=>i.kind!=="audio")&&<div className="editor-canvas-empty"><Film size={32}/><span>Your story goes here</span><small>Add footage to the timeline</small></div>}
         {safe&&<div className="preview-safe-zones" aria-label="Shorts interface safe zones"><div className="preview-safe-top">Keep titles below this area</div><div className="preview-safe-right"/><div className="preview-safe-bottom">Shorts title & controls</div></div>}
-        {shown&&position&&time>=shown.start&&time<shown.start+shown.duration&&onChange&&<div className="preview-selection" style={{position:"absolute",left:`${50+position.x}%`,top:`${50+position.y}%`,width:shown.kind==="text"?"88%":"100%",height:shown.kind==="text"?`${Math.max(12,shown.font_size/project.height*100*2.2)}%`:"100%",transform:`translate(-50%,-50%) rotate(${position.rotation}deg) scale(${position.scale})`,border:"1px solid #b7a7ff",cursor:"move",touchAction:"none"}} onPointerDown={e=>begin(e,"move")} aria-label="Move selected layer">
+        {shown&&position&&time>=shown.start&&time<shown.start+shown.duration&&onChange&&<div className="preview-selection" style={{position:"absolute",left:`${50+position.x}%`,top:`${50+position.y}%`,width:shown.kind==="text"?"88%":"100%",height:shown.kind==="text"?`${Math.max(12,shown.font_size/project.height*100*2.2)}%`:"100%",transform:`translate(-50%,-50%) rotate(${position.rotation}deg) scale(${position.scale})`,border:"1px solid #b7a7ff",cursor:"move",touchAction:"none",pointerEvents:"none"}} onPointerDown={e=>begin(e,"move")} aria-label="Move selected layer">
           {(["nw","ne","sw","se"] as const).map(corner=><button key={corner} className={`preview-handle ${corner}`} aria-label={`Scale layer ${corner}`} onPointerDown={e=>begin(e,"scale")}/>)}
           <button className="preview-rotate" aria-label="Rotate selected layer" onPointerDown={e=>begin(e,"rotate")}><RotateCw size={12}/></button>
         </div>}
