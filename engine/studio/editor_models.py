@@ -71,7 +71,11 @@ class Keyframe(Transform):
                   'highlights':(-1,1), 'shadows':(-1,1), 'vignette':(0,1), 'sharpen':(0,5),
                   'grain':(0,1), 'blur':(0,100)}
         for name, value in self.values.items():
-            if name not in limits or not limits[name][0] <= value <= limits[name][1]:
+            group, separator, field = name.partition('.')
+            key = field if separator else group
+            bounds = (0,99) if group == 'crop' and key in {'top','right','bottom','left'} else limits.get(key)
+            valid_group = not separator or (group == 'adjustments' and key in Adjustments.model_fields) or (group == 'transform' and key in Transform.model_fields) or (group == 'crop' and key in {'top','right','bottom','left'})
+            if not valid_group or bounds is None or not bounds[0] <= value <= bounds[1]:
                 raise ValueError(f'Unsupported or out-of-range keyframe property: {name}')
         return self
 

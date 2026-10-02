@@ -31,7 +31,7 @@ def compatibility_issues(project):
         if item.animation_loop not in {'none','pulse','zoom-in','wobble','swing','shake','glitch','float','bounce','spin-right','spin-left','fade'}:
             missing.append('loop '+item.animation_loop)
         unsupported={name for frame in item.keyframes for name in frame.values
-                     if name not in {'x','y','scale','rotation','opacity','volume','brightness','contrast','saturation','exposure'}}
+                     if name.startswith('crop.') or name.split('.')[-1] not in {'x','y','scale','rotation','opacity','volume','brightness','contrast','saturation','exposure'}}
         if unsupported: missing.append('animated '+', '.join(sorted(unsupported)))
         if missing: issues.append({'item_id':item.id,'name':item.name or item.kind,'features':missing})
     return issues
@@ -111,15 +111,16 @@ def interpolate(item, time):
                     values = {k:getattr(a,k)+(getattr(b,k)-getattr(a,k))*q for k in ('x','y','scale','rotation','opacity','volume')}
                     break
     if frames:
-        if time<=frames[0].time: values.update(frames[0].values)
-        elif time>=frames[-1].time: values.update(frames[-1].values)
+        if time<=frames[0].time: values.update({name.split('.')[-1]:value for name,value in frames[0].values.items()})
+        elif time>=frames[-1].time: values.update({name.split('.')[-1]:value for name,value in frames[-1].values.items()})
         else:
             for a,b in zip(frames,frames[1:]):
                 if a.time<=time<b.time:
                     q=ease_progress((time-a.time)/(b.time-a.time),a.easing,a.bezier)
-                    for field in a.values.keys()|b.values.keys():
+                    for name in a.values.keys()|b.values.keys():
+                        field=name.split('.')[-1]
                         base=getattr(a,field,getattr(item.adjustments,field,0))
-                        first=a.values.get(field,base); last=b.values.get(field,getattr(b,field,getattr(item.adjustments,field,0)))
+                        first=a.values.get(name,base); last=b.values.get(name,getattr(b,field,getattr(item.adjustments,field,0)))
                         values[field]=first+(last-first)*q
                     break
     for preset,p in ((item.animation_in,time/item.animation_duration),(item.animation_out,(item.duration-time)/item.animation_duration)):
@@ -190,7 +191,7 @@ def frame_expression(item, field, time):
     frames = item.keyframes
     base = item.volume if field == 'volume' else getattr(item.transform, field, getattr(item.adjustments,field,0))
     def value(frame):
-        return frame.values.get(field,getattr(frame,field,base))
+        return frame.values.get(field,frame.values.get('adjustments.'+field,frame.values.get('transform.'+field,getattr(frame,field,base))))
     if not frames:
         return number(base)
     if len({value(frame) for frame in frames}) == 1:
