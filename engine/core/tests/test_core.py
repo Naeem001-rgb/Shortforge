@@ -466,3 +466,37 @@ def test_blank_project_and_duplicate_have_independent_owned_media(client):
     assert client.get(copy_asset["url"]).content == VIDEO
     assert client.delete(f"/api/projects/{duplicate['id']}").status_code == 200
     assert not (db.DATA_DIR / copy_asset["path"]).exists()
+
+
+@pytest.mark.parametrize("extension,codec", [("mp4", "libx264"), ("webm", "libvpx-vp9")])
+def test_browser_export_is_validated_and_saved_to_local_history(client, tmp_path, extension, codec):
+    import subprocess
+    executable = media.find_ffmpeg()
+    if not executable:
+        pytest.skip("FFmpeg is unavailable")
+    clip = import_one(client)
+    fixture = tmp_path / f"browser-fixture.{extension}"
+    subprocess.run([executable, "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:size=160x284:rate=24", "-t", "0.5", "-c:v", codec, "-pix_fmt", "yuv420p", str(fixture)], check=True, timeout=30)
+    with fixture.open("rb") as video:
+        response = client.post(f"/api/projects/{clip['id']}/exports", files={"file": (fixture.name, video, f"video/{extension}")})
+    assert response.status_code == 200, response.text
+    asset = response.json()
+    assert asset["kind"] == "export"
+    assert asset["clip_id"] == clip["id"]
+    assert client.get(asset["url"]).content == fixture.read_bytes()
+    detail = client.get(f"/api/clips/{clip['id']}").json()
+    assert detail["workflow_status"] == "exported"
+    assert detail["license_status"] == "unknown"
+    assert detail["assets"][-1]["id"] == asset["id"]
+
+
+def test_browser_export_rejects_invalid_truncated_and_oversized_files(client, monkeypatch):
+    clip = client.post("/api/projects").json()
+    endpoint = f"/api/projects/{clip['id']}/exports"
+    for name, content in [("bad.html", b"html"), ("empty.mp4", b""), ("bad.mp4", b"not-video"), ("truncated.mp4", VIDEO)]:
+        response = client.post(endpoint, files={"file": (name, content)})
+        assert response.status_code == 422, response.text
+    monkeypatch.setattr(routes, "MAX_UPLOAD", 12)
+    assert client.post(endpoint, files={"file": ("too-large.mp4", VIDEO)}).status_code == 413
+    assert client.get(f"/api/clips/{clip['id']}").json()["assets"] == []
+    assert list((db.DATA_DIR / "exports" / clip["id"]).glob("*")) == []

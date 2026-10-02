@@ -54,9 +54,11 @@ def test_extraction_populates_original_without_granting_footage_permission(clien
     assert detail["license_status"] == "unknown"
     assert detail["assets"] == []
     assert detail["workflow_status"] == "transcribed"
-    for action in ("download", "transcribe"):
-        assert client.post(f"/api/clips/{clip['id']}/{action}").status_code == 403
-    assert client.post("/api/export", json={"clip_id": clip["id"]}).status_code == 403
+    monkeypatch.setattr(media, "tool_available", lambda _: False)
+    assert client.post(f"/api/clips/{clip['id']}/download").status_code == 503
+    assert client.post(f"/api/clips/{clip['id']}/transcribe").status_code == 400
+    assert client.post("/api/export", json={"clip_id": clip["id"]}).status_code == 400
+    assert db.require_editable(clip["id"])["license_status"] == "unknown"
 
 
 def test_reuses_original_and_saved_transcript_without_network(client, monkeypatch):

@@ -6,12 +6,14 @@ import mimetypes
 from pathlib import Path
 import re
 import shutil
+import subprocess
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Body, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 import httpx
+from starlette.concurrency import run_in_threadpool
 
 from . import db, media, script_extraction
 from .models import ClipBatch, ClipDeleteInput, ClipPatch, ExtractScriptInput, ProjectInput, SettingsPatch, TranscribeInput, TranscriptInput
@@ -257,6 +259,46 @@ def duplicate_project(clip_id: str, body: ProjectInput | None = Body(default=Non
     except BaseException:
         shutil.rmtree(directory, ignore_errors=True)
         raise
+
+
+@router.post("/projects/{clip_id}/exports")
+async def store_browser_export(clip_id: str, file: UploadFile = File(...)):
+    """Keep a browser-rendered export in the project's local history."""
+    db.get_clip(clip_id)
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in {".mp4", ".webm"}:
+        await file.close()
+        raise HTTPException(422, "Save a rendered MP4 or WebM video to the export history.")
+    path = db.DATA_DIR / "exports" / clip_id / f"{uuid4()}{suffix}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        size = 0
+        with path.open("wb") as destination:
+            while chunk := await file.read(1024 * 1024):
+                if size == 0 and not video_header_valid(chunk[:32], suffix):
+                    raise HTTPException(422, "The exported file is not a valid MP4 or WebM video. Try exporting again.")
+                size += len(chunk)
+                if size > MAX_UPLOAD:
+                    raise HTTPException(413, "The export is larger than 500 MB. Use a shorter duration or lower quality.")
+                destination.write(chunk)
+        if not size:
+            raise HTTPException(422, "The exported video is empty. Try exporting again.")
+        from engine.studio.editor_media import probe_media
+        try:
+            metadata = await run_in_threadpool(probe_media, path)
+            if metadata["media_type"] != "video":
+                raise ValueError("The export contains no video. Try exporting again.")
+        except (ValueError, OSError, subprocess.SubprocessError) as exc:
+            raise HTTPException(422, str(exc) if isinstance(exc, ValueError) else "The export could not be inspected. Try exporting again.") from None
+        asset = db.add_asset(clip_id, "export", path)
+        with db.connect() as conn:
+            conn.execute("UPDATE clips SET workflow_status='exported' WHERE id=? AND workflow_status!='archived'", (clip_id,))
+        return asset
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
 
 
 @router.post("/clips/delete-bulk")

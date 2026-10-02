@@ -142,7 +142,7 @@ def asset_dict(row) -> dict:
 
 # Deleting a clip should also give the disk space back, not just the row.
 # A voice reference recording belongs to its voice profile, not to a clip.
-CLIP_OWNED_ASSETS = ("source", "voiceover", "export", "video", "image", "music", "audio", "vocals", "instrumental")
+CLIP_OWNED_ASSETS = ("source", "voiceover", "export", "video", "image", "sfx", "music", "audio", "vocals", "instrumental")
 
 
 def _prune_empty_folders(directory: Path) -> None:
