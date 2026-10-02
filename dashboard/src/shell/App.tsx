@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Clip, Health } from "../api";
-import { api } from "../api";
+import { api, post } from "../api";
 import { ImportDialog, LibraryPage } from "../library/Library";
 import { ScoutPage } from "../library/Scout";
 import { SEOPage } from "../studio/SEO";
@@ -43,10 +43,9 @@ export function App() {
     return () => query.removeEventListener("change", change);
   }, []);
   const [page, setPage] = useState<Page>(() => {
+    if (new URLSearchParams(location.search).has("studio")) return "studio";
     const saved = localStorage.getItem("shortforge-page");
-    return ["library", "scout", "studio", "seo", "settings"].includes(
-      saved || "",
-    )
+    return ["library", "scout", "seo", "settings"].includes(saved || "")
       ? (saved as Page)
       : "library";
   });
@@ -57,8 +56,13 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [selected, setSelected] = useState(
-    () => localStorage.getItem("shortforge-project") || "",
+    () =>
+      new URLSearchParams(location.search).get("studio") ||
+      localStorage.getItem("shortforge-project") ||
+      "",
   );
+  const creating = useRef(false);
+  const [projectError, setProjectError] = useState("");
   const [palette, setPalette] = useState(false);
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState(false);
@@ -150,18 +154,74 @@ export function App() {
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);
   }, []);
+  const selectProject = useCallback((id: string) => {
+    setSelected(id);
+    const url = new URL(location.href);
+    url.searchParams.set("studio", id);
+    history.replaceState(null, "", url);
+  }, []);
+  const createProject = useCallback(async () => {
+    if (creating.current) return;
+    creating.current = true;
+    setProjectError("");
+    try {
+      const clip = await post<Clip>("/projects");
+      setClips((current) => [clip, ...current]);
+      selectProject(clip.id);
+      setPage("studio");
+    } catch (cause) {
+      setProjectError((cause as Error).message);
+    } finally {
+      creating.current = false;
+    }
+  }, [selectProject]);
+  useEffect(() => {
+    if (page === "studio" && selected === "new") void createProject();
+  }, [page, selected, createProject]);
+  const open = (id: string) => {
+    const url = new URL(location.href);
+    url.searchParams.set("studio", id || "new");
+    url.hash = "";
+    window.open(url.href, "_blank", "noopener,noreferrer");
+  };
   const navigate = (next: Page) => {
-    setPage(next);
+    if (next === "studio") open(selected || "new");
+    else {
+      const url = new URL(location.href);
+      url.searchParams.delete("studio");
+      history.replaceState(null, "", url);
+      setPage(next);
+    }
     setMenu(false);
   };
-  const open = (id: string) => {
-    setSelected(id);
-    navigate("studio");
-  };
+  if (page === "studio") {
+    return (
+      <main id="main-content" className="studio-tab">
+        {projectError && (
+          <Notice>
+            {projectError}{" "}
+            <button className="text-button" onClick={createProject}>
+              Try again
+            </button>
+          </Notice>
+        )}
+        <Studio
+          key={selected}
+          clips={clips}
+          selected={selected === "new" ? "" : selected}
+          onSelect={selectProject}
+          refresh={refresh}
+          onImport={createProject}
+          {...{ onBack: () => navigate("library") }}
+          onPublish={() => navigate("seo")}
+        />
+      </main>
+    );
+  }
   const label =
     page === "settings" ? "Settings" : pages.find((p) => p.id === page)?.label;
   return (
-    <div className={`app-shell ${page === "studio" ? "studio-active" : ""}`}>
+    <div className="app-shell">
       <a href="#main-content" className="skip-link">
         Skip to content
       </a>
@@ -367,17 +427,6 @@ export function App() {
             <ScoutPage
               onImport={() => setImporting(true)}
               onSettings={() => navigate("settings")}
-            />
-          )}
-          {page === "studio" && (
-            <Studio
-              key={selected}
-              clips={clips}
-              selected={selected}
-              onSelect={setSelected}
-              refresh={refresh}
-              onImport={() => setImporting(true)}
-              onPublish={() => navigate("seo")}
             />
           )}
           {page === "seo" && (

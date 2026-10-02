@@ -21,6 +21,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
   const [keys, setKeys] = useState({
     gemini_api_key: "",
     youtube_api_key: "",
+    elevenlabs_api_key: "",
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -51,6 +52,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
       setKeys({
         gemini_api_key: "",
         youtube_api_key: "",
+        elevenlabs_api_key: "",
       });
       setSaved(true);
     } catch (e) {
@@ -91,8 +93,8 @@ export function SettingsPage({ health }: { health: Health | null }) {
               <div>
                 <h2>Optional connections</h2>
                 <p>
-                  Connect publishing and discovery tools. Studio editing runs
-                  locally.
+                  Connect discovery, writing, and voice tools. Video editing
+                  runs locally.
                 </p>
               </div>
             </div>
@@ -129,7 +131,9 @@ export function SettingsPage({ health }: { health: Health | null }) {
                 onChange={(e) => change("gemini_model", e.target.value)}
                 placeholder="gemini-3.8-flash"
               />
-              <small>Used only when you generate a publish kit.</small>
+              <small>
+                Used when you request script writing or a publish kit.
+              </small>
             </label>
             <div className="settings-link-row">
               <a
@@ -154,6 +158,52 @@ export function SettingsPage({ health }: { health: Health | null }) {
               1,500 requests or prevent billing if you enable a paid Google
               project. Use a project without billing for a free-only setup.
             </p>
+            <hr />
+            <div className="provider-heading">
+              <strong>ElevenLabs voice generation</strong>
+              <span
+                className={`badge ${settings.elevenlabs_api_key_set ? "good" : "neutral"}`}
+              >
+                {settings.elevenlabs_api_key_set ? "Key saved" : "Optional"}
+              </span>
+            </div>
+            <label className="field">
+              ElevenLabs API key
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={keys.elevenlabs_api_key}
+                aria-label="ElevenLabs API key"
+                aria-describedby="elevenlabs-key-storage"
+                onChange={(event) => {
+                  setKeys({ ...keys, elevenlabs_api_key: event.target.value });
+                  setSaved(false);
+                }}
+                placeholder={
+                  settings.elevenlabs_api_key_set
+                    ? "A key is saved. Paste to replace."
+                    : "Paste your ElevenLabs API key"
+                }
+              />
+              <small id="elevenlabs-key-storage">
+                Saved only in your local engine. The key is never included in a
+                project or export.
+              </small>
+            </label>
+            <p className="help-text">
+              Choose one of your account’s voices in Studio. Generating speech
+              sends the selected script to ElevenLabs and uses your account
+              credits. Commercial use requires an eligible plan.
+            </p>
+            <a
+              className="inline-link"
+              href="https://elevenlabs.io/app/settings/api-keys"
+              target="_blank"
+              hrefLang="en"
+              rel="noreferrer"
+            >
+              Manage ElevenLabs API keys <ArrowUpRight size={15} />
+            </a>
             <hr />
             <div className="provider-heading">
               <strong>YouTube Data API</strong>
@@ -238,11 +288,13 @@ export function SettingsPage({ health }: { health: Health | null }) {
             </div>
             <p>
               Your library, editing timelines, footage, music, and voiceovers
-              are stored locally. Keys aren’t shared with the extension.
+              are stored locally. Saved keys are never returned to the dashboard
+              or stored in project files.
             </p>
             <p>
-              Gemini receives text only when you generate a publish kit. Studio
-              does not write scripts or generate voices.
+              Gemini receives text when you request writing or a publish kit.
+              ElevenLabs receives text when you generate a voice. Local editing
+              and imported audio work without either connection.
             </p>
           </section>
           <section className="section-card">

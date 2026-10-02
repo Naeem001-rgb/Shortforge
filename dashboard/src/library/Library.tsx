@@ -210,7 +210,7 @@ export function LibraryPage({
           </dt>
           <dd>
             {readyCount}
-            <span>Footage you can use</span>
+            <span>Open a project in Studio</span>
           </dd>
         </div>
         <div>
@@ -447,17 +447,11 @@ export function LibraryPage({
                     </div>
                     <button
                       className="clip-open"
-                      aria-label={
-                        editable(clip) ? "Open in Studio" : "View inspiration"
-                      }
-                      title={
-                        editable(clip) ? "Open in Studio" : "View inspiration"
-                      }
-                      onClick={() =>
-                        editable(clip) ? onOpen(clip.id) : setDetail(clip)
-                      }
+                      aria-label={`Edit ${clip.title} in a new tab`}
+                      title="Edit in Studio · new tab"
+                      onClick={() => onOpen(clip.id)}
                     >
-                      {editable(clip) ? "Open" : "View"}
+                      Edit
                       <ArrowUpRight size={13} />
                     </button>
                   </div>
@@ -499,6 +493,13 @@ export function LibraryPage({
                       <Badge clip={c} />
                     </td>
                     <td>
+                      <button
+                        className="button primary small"
+                        aria-label={`Edit ${c.title} in a new tab`}
+                        onClick={() => onOpen(c.id)}
+                      >
+                        Edit <ArrowUpRight size={14} />
+                      </button>
                       <button
                         className="button secondary small"
                         onClick={() => setDetail(c)}
@@ -661,7 +662,8 @@ export function ImportDialog({
             onChange={(e) => setUrl(e.target.value)}
           />
           <small>
-            Saved as inspiration. Add permission before editing its footage.
+            Edit in Studio to fetch the source. Its rights status stays unknown
+            until you record permission or verify its license.
           </small>
         </label>
       ) : (
@@ -774,10 +776,10 @@ function ClipDetail({
       {clip.credit_snippet && <blockquote>{clip.credit_snippet}</blockquote>}
       {clip.license_status === "unknown" && (
         <div className="permission-box">
-          <h3>Keep the inspiration. Check the permission.</h3>
+          <h3>Source rights are unknown</h3>
           <p>
-            Creator credits are optional for discovery. To use this footage,
-            save the creator’s permission or verify a Creative Commons license.
+            Local editing is available. Record the creator’s permission or
+            verify a Creative Commons license before publishing reused footage.
           </p>
           <CopyButton
             label="Copy permission request"
@@ -850,9 +852,13 @@ function ClipDetail({
           <Archive size={16} />
           {clip.workflow_status === "archived" ? "Restore" : "Archive"}
         </button>
-        <button className="button primary" onClick={onOpen}>
-          Open in Studio
-          <ArrowRight size={16} />
+        <button
+          className="button primary"
+          onClick={onOpen}
+          title="Open Studio in a new tab"
+        >
+          Edit in Studio
+          <ArrowUpRight size={16} />
         </button>
       </div>
     </Modal>

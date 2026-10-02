@@ -70,7 +70,29 @@ export type Preset = {
   animation: string;
   description: string;
 };
-export const editable = (clip: Clip) => clip.license_status !== "unknown";
+export const editable = (_clip: Clip) => true;
+// Web development uses Vite's proxy; the packaged extension connects directly
+// to the local engine. Provider keys never belong in this connection setting.
+export const API_ORIGIN =
+  typeof location !== "undefined" && location.protocol === "chrome-extension:"
+    ? "http://127.0.0.1:8787"
+    : "";
+export const resolveAssetUrl = (url: string) =>
+  url.startsWith("/api/") ? `${API_ORIGIN}${url}` : url;
+export function resolveResponseAssets<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(resolveResponseAssets) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        typeof entry === "string" && (key === "url" || key.endsWith("_url"))
+          ? resolveAssetUrl(entry)
+          : resolveResponseAssets(entry),
+      ]),
+    ) as T;
+  }
+  return value;
+}
 export const count = (value: number | null) =>
   value == null
     ? "—"
@@ -84,7 +106,7 @@ export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_ORIGIN}/api${path}`, {
     ...options,
     headers:
       options.body instanceof FormData
@@ -104,12 +126,12 @@ export async function api<T>(
     }
     throw new Error(message);
   }
-  return response.json() as Promise<T>;
+  return resolveResponseAssets(await response.json()) as T;
 }
 export const post = <T>(path: string, body: unknown = {}) =>
   api<T>(path, { method: "POST", body: JSON.stringify(body) });
 export const assetUrl = (asset: Asset) =>
-  asset.url.startsWith("/api/") ? asset.url : `/api/assets/${asset.id}`;
+  resolveAssetUrl(asset.url || `/api/assets/${asset.id}`);
 // Keep a job attached to its project when a page unmounts or reloads.
 function storedJob(scope: string): Job | null {
   try {
