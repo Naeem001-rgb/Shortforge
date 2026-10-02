@@ -2,7 +2,6 @@ import {
   ArrowUpRight,
   Check,
   CheckCircle2,
-  HardDrive,
   KeyRound,
   LoaderCircle,
   Save,
@@ -18,15 +17,10 @@ export function SettingsPage({ health }: { health: Health | null }) {
     gemini_model: "gemini-3.8-flash",
     niche: "Narrated facts and stories",
     language: "English",
-    tts_provider: "piper",
-    piper_model: "",
-    clone_model_path: "",
-    whisper_model: "base",
   });
   const [keys, setKeys] = useState({
     gemini_api_key: "",
     youtube_api_key: "",
-    elevenlabs_api_key: "",
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -57,7 +51,6 @@ export function SettingsPage({ health }: { health: Health | null }) {
       setKeys({
         gemini_api_key: "",
         youtube_api_key: "",
-        elevenlabs_api_key: "",
       });
       setSaved(true);
     } catch (e) {
@@ -96,10 +89,10 @@ export function SettingsPage({ health }: { health: Health | null }) {
             <div className="section-title">
               <KeyRound size={21} />
               <div>
-                <h2>A little AI, when you need it.</h2>
+                <h2>Optional connections</h2>
                 <p>
-                  Connect your own free-tier account. Nothing is sent until you
-                  press Generate.
+                  Connect publishing and discovery tools. Studio editing runs
+                  locally.
                 </p>
               </div>
             </div>
@@ -136,10 +129,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
                 onChange={(e) => change("gemini_model", e.target.value)}
                 placeholder="gemini-3.8-flash"
               />
-              <small>
-                For rewriting and publish kits. Flash 3.8 does not generate
-                audio.
-              </small>
+              <small>Used only when you generate a publish kit.</small>
             </label>
             <div className="settings-link-row">
               <a
@@ -239,93 +229,6 @@ export function SettingsPage({ health }: { health: Health | null }) {
               </label>
             </div>
           </section>
-          <section className="settings-section">
-            <div className="section-title">
-              <HardDrive size={21} />
-              <div>
-                <h2>Voices that live on your laptop</h2>
-                <p>
-                  Models are optional and installed separately. No large
-                  downloads happen here.
-                </p>
-              </div>
-            </div>
-            <label className="field">
-              Default voice provider
-              <select
-                value={String(settings.tts_provider || "piper")}
-                onChange={(e) => change("tts_provider", e.target.value)}
-              >
-                <option value="piper">Piper · local, free</option>
-                <option value="espeak">eSpeak · basic local voice</option>
-                <option value="edge">Edge TTS · online, unofficial</option>
-                <option value="clone">
-                  My cloned voice · local Chatterbox
-                </option>
-                <option value="elevenlabs">
-                  ElevenLabs · optional paid account
-                </option>
-              </select>
-            </label>
-            <label className="field">
-              Piper voice model path
-              <input
-                placeholder="/path/to/voice.onnx"
-                value={String(settings.piper_model || "")}
-                onChange={(e) => change("piper_model", e.target.value)}
-              />
-              <small>
-                Install Piper and select a voice model whose license covers your
-                use. Each voice has its own model card.
-              </small>
-            </label>
-            <label className="field">
-              Chatterbox model folder
-              <input
-                placeholder="/path/to/local/chatterbox-models"
-                value={String(settings.clone_model_path || "")}
-                onChange={(e) => change("clone_model_path", e.target.value)}
-              />
-              <small>
-                Optional voice cloning. MIT-licensed Chatterbox can run on CPU,
-                but needs compatible speech packages in the engine’s environment
-                and substantial memory. See docs/VOICE.md.
-              </small>
-            </label>
-            <label className="field">
-              Transcription model
-              <select
-                value={String(settings.whisper_model || "base")}
-                onChange={(e) => change("whisper_model", e.target.value)}
-              >
-                <option value="base">Base · lighter and faster</option>
-                <option value="small">Small · more accurate, larger</option>
-              </select>
-            </label>
-            <details>
-              <summary>Optional ElevenLabs connection</summary>
-              <p>
-                ElevenLabs’ free plan does not grant commercial rights. Use a
-                suitable paid plan for monetized videos; it is never required.
-              </p>
-              <label className="field">
-                ElevenLabs API key
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={keys.elevenlabs_api_key}
-                  onChange={(e) =>
-                    setKeys({ ...keys, elevenlabs_api_key: e.target.value })
-                  }
-                  placeholder={
-                    settings.elevenlabs_api_key_set
-                      ? "Key saved. Paste to replace."
-                      : "Optional API key"
-                  }
-                />
-              </label>
-            </details>
-          </section>
         </div>
         <aside className="settings-aside">
           <section className="section-card">
@@ -334,26 +237,24 @@ export function SettingsPage({ health }: { health: Health | null }) {
               <h3>A small footprint.</h3>
             </div>
             <p>
-              Your library, drafts, footage, and voice references are stored
-              locally. Keys aren’t shared with the extension.
+              Your library, editing timelines, footage, music, and voiceovers
+              are stored locally. Keys aren’t shared with the extension.
             </p>
             <p>
-              Gemini and online voice providers receive text only when you use
-              those features.
+              Gemini receives text only when you generate a publish kit. Studio
+              does not write scripts or generate voices.
             </p>
           </section>
           <section className="section-card">
             <h3>On this machine</h3>
             <div className="capabilities">
-              {["ffmpeg", "yt_dlp", "whisper", "piper"].map((tool) => (
+              {["ffmpeg", "yt_dlp"].map((tool) => (
                 <div key={tool}>
                   <span>
                     {
                       {
                         ffmpeg: "Video rendering",
                         yt_dlp: "Video downloads",
-                        whisper: "Local transcription",
-                        piper: "Local voiceover",
                       }[tool]
                     }
                   </span>
@@ -366,7 +267,8 @@ export function SettingsPage({ health }: { health: Health | null }) {
               ))}
             </div>
             <p className="help-text">
-              Python 3.11 or 3.12 is recommended for optional speech packages.
+              Import voiceovers and music made with your own tools directly in
+              Studio.
             </p>
           </section>
         </aside>

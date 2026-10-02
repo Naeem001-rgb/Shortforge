@@ -59,6 +59,10 @@ CREATE TABLE IF NOT EXISTS assets (
     id TEXT PRIMARY KEY, clip_id TEXT REFERENCES clips(id) ON DELETE CASCADE,
     kind TEXT NOT NULL, path TEXT NOT NULL, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS editor_projects (
+    clip_id TEXT PRIMARY KEY REFERENCES clips(id) ON DELETE CASCADE,
+    project TEXT NOT NULL, saved_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS transcripts (
     clip_id TEXT PRIMARY KEY REFERENCES clips(id) ON DELETE CASCADE,
@@ -136,7 +140,7 @@ def asset_dict(row) -> dict:
 
 # Deleting a clip should also give the disk space back, not just the row.
 # A voice reference recording belongs to its voice profile, not to a clip.
-CLIP_OWNED_ASSETS = ("source", "voiceover", "export")
+CLIP_OWNED_ASSETS = ("source", "voiceover", "export", "video", "music", "audio", "vocals", "instrumental")
 
 
 def _prune_empty_folders(directory: Path) -> None:
@@ -159,7 +163,7 @@ def _remove_clip_files(rows) -> None:
         except HTTPException:
             continue
         # Voiceover and export jobs leave a timing/subtitle sidecar behind.
-        for candidate in (path, path.with_suffix(".timing.json"), path.with_suffix(".ass")):
+        for candidate in (path, path.with_suffix(".timing.json"), path.with_suffix(".ass"), path.with_suffix(path.suffix + ".name.json")):
             try:
                 candidate.unlink()
             except OSError:
@@ -180,7 +184,7 @@ def delete_clip(clip_id: str) -> None:
 
 
 def add_asset(clip_id: str | None, kind: str, path: Path) -> dict:
-    if kind not in {"source", "voiceover", "export", "reference"}:
+    if kind not in {"source", "voiceover", "export", "reference", "video", "music", "audio", "vocals", "instrumental"}:
         raise ValueError("Unsupported asset kind")
     resolved = resolve_data_path(path)
     if clip_id is not None:

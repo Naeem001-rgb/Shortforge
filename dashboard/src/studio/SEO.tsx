@@ -77,12 +77,12 @@ export function SEOPage({
           <h2>Start with your story</h2>
           <ClipSelect clips={clips} value={selected} onChange={onSelect} />
           <label className="field">
-            Final script
+            Video summary or finished script
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={10}
-              placeholder="Choose a project with a saved script, or paste your final script."
+              placeholder="Paste your externally written script or summarize the finished video."
             />
           </label>
           <button

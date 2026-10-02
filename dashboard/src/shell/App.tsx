@@ -1,35 +1,35 @@
 import {
   ArrowUpRight,
+  ChevronRight,
   Clapperboard,
   Compass,
   FolderOpen,
   Library,
   Menu,
-  Mic2,
   Monitor,
   Moon,
+  Plus,
   Search,
   Settings2,
   Sun,
   WandSparkles,
+  X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Clip, Health } from "../api";
 import { api } from "../api";
 import { ImportDialog, LibraryPage } from "../library/Library";
 import { ScoutPage } from "../library/Scout";
 import { SEOPage } from "../studio/SEO";
 import { Studio } from "../studio/Studio";
-import { VoicePage } from "../studio/Voice";
 import { IconButton, Modal, Notice } from "../ui";
 import { SettingsPage } from "./Settings";
-export type Page =
-  "library" | "scout" | "studio" | "voice" | "seo" | "settings";
+import "../theme/shell.css";
+export type Page = "library" | "scout" | "studio" | "seo" | "settings";
 const pages = [
   { id: "library", label: "Library", icon: Library },
   { id: "scout", label: "Scout", icon: Compass },
   { id: "studio", label: "Studio", icon: Clapperboard },
-  { id: "voice", label: "Voice lab", icon: Mic2 },
   { id: "seo", label: "Publish kit", icon: WandSparkles },
 ] as const;
 export function App() {
@@ -42,19 +42,35 @@ export function App() {
     query.addEventListener("change", change);
     return () => query.removeEventListener("change", change);
   }, []);
-  const [page, setPage] = useState<Page>("library");
+  const [page, setPage] = useState<Page>(() => {
+    const saved = localStorage.getItem("shortforge-page");
+    return ["library", "scout", "studio", "seo", "settings"].includes(
+      saved || "",
+    )
+      ? (saved as Page)
+      : "library";
+  });
   const [clips, setClips] = useState<Clip[]>([]);
   const [health, setHealth] = useState<Health | null>(null);
+  const [healthChecked, setHealthChecked] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(
+    () => localStorage.getItem("shortforge-project") || "",
+  );
   const [palette, setPalette] = useState(false);
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState(false);
+  const sidebar = useRef<HTMLElement>(null);
+  const menuButton = useRef<HTMLButtonElement>(null);
   const [theme, setTheme] = useState(
     () => localStorage.getItem("shortforge-theme") || "system",
   );
+  useEffect(() => {
+    localStorage.setItem("shortforge-page", page);
+    localStorage.setItem("shortforge-project", selected);
+  }, [page, selected]);
   const refresh = useCallback(async () => {
     try {
       const data = await api<{ clips: Clip[] }>("/clips");
@@ -72,7 +88,8 @@ export function App() {
     const check = () =>
       api<Health>("/health")
         .then(setHealth)
-        .catch(() => setHealth(null));
+        .catch(() => setHealth(null))
+        .finally(() => setHealthChecked(true));
     check();
     const h = setInterval(check, 12000);
     return () => {
@@ -91,6 +108,38 @@ export function App() {
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [theme]);
+  useEffect(() => {
+    if (!mobile || !menu) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    sidebar.current
+      ?.querySelector<HTMLButtonElement>(".nav-item.active")
+      ?.focus();
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenu(false);
+      if (event.key !== "Tab") return;
+      const controls = Array.from(
+        sidebar.current?.querySelectorAll<HTMLElement>(
+          "a[href], button:not(:disabled)",
+        ) ?? [],
+      );
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", close);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", close);
+      menuButton.current?.focus();
+    };
+  }, [mobile, menu]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
@@ -112,7 +161,7 @@ export function App() {
   const label =
     page === "settings" ? "Settings" : pages.find((p) => p.id === page)?.label;
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${page === "studio" ? "studio-active" : ""}`}>
       <a href="#main-content" className="skip-link">
         Skip to content
       </a>
@@ -124,104 +173,131 @@ export function App() {
         />
       )}
       <aside
+        ref={sidebar}
+        id="workspace-navigation"
         className={`sidebar ${menu ? "open" : ""}`}
         inert={mobile && !menu}
+        role={mobile && menu ? "dialog" : undefined}
+        aria-modal={mobile && menu ? true : undefined}
+        aria-label="Workspace navigation"
       >
-        <a
-          className="brand"
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate("library");
+        <div className="sidebar-brand-row">
+          <a
+            className="brand"
+            aria-label="ShortForge"
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("library");
+            }}
+          >
+            <span className="brand-icon">
+              <Clapperboard size={20} strokeWidth={1.9} />
+            </span>
+            <span>ShortForge</span>
+          </a>
+          <IconButton
+            label="Close navigation"
+            className="sidebar-close"
+            onClick={() => setMenu(false)}
+          >
+            <X size={19} />
+          </IconButton>
+        </div>
+        <button
+          className="sidebar-create"
+          aria-label="Create a Short"
+          title="Create a Short"
+          onClick={() => {
+            setMenu(false);
+            setImporting(true);
           }}
         >
-          <span className="brand-icon">
-            <Clapperboard size={23} strokeWidth={1.8} />
-          </span>
-          <span>
-            ShortForge<span className="brand-period">.</span>
-          </span>
-        </a>
-        <button
-          className="workspace-switch"
-          onClick={() => navigate("settings")}
-        >
-          <span className="workspace-avatar">S</span>
-          <span>
-            My workspace<small>Personal · local</small>
-          </span>
-          <Settings2 size={15} />
+          <Plus size={17} />
+          <span>Create a Short</span>
         </button>
-        <div className="nav-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
-          {pages.map(({ id, label, icon: Icon }) => (
-            <button
-              className={`nav-item ${page === id ? "active" : ""}`}
-              key={id}
-              onClick={() => navigate(id)}
-              aria-current={page === id ? "page" : undefined}
-            >
-              <Icon size={20} />
-              <span>{label}</span>
-              {id === "library" && clips.length > 0 && (
-                <span className="nav-count">
-                  {clips.filter((c) => c.workflow_status !== "archived").length}
-                </span>
+          <div className="nav-label">Workspace</div>
+          {pages.map(({ id, label, icon: Icon }, index) => (
+            <div className="nav-entry" key={id}>
+              {index === 2 && (
+                <div className="nav-label production-label">Production</div>
               )}
-              {id === "voice" && <span className="nav-tag">CLONE</span>}
-            </button>
+              <button
+                className={`nav-item ${page === id ? "active" : ""}`}
+                aria-label={label}
+                title={label}
+                onClick={() => navigate(id)}
+                aria-current={page === id ? "page" : undefined}
+              >
+                <Icon size={16} />
+                <span>{label}</span>
+                {id === "library" && clips.length > 0 && (
+                  <span className="nav-count">
+                    {
+                      clips.filter((c) => c.workflow_status !== "archived")
+                        .length
+                    }
+                  </span>
+                )}
+              </button>
+            </div>
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="local-note">
-            <span className="local-dot" />
-            <span>
-              Your ideas. Your machine.
-              <small>Made for creating, on a budget.</small>
-            </span>
-          </div>
+          <div className="nav-label">Workspace settings</div>
           <button
             className={`nav-item ${page === "settings" ? "active" : ""}`}
+            aria-label="Settings"
+            title="Settings"
             onClick={() => navigate("settings")}
+            aria-current={page === "settings" ? "page" : undefined}
           >
-            <Settings2 size={20} />
+            <Settings2 size={16} />
             <span>Settings</span>
           </button>
-          <button className="profile-row" onClick={() => navigate("settings")}>
-            <span className="profile-avatar">Y</span>
+          <button
+            className="profile-row"
+            aria-label="Personal workspace"
+            title="Personal workspace"
+            onClick={() => navigate("settings")}
+          >
+            <span className="profile-avatar">S</span>
             <span>
-              Your workspace<small>Let’s make something good.</small>
+              Personal workspace<small>Saved on this device</small>
             </span>
-            <ArrowUpRight size={16} />
+            <ChevronRight size={15} />
           </button>
         </div>
       </aside>
-      <div className="app-body">
+      <div className="app-body" inert={mobile && menu}>
         <header className="topbar">
-          <div className="breadcrumb">
-            <IconButton
-              label="Open navigation"
-              className="mobile-menu"
+          <div className="topbar-start">
+            <button
+              ref={menuButton}
+              aria-label="Open navigation"
+              aria-expanded={menu}
+              aria-controls="workspace-navigation"
+              className="icon-button mobile-menu"
               onClick={() => setMenu(true)}
             >
               <Menu size={20} />
-            </IconButton>
-            <span>Workspace</span>
-            <span className="slash">/</span>
-            <strong>{label}</strong>
-          </div>
-          <div className="topbar-actions">
+            </button>
+            <strong className="mobile-page-label">{label}</strong>
             <button
               className="command-trigger"
               onClick={() => setPalette(true)}
               aria-label="Search workspace"
             >
-              <Search size={16} />
-              <span>Quick search</span>
-              <kbd>⌘ K</kbd>
+              <Search size={15} />
+              <span>Search workspace</span>
+              <kbd>{navigator.platform.includes("Mac") ? "⌘" : "Ctrl"} K</kbd>
             </button>
+          </div>
+          <div className="topbar-actions">
             <span
               className={`engine-state ${health ? "online" : ""}`}
+              role="status"
               title={
                 health
                   ? "Local engine is connected"
@@ -229,7 +305,11 @@ export function App() {
               }
             >
               <span />
-              {health ? "Engine connected" : "Engine offline"}
+              {health
+                ? "Engine connected"
+                : healthChecked
+                  ? "Engine offline"
+                  : "Connecting…"}
             </span>
             <div className="theme-toggle" role="group" aria-label="Color theme">
               {[
@@ -237,16 +317,29 @@ export function App() {
                 { id: "dark", icon: Moon },
                 { id: "system", icon: Monitor },
               ].map(({ id, icon: Icon }) => (
-                <IconButton
+                <button
                   key={id}
-                  label={`${id[0].toUpperCase() + id.slice(1)} theme`}
-                  className={theme === id ? "selected" : ""}
+                  type="button"
+                  title={`${id[0].toUpperCase() + id.slice(1)} theme`}
+                  aria-label={`${id[0].toUpperCase() + id.slice(1)} theme`}
+                  aria-pressed={theme === id}
+                  className={`icon-button ${theme === id ? "selected" : ""}`}
                   onClick={() => setTheme(id)}
                 >
-                  <Icon size={16} />
-                </IconButton>
+                  <Icon size={15} />
+                </button>
               ))}
             </div>
+            <button
+              className="topbar-profile"
+              onClick={() => navigate("settings")}
+              aria-label="Personal workspace settings"
+              title="Personal workspace settings"
+            >
+              <span className="profile-avatar" aria-hidden="true">
+                S
+              </span>
+            </button>
           </div>
         </header>
         <main id="main-content" className={`main-content page-${page}`}>
@@ -287,15 +380,6 @@ export function App() {
               onPublish={() => navigate("seo")}
             />
           )}
-          {page === "voice" && (
-            <VoicePage
-              key={selected}
-              clips={clips}
-              selected={selected}
-              onSelect={setSelected}
-              onSettings={() => navigate("settings")}
-            />
-          )}
           {page === "seo" && (
             <SEOPage
               key={selected}
@@ -307,9 +391,9 @@ export function App() {
           {page === "settings" && <SettingsPage health={health} />}
         </main>
         <footer className="workspace-footer">
-          <span>Built for your next idea.</span>
+          <span>Your creative workspace, on your machine.</span>
           <span>
-            Local workspace <span>·</span> ShortForge v0.1
+            ShortForge <span>·</span> v0.1
           </span>
         </footer>
       </div>

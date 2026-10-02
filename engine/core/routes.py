@@ -342,7 +342,7 @@ async def job_events(job_id: str, request: Request):
 @router.get("/assets/{asset_id}")
 def serve_asset(asset_id: str):
     asset = db.get_asset(asset_id)
-    if asset["clip_id"] and asset["kind"] in {"source", "export"}:
+    if asset["clip_id"] and asset["kind"] in {"source", "export", "video", "voiceover", "music", "audio", "vocals", "instrumental"}:
         db.require_editable(asset["clip_id"])
     path = db.resolve_data_path(asset["path"])
     if not path.is_file():

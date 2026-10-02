@@ -2,8 +2,8 @@ import {
   Archive,
   ArrowRight,
   ArrowUpRight,
-  Clapperboard,
   Compass,
+  CircleCheck,
   Download,
   Film,
   Grid2X2,
@@ -31,6 +31,7 @@ import {
   Modal,
   Notice,
 } from "../ui";
+import "../theme/library.css";
 export function LibraryPage({
   clips,
   loading,
@@ -170,368 +171,355 @@ export function LibraryPage({
     a.click();
     URL.revokeObjectURL(a.href);
   };
+  const readyCount = active.filter(editable).length;
+  const exportedCount = active.filter(
+    (c) => c.workflow_status === "exported",
+  ).length;
+  const emptyLibrary = clips.length === 0;
+  const resetFilters = () => {
+    setQuery("");
+    setFilter("all");
+    setLicense("all");
+  };
   return (
-    <>
-      <div className="page-heading">
+    <section className="library-page" aria-label="Video library">
+      <div className="page-heading library-heading">
         <div>
           <h1>
             Your library<span className="heading-dot">.</span>
           </h1>
-          <p>Find a spark. Make it your own. Create your next Short.</p>
+          <p>Your footage, inspiration, and finished Shorts in one place.</p>
         </div>
         <button className="button primary" onClick={onImport}>
           <Plus size={18} /> Add a video
         </button>
       </div>
-      <div className="library-banner">
-        <div className="banner-symbol">
-          <Compass size={24} strokeWidth={1.5} />
+      <dl className="library-overview" aria-label="Library overview">
+        <div>
+          <dt>
+            <Film size={14} /> All videos
+          </dt>
+          <dd>
+            {active.length}
+            <span>In your library</span>
+          </dd>
         </div>
         <div>
-          <strong>Good stories are everywhere.</strong>
-          <span>
-            Scout for narrated Shorts, with or without creator credits.
-          </span>
+          <dt>
+            <CircleCheck size={14} /> Ready to edit
+          </dt>
+          <dd>
+            {readyCount}
+            <span>Footage you can use</span>
+          </dd>
         </div>
-        <button className="button secondary" onClick={onScout}>
-          Explore Scout <ArrowUpRight size={16} />
-        </button>
-      </div>
-      <div className="library-toolbar">
-        <div className="tab-list" role="tablist" aria-label="Library filter">
-          {[
-            { id: "all", label: "All videos", n: active.length },
-            {
-              id: "ready",
-              label: "Ready to edit",
-              n: active.filter(editable).length,
-            },
-            {
-              id: "exported",
-              label: "Exported",
-              n: active.filter((c) => c.workflow_status === "exported").length,
-            },
-            {
-              id: "archived",
-              label: "Archived",
-              n: clips.length - active.length,
-            },
-          ].map((t) => (
-            <button
-              role="tab"
-              aria-selected={filter === t.id}
-              className={filter === t.id ? "active" : ""}
-              key={t.id}
-              onClick={() => setFilter(t.id)}
+        <div>
+          <dt>
+            <Download size={14} /> Exported
+          </dt>
+          <dd>
+            {exportedCount}
+            <span>Finished in Studio</span>
+          </dd>
+        </div>
+      </dl>
+      <div className="library-workspace">
+        <div className="library-toolbar">
+          <div className="tab-list" role="tablist" aria-label="Library filter">
+            {[
+              { id: "all", label: "All videos", n: active.length },
+              {
+                id: "ready",
+                label: "Ready to edit",
+                n: readyCount,
+              },
+              {
+                id: "exported",
+                label: "Exported",
+                n: exportedCount,
+              },
+              {
+                id: "archived",
+                label: "Archived",
+                n: clips.length - active.length,
+              },
+            ].map((t) => (
+              <button
+                role="tab"
+                aria-selected={filter === t.id}
+                className={filter === t.id ? "active" : ""}
+                key={t.id}
+                onClick={() => setFilter(t.id)}
+              >
+                {t.label}
+                <span>{t.n}</span>
+              </button>
+            ))}
+          </div>
+          <div className="segmented" aria-label="Library view">
+            <IconButton
+              label="Grid view"
+              pressed={view === "grid"}
+              className={view === "grid" ? "selected" : ""}
+              onClick={() => setView("grid")}
             >
-              {t.label}
-              <span>{t.n}</span>
-            </button>
-          ))}
-        </div>
-        <div className="segmented" aria-label="Library view">
-          <IconButton
-            label="Grid view"
-            className={view === "grid" ? "selected" : ""}
-            onClick={() => setView("grid")}
-          >
-            <Grid2X2 size={17} />
-          </IconButton>
-          <IconButton
-            label="Table view"
-            className={view === "table" ? "selected" : ""}
-            onClick={() => setView("table")}
-          >
-            <List size={19} />
-          </IconButton>
-        </div>
-      </div>
-      <div className="filter-row">
-        <div className="filter-row-start">
-          <label className="select-all">
-            <input
-              ref={selectAllRef}
-              type="checkbox"
-              aria-label="Select all videos in this view"
-              checked={allSelected}
-              disabled={visible.length === 0}
-              onChange={toggleAll}
-            />
-            <span>Select all</span>
-          </label>
-          <div className="search-input">
-            <Search size={17} />
-            <input
-              aria-label="Search videos"
-              placeholder="Search your videos…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+              <Grid2X2 size={17} />
+            </IconButton>
+            <IconButton
+              label="Table view"
+              pressed={view === "table"}
+              className={view === "table" ? "selected" : ""}
+              onClick={() => setView("table")}
+            >
+              <List size={19} />
+            </IconButton>
           </div>
         </div>
-        <div className="filter-selects">
-          <select
-            aria-label="Filter by rights"
-            value={license}
-            onChange={(e) => setLicense(e.target.value)}
-          >
-            <option value="all">All permissions</option>
-            <option value="owned">Your footage</option>
-            <option value="permission">Permission saved</option>
-            <option value="cc_by">Creative Commons</option>
-            <option value="unknown">Inspiration only</option>
-          </select>
-          <select
-            aria-label="Sort videos"
-            value={sort}
-            onChange={(e) => setSort(e.target.value)}
-          >
-            <option value="recent">Recently added</option>
-            <option value="views">Most viewed</option>
-            <option value="likes">Most liked</option>
-          </select>
-        </div>
-      </div>
-      {error && <Notice>{error}</Notice>}
-      {selected.length > 0 && (
-        <div className="bulk-bar">
-          <span>{selected.length} selected</span>
-          <button className="button secondary small" onClick={csv}>
-            <Download size={15} /> Export links
-          </button>
-          <button className="button secondary small" onClick={archive}>
-            <Archive size={15} /> Archive
-          </button>
-          <button
-            className="button danger small"
-            onClick={() => {
-              setError("");
-              setConfirming(true);
-            }}
-          >
-            <Trash2 size={15} /> Delete
-          </button>
-          <IconButton label="Clear selection" onClick={() => setSelected([])}>
-            <X size={16} />
-          </IconButton>
-        </div>
-      )}
-      {loading ? (
-        <div className="skeleton-grid" aria-label="Loading library">
-          {[1, 2, 3, 4].map((n) => (
-            <div className="skeleton" key={n} />
-          ))}
-        </div>
-      ) : visible.length === 0 ? (
-        <div className="library-empty">
-          <div className="empty-reels" aria-hidden="true">
-            <div className="reel rear-left">
-              <Film size={25} />
-              <span />
-              <span />
-            </div>
-            <div className="reel rear-right">
-              <MicSymbol />
-            </div>
-            <div className="reel front">
-              <div className="reel-top">
-                <span />
-                <MoreHorizontal size={17} />
-              </div>
-              <div className="reel-play">
-                <Play size={25} fill="currentColor" />
-              </div>
-              <div className="reel-captions">
-                <span />
-                <span />
-              </div>
-              <div className="reel-bottom">
-                <span />
-                <Heart size={14} />
-              </div>
-            </div>
-            <div className="reel-plus">
-              <Plus size={21} />
+        <div className="filter-row">
+          <div className="filter-row-start">
+            <label className="select-all">
+              <input
+                ref={selectAllRef}
+                type="checkbox"
+                aria-label="Select all videos in this view"
+                checked={allSelected}
+                disabled={visible.length === 0}
+                onChange={toggleAll}
+              />
+              <span>Select all</span>
+            </label>
+            <div className="search-input">
+              <Search size={17} />
+              <input
+                aria-label="Search videos"
+                placeholder="Search your videos…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
             </div>
           </div>
-          <h2>
-            {active.length === 0
-              ? "Make room for your next big idea."
-              : "No videos in this view."}
-          </h2>
-          <p>
-            {active.length === 0
-              ? "Your creative starting point. Add a video you own, save a link for inspiration, or let Scout find your next story."
-              : "Try a different search or filter to find your Short."}
-          </p>
-          <div className="empty-actions">
-            <button className="button primary" onClick={onImport}>
-              <Plus size={17} /> Add your first video
-            </button>
-            <button className="button ghost" onClick={onScout}>
-              Meet Scout <ArrowRight size={17} />
-            </button>
+          <div className="filter-selects">
+            <select
+              aria-label="Filter by rights"
+              value={license}
+              onChange={(e) => setLicense(e.target.value)}
+            >
+              <option value="all">All permissions</option>
+              <option value="owned">Your footage</option>
+              <option value="permission">Permission saved</option>
+              <option value="cc_by">Creative Commons</option>
+              <option value="unknown">Inspiration only</option>
+            </select>
+            <select
+              aria-label="Sort videos"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+            >
+              <option value="recent">Recently added</option>
+              <option value="views">Most viewed</option>
+              <option value="likes">Most liked</option>
+            </select>
           </div>
-          <span className="empty-footnote">
-            <ShieldCheck size={14} /> Saved on your machine. No subscription
-            needed.
-          </span>
         </div>
-      ) : view === "grid" ? (
-        <div className="clip-grid">
-          {visible.map((clip) => (
-            <article className="clip-card" key={clip.id}>
-              <div className="clip-thumbnail">
-                <button
-                  className="thumbnail-button"
-                  onClick={() => setDetail(clip)}
-                  aria-label={`Details for ${clip.title}`}
-                >
-                  {clip.thumbnail_url ? (
-                    <img
-                      src={clip.thumbnail_url}
-                      alt=""
-                      loading="lazy"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <Film size={40} strokeWidth={1} />
-                  )}
-                  <span className="thumbnail-play">
-                    <Play size={22} fill="currentColor" />
-                  </span>
+        {error && <Notice>{error}</Notice>}
+        {selected.length > 0 && (
+          <div className="bulk-bar">
+            <span>{selected.length} selected</span>
+            <button className="button secondary small" onClick={csv}>
+              <Download size={15} /> Export links
+            </button>
+            <button className="button secondary small" onClick={archive}>
+              <Archive size={15} /> Archive
+            </button>
+            <button
+              className="button danger small"
+              onClick={() => {
+                setError("");
+                setConfirming(true);
+              }}
+            >
+              <Trash2 size={15} /> Delete
+            </button>
+            <IconButton label="Clear selection" onClick={() => setSelected([])}>
+              <X size={16} />
+            </IconButton>
+          </div>
+        )}
+        {loading ? (
+          <div className="skeleton-grid" aria-label="Loading library">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <div className="skeleton" key={n} />
+            ))}
+          </div>
+        ) : visible.length === 0 ? (
+          emptyLibrary ? (
+            <div className="library-start">
+              <Film size={32} strokeWidth={1.3} aria-hidden="true" />
+              <h2>Your next story starts here.</h2>
+              <p>
+                Import your footage or save a Short for inspiration. Everything
+                you collect will appear here.
+              </p>
+              <div className="library-start-actions">
+                <button className="button primary" onClick={onImport}>
+                  <Plus size={16} /> Import footage
                 </button>
-                <input
-                  className="clip-checkbox"
-                  type="checkbox"
-                  aria-label={`Select ${clip.title}`}
-                  checked={selected.includes(clip.id)}
-                  onChange={() => toggle(clip.id)}
-                />
-                <span className="source-pill">
-                  {clip.discovery_mode === "upload"
-                    ? "LOCAL FILE"
-                    : "YOUTUBE SHORT"}
-                </span>
+                <button className="button secondary" onClick={onScout}>
+                  <Compass size={16} /> Explore Scout
+                </button>
               </div>
-              <div className="clip-meta">
-                <Badge clip={clip} />
-                <h3>
-                  <button onClick={() => setDetail(clip)}>{clip.title}</button>
-                </h3>
-                <p>{clip.channel_name || "Your workspace"}</p>
-                <div className="clip-stats">
-                  <span>
-                    <Play size={13} />
-                    {count(clip.views)}
-                  </span>
-                  <span>
-                    <Heart size={13} />
-                    {count(clip.likes)}
-                  </span>
+              <span className="library-local-note">
+                <ShieldCheck size={13} /> Saved on your device
+              </span>
+            </div>
+          ) : (
+            <div className="library-no-results">
+              <Search size={28} strokeWidth={1.4} />
+              <h2>No videos in this view.</h2>
+              <p>Try a different search or filter to find your Short.</p>
+              <button className="button secondary" onClick={resetFilters}>
+                Clear filters <ArrowRight size={16} />
+              </button>
+            </div>
+          )
+        ) : view === "grid" ? (
+          <div className="clip-grid">
+            {visible.map((clip) => (
+              <article className="clip-card" key={clip.id}>
+                <div className="clip-thumbnail">
+                  <button
+                    className="thumbnail-button"
+                    onClick={() => setDetail(clip)}
+                    aria-label={`Details for ${clip.title}`}
+                  >
+                    {clip.thumbnail_url ? (
+                      <img
+                        src={clip.thumbnail_url}
+                        alt=""
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <Film size={40} strokeWidth={1} />
+                    )}
+                    <span className="thumbnail-play">
+                      <Play size={22} fill="currentColor" />
+                    </span>
+                  </button>
+                  <input
+                    className="clip-checkbox"
+                    type="checkbox"
+                    aria-label={`Select ${clip.title}`}
+                    checked={selected.includes(clip.id)}
+                    onChange={() => toggle(clip.id)}
+                  />
                   <IconButton
+                    className="clip-more"
                     label={`More about ${clip.title}`}
                     onClick={() => setDetail(clip)}
                   >
-                    <MoreHorizontal size={18} />
+                    <MoreHorizontal size={16} />
                   </IconButton>
+                  <span className="source-pill">
+                    {clip.discovery_mode === "upload" ? "Footage" : "YouTube"}
+                  </span>
                 </div>
-                <button
-                  className="button secondary full"
-                  onClick={() =>
-                    editable(clip) ? onOpen(clip.id) : setDetail(clip)
-                  }
-                >
-                  {editable(clip) ? "Open in Studio" : "View inspiration"}
-                  <ArrowUpRight size={15} />
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Select</th>
-                <th>Video</th>
-                <th>Views</th>
-                <th>Likes</th>
-                <th>Permission</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      aria-label={`Select ${c.title}`}
-                      checked={selected.includes(c.id)}
-                      onChange={() => toggle(c.id)}
-                    />
-                  </td>
-                  <td>
-                    <strong>{c.title}</strong>
-                    <small>{c.channel_name || "Your footage"}</small>
-                  </td>
-                  <td>{count(c.views)}</td>
-                  <td>{count(c.likes)}</td>
-                  <td>
-                    <Badge clip={c} />
-                  </td>
-                  <td>
-                    <button
-                      className="button secondary small"
-                      onClick={() => setDetail(c)}
-                    >
-                      Details
+                <div className="clip-meta">
+                  <Badge clip={clip} />
+                  <h3>
+                    <button onClick={() => setDetail(clip)}>
+                      {clip.title}
                     </button>
-                  </td>
+                  </h3>
+                  <p>{clip.channel_name || "Your workspace"}</p>
+                  <div className="clip-card-footer">
+                    <div className="clip-stats">
+                      <span title={`${count(clip.views)} views`}>
+                        <Play size={11} />
+                        {count(clip.views)}
+                      </span>
+                      <span title={`${count(clip.likes)} likes`}>
+                        <Heart size={11} />
+                        {count(clip.likes)}
+                      </span>
+                    </div>
+                    <button
+                      className="clip-open"
+                      aria-label={
+                        editable(clip) ? "Open in Studio" : "View inspiration"
+                      }
+                      title={
+                        editable(clip) ? "Open in Studio" : "View inspiration"
+                      }
+                      onClick={() =>
+                        editable(clip) ? onOpen(clip.id) : setDetail(clip)
+                      }
+                    >
+                      {editable(clip) ? "Open" : "View"}
+                      <ArrowUpRight size={13} />
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Select</th>
+                  <th>Video</th>
+                  <th>Views</th>
+                  <th>Likes</th>
+                  <th>Permission</th>
+                  <th>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <div className="workflow-guide">
-        <div className="workflow-guide-heading">
-          <span>A little inspiration. A lot of possibility.</span>
-          <span>YOUR CREATIVE FLOW</span>
-        </div>
-        <div className="workflow-steps">
-          <button onClick={onScout}>
-            <span className="step-number">01</span>
-            <div>
-              <strong>Find your story</strong>
-              <p>Collect narrated Shorts with Scout.</p>
-            </div>
-            <Compass size={21} />
-          </button>
-          <button
-            onClick={() => (clips.length ? onOpen(clips[0].id) : onImport())}
-          >
-            <span className="step-number">02</span>
-            <div>
-              <strong>Make it yours</strong>
-              <p>Rewrite, revoice, and add captions.</p>
-            </div>
-            <Clapperboard size={21} />
-          </button>
-          <button
-            onClick={() => (clips.length ? onOpen(clips[0].id) : onImport())}
-          >
-            <span className="step-number">03</span>
-            <div>
-              <strong>Ready for the world</strong>
-              <p>Export a vertical video you’re proud of.</p>
-            </div>
-            <ArrowUpRight size={21} />
-          </button>
+              </thead>
+              <tbody>
+                {visible.map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${c.title}`}
+                        checked={selected.includes(c.id)}
+                        onChange={() => toggle(c.id)}
+                      />
+                    </td>
+                    <td>
+                      <strong>{c.title}</strong>
+                      <small>{c.channel_name || "Your footage"}</small>
+                    </td>
+                    <td>{count(c.views)}</td>
+                    <td>{count(c.likes)}</td>
+                    <td>
+                      <Badge clip={c} />
+                    </td>
+                    <td>
+                      <button
+                        className="button secondary small"
+                        onClick={() => setDetail(c)}
+                      >
+                        Details
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <div className="library-workspace-footer">
+          <span>
+            {visible.length} {visible.length === 1 ? "video" : "videos"}
+            {filter === "archived" ? " archived" : " in your library"}
+          </span>
+          <span>
+            <ShieldCheck size={13} /> Saved locally
+          </span>
         </div>
       </div>
       {confirming && (
@@ -595,16 +583,7 @@ export function LibraryPage({
           }}
         />
       )}
-    </>
-  );
-}
-function MicSymbol() {
-  return (
-    <div className="mini-wave">
-      {[10, 22, 36, 19, 43, 29, 15].map((h, i) => (
-        <i key={i} style={{ height: h }} />
-      ))}
-    </div>
+    </section>
   );
 }
 export function ImportDialog({
@@ -872,7 +851,7 @@ function ClipDetail({
           {clip.workflow_status === "archived" ? "Restore" : "Archive"}
         </button>
         <button className="button primary" onClick={onOpen}>
-          {editable(clip) ? "Open in Studio" : "Open script"}
+          Open in Studio
           <ArrowRight size={16} />
         </button>
       </div>

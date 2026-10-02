@@ -1,6 +1,6 @@
 # ShortForge
 
-A local creative workspace for narrated YouTube Shorts. Discover videos with a Chrome extension, organize references, edit authorized footage, rewrite scripts, save voices, caption, and export an MP4.
+A local creative workspace for video editing. Discover videos with a Chrome extension, organize references, edit footage on a multitrack timeline, import your own voiceovers and music, animate with keyframes, and export an MP4. Scripts and voiceovers are made with your external tools.
 
 ## Start on this Linux machine
 
@@ -13,29 +13,31 @@ Open **http://127.0.0.1:5173**. The header should say **Engine connected**. The 
 
 Windows: install Node.js LTS and Python (3.11 recommended for optional speech tools), then double-click `start.bat`. Close its engine window when finished. All required dependencies are free; no paid service is required.
 
-## Your first Short
+## Your first edit
 
-1. Click **Add a video → Upload footage**, and choose a video you own or can use.
-2. Open it in **Studio**. Paste the script under **Script**, or configure local transcription first.
-3. Choose caption cleanup and a caption preset. Add a voiceover after configuring a voice provider.
-4. Choose **Export → Export Short**. Download the MP4 when it finishes.
-5. Generate a **Publish kit** with your Gemini key, then upload manually in YouTube Studio.
+1. Click **Add a video → Upload footage** and choose a video you own or can use.
+2. Open it in **Studio**. The source appears on the timeline. Select a clip to reveal its timing, transform, audio, animation, and keyframe controls.
+3. Open **Audio** to import your own voiceover/music, extract the original soundtrack, mute all original audio, or separate vocals from music.
+4. Drag clips to move them, drag their edges to trim, and use **Split at playhead**, **Delete**, **Undo**, and **Redo**. Add timed text or import SRT captions from **Text**.
+5. Use **Export → Export MP4**, select a resolution, and download the completed video. Edits autosave locally; **Save project** saves immediately.
+6. Optional: generate a **Publish kit** from your finished external script or video summary, then upload manually in YouTube Studio.
 
-For Scout: start the app, open `chrome://extensions`, enable Developer mode, choose Load unpacked, and select `extension/dist`. See [the extension guide](extension/README.md).
+For Scout, load `extension/dist` as an unpacked Chrome extension. See [the extension guide](extension/README.md).
 
-## What works without keys or large models
+## The Studio editor
 
-- Library, uploads, manual script editing, light/dark/system themes, search and filters.
-- Scout discovery with optional credits and count-qualified narration candidates, permission notes, CSV links, archive.
-- Select all plus permanent delete, which also clears the downloaded footage, voiceover, and exported MP4 from disk.
-- Original-script extraction from public captions, optional Gemini transcription, and rewrites targeting the same tone, context, language, and exact word count.
-- CPU video rendering, trim/zoom, approximate blur/cover/crop caption cleanup, ten caption presets, audio mixing, exports.
-- Saved voice-reference profiles and consent records.
-- Basic eSpeak voiceover when eSpeak NG is installed (it is available on this laptop).
+- Separate media bin, player, inspector, and zoomable multitrack timeline.
+- Trim, split, move, duplicate, delete, speed, volume, audio fades, and undo/redo.
+- Position, scale, rotation, opacity, and volume keyframes with interpolation/easing.
+- Fade, slide, and zoom entrance/exit animations; timed text and imported SRT captions.
+- Local voiceover/music uploads and non-destructive original-audio extraction.
+- Optional local Demucs vocal/instrumental separation. It is installed on this development machine; see [audio separation setup](docs/AUDIO-SEPARATION.md) for another machine. Separation can leave artifacts and is not guaranteed to perfectly remove speech from every mix.
+- Portrait, landscape, or square canvas; CPU H.264/AAC MP4 exports at 480p, 720p, or 1080p.
+- Server-side project saving, restored project selection, light/dark/system themes.
 
-Optional setup enables Gemini rewrite/SEO, verified YouTube metadata, local transcription, and synthesized or cloned voices. All missing dependencies produce instructions instead of fabricated results. See [VOICE.md](docs/VOICE.md).
+The editor implements these tools directly; it is not the full CapCut product. Stock effects/templates, cloud collaboration, tracking, and advanced masking are not implemented. Timelines currently allow eight tracks, 100 items, and ten minutes. Removing a timeline clip leaves its original file in the media bin. Deleting a Library project permanently deletes its project-owned media.
 
-Creator credits are optional in discovery. Permission or a verified Creative Commons license is required before editing someone else's footage. Credits and a changed voice do not grant reuse rights. Unknown clips can inspire a new original script. No automatic uploads or stealth browsing are implemented.
+Studio does not write scripts or synthesize voices. Editing and rendering need no API key. Existing local records and legacy backend API compatibility are preserved. Gemini is optional for publish metadata and YouTube Data API is optional for discovery verification. Unknown external clips retain their existing footage-permission gate; importing your own footage starts an editable project.
 
 ## Verification and project map
 
@@ -43,8 +45,8 @@ See [TESTING.md](docs/TESTING.md), [PROGRESS.md](docs/PROGRESS.md), and [design 
 
 - `dashboard/`: React + TypeScript + Vite + Tailwind, local Inter font.
 - `engine/core/`: FastAPI, SQLite, jobs, files and permissions.
-- `engine/ai/`: writing, voices and optional provider adapters.
-- `engine/studio/`: caption presets, detection and FFmpeg rendering.
+- `engine/ai/`: optional publish metadata and legacy provider compatibility.
+- `engine/studio/`: timeline persistence, media/audio processing, and FFmpeg rendering.
 - `extension/`: Chrome MV3 Scout.
 - `shared/contract/`: API contracts for all components.
 - `data/`: private local database, source footage, references and exports; ignored by Git.

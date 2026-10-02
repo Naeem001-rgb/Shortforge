@@ -1,0 +1,7 @@
+# Install Torch first from its CPU-only index; see scripts/setup-separation.sh.
+# Python 3.12 is isolated from the web engine to support this stable model stack.
+torch==2.5.1+cpu
+torchaudio==2.5.1+cpu
+demucs==4.0.1
+numpy==1.26.4
+soundfile==0.13.1

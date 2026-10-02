@@ -25,30 +25,26 @@ Narrated mode collects clips meeting both count limits without requiring credits
 6. Click **Cancel** first. Nothing should be deleted.
 7. Click **Delete**, then **Delete permanently**. The videos should leave the Library and disappear from disk in `data/`.
 8. To confirm files are really gone, close the app, open `data/downloads`, `data/voiceovers`, and `data/exports`, and check the removed video's files are no longer there.
-9. A **Voice lab** reference recording must survive deleting the clip that used it.
+9. Deleting a timeline item must leave its source in the media bin; only deleting the Library project removes project-owned files.
 
-## M2 — Permissions, footage and transcript
-1. Add a YouTube link. It should be labeled **Inspiration** and its footage editing locked.
-2. Open details. Copy the permission request; save a real permission note when received. Alternatively fetch verified YouTube data using your own API key.
-3. Upload a video you own through Add a video → Upload footage.
-4. Open it in Studio → Script. Paste text manually or click Extract original script after installing a local Whisper model.
-5. Confirm missing models show a useful explanation, without downloading anything automatically.
+## Studio — manual timeline editing
 
-## M3 — Edit and export
-1. Upload a short clip you own; open it in Studio.
-2. Set trim/zoom. Try Find caption area, then Blur band, Solid cover or Crop outside caption band. Drag the band or adjust the sliders.
-3. Paste a script in Script, save it, and choose one of the ten caption presets.
-4. Open Export → Export Short. Wait for the completed job and download the MP4.
-5. Play it. Check vertical framing, captions, timing and audio. Approximate timing and any duration mismatch are reported with the result.
+1. Upload a video you own, then open it in Studio. Select its timeline clip. Change its start, duration, source-in, speed, scale, rotation, and volume; confirm the player follows the changes.
+2. Seek within the clip and split. Delete one part, then Undo and Redo. Move clips by dragging; trim their edges. Check source ranges are preserved.
+3. Open Audio and choose Extract audio. The video becomes muted and a separate aligned audio track appears. Deleting it must not delete the source or extracted media file.
+4. Import an external voiceover and music. Change volume and fades, offset a recording, and preview the mixed audio. Delete a playing audio item and ensure it stops immediately.
+5. With the local separation runtime installed, choose Isolate voice or Remove voice, keep music. Wait for real processing; check both stems in the media bin and listen to the chosen track. Some artifacts may remain.
+6. Add keyframes at two different times for position/scale/opacity or volume. Scrub between them; confirm interpolation. Try entrance/exit animations.
+7. Add text or import an SRT subtitle file. Confirm timing, appearance, and layering.
+8. Save, leave Studio, reopen, and reload the browser. The selected project and saved timeline must persist.
+9. Export MP4 at a selected resolution. Download and play the actual file. Confirm timing, transforms, visible text, and the correct soundtrack.
+10. Confirm there are no Script, Rewrite script, Generate voiceover, or Voice lab controls, and Studio makes no /rewrite, /tts, or /extract-script calls.
 
-OCR detection needs Tesseract installed separately. Without it, a suggested band is returned and clearly labeled. Preview shows layout, not a live FFmpeg render. Cleanup cannot reconstruct perfectly clean footage behind burned-in words.
+The browser test suite uses generated motion footage and tone recordings in an isolated database. These are labelled test fixtures, not production examples. Backend tests inspect decoded rendered pixels and PCM audio. Real model inference is tested separately when the installed separation runtime is available.
 
-## M4 — AI, voices and publish kit
-1. Add a Gemini API key in Settings, using a free project, and save.
-2. Open a Library Short → Open script. Available original-language captions automatically fill and save Original script. If unavailable, paste the narration or click Transcribe with Gemini. Then Rewrite script and compare the original/new counts, tone and facts.
-3. In Voice lab, add your own authorized reference recording. Confirm it says model needed until Chatterbox is configured.
-4. Choose the already available basic eSpeak voice, or set up Piper/Chatterbox via VOICE.md. Generate audio, then select Replace or Mix in Studio → Voice.
-5. Export, generate the Publish kit, copy a title/description, and manually upload in YouTube Studio.
+## Publish kit
+
+Paste your externally finished script or video summary into Publish kit, optionally connect Gemini in Settings, and generate titles/description/tags. This does not write a narration script or generate speech. Upload the finished MP4 manually in YouTube Studio.
 
 ## M5 — Interface checks
 1. Switch Light / Dark / System; reload and confirm the choice stays.
@@ -78,12 +74,6 @@ cd extension
 node tests/browser-fixture.mjs
 ```
 
-Live YouTube Scout collection was verified separately (see PROGRESS.md). Actual Google/Microsoft/ElevenLabs calls and installed Whisper/Piper/Chatterbox inference need the user's configured providers and remain unverified without them. Script extraction browser tests mock external transcription/generation while exercising real project saving. Gemini transcription is always an explicit action; opening Script uses free captions first.
+The current Studio replaces the former script-extraction and AI voice-generation browser workflows. Legacy API regression tests remain to preserve existing local data/API compatibility. No browser test calls a paid provider.
 
-## Original script extraction and faithful rewriting
-1. Open a collected Short's details and choose **Open script**. Wait for captions to load into **Original script**, or review the actionable extraction error.
-2. If captions are unavailable, set your Gemini key in Settings and click **Transcribe with Gemini**. It requests verbatim speech from the public YouTube URL; review for transcription errors. No API request is made without a key.
-3. Click **Rewrite script**. Confirm it uses the narration you see, preserves the meaning/tone/language, and shows both word counts. It aims for exact equality and returns the closest draft after at most three requests.
-4. Edit and Save. Leave/reopen the project: saved originals and rewrites must persist without automatic replacement. **Extract again** explicitly reloads the original narration and keeps the rewritten draft.
-5. Open a Short whose extraction failed, switch to another project, then come back. The free caption attempt should run again by itself rather than leaving the field blank.
-6. Existing footage permissions still apply to downloading/editing/exporting video; working on a script does not change those settings.
+Audio separation setup and independent real-inference evidence are documented in [AUDIO-SEPARATION.md](AUDIO-SEPARATION.md). Full workflow and limitations are documented in [EDITOR.md](EDITOR.md).

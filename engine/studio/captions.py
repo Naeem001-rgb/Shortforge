@@ -4,6 +4,7 @@ import csv
 import io
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -118,6 +119,331 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         else:
             lines.append(f"Dialogue: 0,{ass_time(start)},{ass_time(end)},Default,,0,0,0,,{{{base_tags}}}" + " ".join(tokens))
     return header + "\n".join(lines) + "\n"
+
+
+CAPTION_DEFAULTS = {
+    "case_style": "none",
+    "line_height": 1.0,
+    "emphasis": "none",
+    "emphasis_scope": "all",
+    "emphasis_words": "none",
+    "emphasis_keywords": (),
+    "emphasis_case": "none",
+    "emphasis_bold": True,
+    "emphasis_color": "#f9e54c",
+    "color_ramp": "none",
+    "ramp_color": "#ff2d55",
+    "glow": 0.0,
+    "glow_color": "#7c5cff",
+    "shadow_color": "#000000",
+    "shadow_opacity": 0.5,
+    "shadow_soft": 0.0,
+    "box_padding": 0.0,
+    "chip": "none",
+}
+
+# libass renders DejaVu Sans with roughly 1.16em of natural leading, so the
+# dashboard multiplies the CSS line box by this to land on the same leading
+# that `\fsp` produces. Keep in step with textAppearance() in textPresets.ts.
+FONT_LEADING = 1.16
+
+# Motion length shared with EMPHASIS_MS on the dashboard side.
+EMPHASIS_MS = 180
+
+EMPHASIS_TAGS = {
+    "pop": "\\fscx135\\fscy135\\t(0,180,\\fscx100\\fscy100)",
+    "tilt": "\\frz-14\\t(0,180,\\frz0)",
+    "flash": "\\alpha&H40&\\t(0,180,\\alpha&H00&)",
+    "shake": "\\frz-7\\t(0,70,\\frz7)\\t(70,180,\\frz0)",
+}
+
+
+def caption_fields(style) -> dict:
+    """New TextStyle fields with their TypeScript defaults.
+
+    Read with getattr so a caption keeps rendering on an engine whose
+    TextStyle has not gained the columns yet.
+    """
+    values = dict(CAPTION_DEFAULTS)
+    for name in CAPTION_DEFAULTS:
+        value = getattr(style, name, None)
+        if value is not None:
+            values[name] = value
+    return values
+
+
+def number(value) -> str:
+    """Same formatting as editor_render.number(); captions must not import it."""
+    return format(float(value), ".10g")
+
+
+def ass_escape(value: str) -> str:
+    """Override tags are never accepted from a transcript or a narration."""
+    return (
+        value.replace("\\", "＼")
+        .replace("{", "｛")
+        .replace("}", "｝")
+        .replace("\r", "")
+        .replace("\n", "\\N")
+    )
+
+
+def ass_color_alpha(color: str, alpha: float) -> str:
+    """`&HAABBGGRR` with alpha 0 (opaque) to 1 (invisible)."""
+    value = color.lstrip("#")
+    if len(value) != 6:
+        value = "000000"
+    byte = max(0, min(255, int((1 - max(0.0, min(1.0, alpha))) * 255 + 0.5)))
+    return f"&H{byte:02X}{value[4:6]}{value[2:4]}{value[0:2]}".upper()
+
+
+def mix_color(first: str, second: str, amount: float) -> str:
+    """sRGB blend, rounded exactly like Math.round on the dashboard."""
+    amount = max(0.0, min(1.0, amount))
+
+    def channel(offset: int) -> int:
+        try:
+            a = int(first.lstrip("#")[offset:offset + 2], 16)
+            b = int(second.lstrip("#")[offset:offset + 2], 16)
+        except ValueError:
+            return 255
+        return max(0, min(255, int(a * (1 - amount) + b * amount + 0.5)))
+
+    return "#%02X%02X%02X" % (channel(0), channel(2), channel(4))
+
+
+def fold_case(value: str, mode: str) -> str:
+    """Mirror of foldCase() in textPresets.ts, character for character."""
+    if mode == "upper":
+        return value.upper()
+    if mode == "lower":
+        return value.lower()
+    if mode == "title":
+        return re.sub(r"\S+", lambda m: m.group(0)[:1].upper() + m.group(0)[1:], value)
+    if mode == "sentence":
+        lower = value.lower()
+        found = re.search(r"[a-z]", lower)
+        if not found:
+            return lower
+        return lower[:found.start()] + lower[found.start()].upper() + lower[found.start() + 1:]
+    return value
+
+
+def caption_source(item, style) -> str:
+    """The caption string after `uppercase` and `case_style`."""
+    value = item.text.upper() if style.uppercase else item.text
+    return fold_case(value, caption_fields(style)["case_style"])
+
+
+def split_words(text: str) -> list[str]:
+    """Keep the trailing space, exactly like /\\S+\\s*/g in the dashboard."""
+    return re.findall(r"\S+\s*", text)
+
+
+def _bare(word: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", word.lower())
+
+
+def key_word_indexes(words: list[str], style) -> set[int]:
+    """Mirror of keyWordIndexes(); ties go to the earliest word."""
+    fields = caption_fields(style)
+    mode = fields["emphasis_words"]
+    keys: set[int] = set()
+    if mode == "none" or not words:
+        return keys
+    if mode == "all":
+        return set(range(len(words)))
+    if mode == "keyword":
+        wanted = {_bare(word) for word in fields["emphasis_keywords"]}
+        wanted.discard("")
+        return {index for index, word in enumerate(words) if _bare(word) in wanted}
+    if mode == "last":
+        return {len(words) - 1}
+    if mode == "first":
+        return {0}
+    best = 0
+    for index, word in enumerate(words):
+        if len(word.strip()) > len(words[best].strip()):
+            best = index
+    return {best}
+
+
+def word_color(index: int, total: int, base: str, fields: dict, is_key: bool) -> str:
+    if fields["color_ramp"] == "words" and total > 1:
+        return mix_color(base, fields["ramp_color"], index / (total - 1))
+    return fields["emphasis_color"] if is_key else base
+
+
+def box_padding(fields: dict, font_size: float, has_background: bool) -> float:
+    if fields["box_padding"] > 0:
+        return fields["box_padding"]
+    return max(2, font_size * 0.14) if has_background else 0
+
+
+def _word_body(index, word, words, item, fields, keys, pop):
+    """One word of a caption line, wrapped in its own override block.
+
+    A block per word stops overrides leaking sideways, which is what lets the
+    colour and weight of a highlighted word end cleanly on the next one.
+    """
+    style = item.text_style
+    total = len(words)
+    is_key = index in keys
+    body = word
+    if is_key and fields["emphasis_case"] != "none":
+        body = fold_case(word, fields["emphasis_case"])
+    tags = []
+    if style.reveal == "karaoke" and total:
+        # `\k`, not `\kf`: the canvas flips a whole word to the highlight colour
+        # the moment it becomes current, and a within-word sweep would disagree.
+        tags.append("\\k" + str(max(1, round(item.duration * 100 / total))))
+    if fields["color_ramp"] == "words" or is_key:
+        tags.append("\\1c" + ass_color(word_color(index, total, item.color, fields, is_key)) + "&")
+    if is_key and fields["emphasis_bold"]:
+        tags.append("\\b1")
+    if pop == index:
+        tags.append(EMPHASIS_TAGS.get(fields["emphasis"], ""))
+    prefix = "".join(tags)
+    return "{" + prefix + "}" + ass_escape(body) if prefix else ass_escape(body)
+
+
+def caption_line(words, item, fields, keys, pop=-1, count=0):
+    """A whole caption line, word by word, in reading order."""
+    shown = words[:count] if count else words
+    return "".join(_word_body(index, word, words, item, fields, keys, pop) for index, word in enumerate(shown))
+
+
+STYLE_FORMAT = (
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+    "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+    "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+)
+
+
+def caption_ass(item, width: int, height: int, ratio: float) -> str:
+    """The whole ASS document for one text item.
+
+    Layer order bottom to top: outer glow, soft shadow, background box, text.
+    Every colour, weight and motion comes from the item's own text_style, so
+    the export cannot drift from the dashboard's captionWords().
+    """
+    style = item.text_style
+    fields = caption_fields(style)
+    font_size = item.font_size * ratio
+    margin = round(width * 0.05)
+    alignment = {"left": 4, "center": 5, "right": 6}[style.align]
+    words = split_words(caption_source(item, style))
+    keys = key_word_indexes(words, style)
+    has_background = item.text_background != "transparent"
+    padding = box_padding(fields, font_size, has_background) * ratio
+    karaoke = style.reveal == "karaoke"
+    primary = ass_color(style.highlight if karaoke and fields["color_ramp"] == "none" else item.color)
+    secondary = ass_color(item.color)
+    shadow_byte = ass_color_alpha(fields["shadow_color"], fields["shadow_opacity"])
+    common = "%d,%d,0,0,100,100,%s,0" % (
+        -1 if style.bold else 0,
+        -1 if style.italic else 0,
+        number(style.letter_spacing * ratio),
+    )
+    # Line spacing is an override, not a style field: the eighth numeric slot
+    # in a V4+ style line is the baseline angle, which stays at zero.
+    leading = "\\fsp" + number(round(font_size * (fields["line_height"] - 1), 2))
+    tail = "%d,%d,%d,0,1" % (alignment, margin, margin)
+    styles = "Style: Default,DejaVu Sans,%s,%s,%s,%s,%s,%s,1,%s,%s,%s\n" % (
+        number(font_size), primary, secondary, ass_color(style.stroke_color), shadow_byte,
+        common, number(style.stroke * ratio), number(style.shadow * ratio), tail,
+    )
+    if has_background:
+        background = ass_color(item.text_background)
+        styles += "Style: Box,DejaVu Sans,%s,%s,%s,%s,%s,%s,3,%s,0,%s\n" % (
+            number(font_size), secondary, secondary, background, background,
+            common, number(max(2, padding)), tail,
+        )
+    if fields["glow"] > 0:
+        glow = ass_color(fields["glow_color"])
+        styles += "Style: Glow,DejaVu Sans,%s,%s,%s,%s,%s,%s,1,0,0,%s\n" % (
+            number(font_size), glow, glow, glow, glow, common, tail,
+        )
+    if fields["shadow_soft"] > 0:
+        styles += "Style: Soft,DejaVu Sans,%s,%s,%s,%s,%s,%s,1,0,0,%s\n" % (
+            number(font_size), ass_color(fields["shadow_color"]), secondary,
+            ass_color(fields["shadow_color"]), shadow_byte, common, tail,
+        )
+    body = "".join(ass_escape(word) for word in words)
+    duration = item.duration
+    events = []
+
+    def dialogue(layer, start, end, name, text):
+        events.append("Dialogue: %d,%s,%s,%s,,0,0,0,,{%s}%s" % (
+            layer, ass_time(start), ass_time(end), name, leading, text))
+
+    # `\alpha` swallows hex digits greedily, so the value has to be closed with
+    # the &H..& wrapper or the rest of the colour ends up on screen as text.
+    def alpha_tag(color: str, alpha: float) -> str:
+        return "\\alpha" + ass_color_alpha(color, alpha)
+
+    # The word the preview calls current is the only one that moves, and it
+    # moves for the whole of its slice of the caption duration. A typewriter
+    # reveal takes precedence and hides the motion, exactly as it does on the
+    # canvas, but the decorative layers still have to grow with it.
+    slices = max(1, len(words))
+    motion = fields["emphasis"] if fields["emphasis"] in EMPHASIS_TAGS else "none"
+    if motion != "none" and fields["emphasis_scope"] == "key" and not keys:
+        motion = "none"
+    if style.reveal == "typewriter":
+        segments = [(index * duration / slices, (index + 1) * duration / slices, index + 1, -1) for index in range(len(words))]
+    elif motion != "none" and words:
+        segments = []
+        for index in range(len(words)):
+            moving = index if fields["emphasis_scope"] != "key" or index in keys else -1
+            segments.append((index * duration / slices, (index + 1) * duration / slices, 0, moving))
+    else:
+        segments = [(0, duration, 0, -1)]
+
+    for start, end, count, pop in segments:
+        shown = body if not count else "".join(ass_escape(word) for word in words[:count])
+        if not shown:
+            continue
+        # Glow is two stacked outlines, the outer one wider and fainter. ASS
+        # cannot blur a copy of the text, so the halo is repeated strokes.
+        if fields["glow"] > 0:
+            for spread, alpha, blur in ((0.55, 0.9, 0.15), (1.0, 0.45, 0.3)):
+                dialogue(0, start, end, "Glow", "{\\bord%s\\shad0\\blur%s%s}%s" % (
+                    number(fields["glow"] * ratio * spread),
+                    number(fields["glow"] * ratio * blur),
+                    alpha_tag(fields["glow_color"], alpha),
+                    shown,
+                ))
+        if fields["shadow_soft"] > 0:
+            dialogue(1, start, end, "Soft", "{\\shad%s\\blur%s%s}%s" % (
+                number(fields["shadow_soft"] * ratio * 0.4),
+                number(fields["shadow_soft"] * ratio * 0.5),
+                alpha_tag(fields["shadow_color"], fields["shadow_opacity"]),
+                shown,
+            ))
+        if has_background:
+            dialogue(2, start, end, "Box", shown)
+        dialogue(3, start, end, "Default", caption_line(words, item, fields, keys, pop=pop, count=count))
+
+    dropped = [name for name in ("chip",) if fields[name] != "none"]
+    notice = ""
+    if dropped:
+        # Never let a preview-only effect pass for something that exported.
+        notice = "Comment: 0,0:00:00.00,0:10:00.00,Default,,0,0,0,,preview-only, not rendered: %s\n" % ", ".join(dropped)
+    header = (
+        "[Script Info]\nScriptType: v4.00+\nPlayResX: %d\nPlayResY: %d\n"
+        "WrapStyle: 0\nScaledBorderAndShadow: yes\n" % (width, height)
+    )
+    return (
+        header
+        + "[V4+ Styles]\n"
+        + STYLE_FORMAT
+        + styles
+        + "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+        + notice
+        + "\n".join(events)
+        + "\n"
+    )
 
 
 def detect_caption_region(source: Path) -> dict:
