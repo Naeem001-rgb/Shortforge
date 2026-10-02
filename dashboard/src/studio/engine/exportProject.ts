@@ -26,7 +26,7 @@ export async function exportProject(project:EditorProject,media:EditorMedia[],op
   let extension:"mp4"|"webm"="mp4",videoConfig:VideoEncoderConfig={codec:"avc1.420034",width,height,bitrate,framerate:fps,latencyMode:"quality",avc:{format:"avc"}},audioConfig:AudioEncoderConfig={codec:"mp4a.40.2",sampleRate:48000,numberOfChannels:2,bitrate:192000};
   const supports=async()=>{try{return (await VideoEncoder.isConfigSupported(videoConfig)).supported&&(await AudioEncoder.isConfigSupported(audioConfig)).supported;}catch{return false;}};
   if(!await supports()){
-    extension="webm";videoConfig={codec:"vp09.00.41.08",width,height,bitrate,framerate:fps};audioConfig={codec:"opus",sampleRate:48000,numberOfChannels:2,bitrate:160000};
+    extension="webm";videoConfig={codec:"vp09.00.41.08",width,height,bitrate,framerate:fps,latencyMode:"realtime"};audioConfig={codec:"opus",sampleRate:48000,numberOfChannels:2,bitrate:160000};
     if(!await supports())throw new Error("No supported video/audio encoder was found. Choose local compatibility export.");
   }
   const target=extension==="mp4"?new ArrayBufferTarget():new WebmTarget();
@@ -60,7 +60,12 @@ export async function exportProject(project:EditorProject,media:EditorMedia[],op
       renderFrame(ctx,project,time,sources,resources);
       const timestamp=Math.round(frame/fps*1_000_000),next=Math.round((frame+1)/fps*1_000_000),videoFrame=new VideoFrame(canvas,{timestamp,duration:next-timestamp});
       encoder.encode(videoFrame,{keyFrame:frame%(fps*2)===0});videoFrame.close();
-      if(encoder.encodeQueueSize>8)await encoder.flush();
+      if(encoder.encodeQueueSize>8)await new Promise<void>((resolve,reject)=>{
+        const done=()=>{if(encoder.encodeQueueSize<=4){clean();resolve();}};
+        const abort=()=>{clean();reject(new DOMException("Export cancelled","AbortError"));};
+        const clean=()=>{encoder.removeEventListener("dequeue",done);options.signal?.removeEventListener("abort",abort);};
+        encoder.addEventListener("dequeue",done);options.signal?.addEventListener("abort",abort,{once:true});done();
+      });
       if(frame%5===0)report(8+frame/totalFrames*82,"Rendering video",frame);
     }
     await encoder.flush();report(91,"Encoding audio",totalFrames);
@@ -71,7 +76,12 @@ export async function exportProject(project:EditorProject,media:EditorMedia[],op
       const count=Math.min(1024,length-offset),data=new Float32Array(count*2);
       data.set(left.subarray(offset,Math.min(offset+count,left.length)),0);data.set(right.subarray(offset,Math.min(offset+count,right.length)),count);
       const frame=new AudioData({format:"f32-planar",sampleRate:48000,numberOfChannels:2,numberOfFrames:count,timestamp:Math.round(offset/48000*1_000_000),data});audioEncoder.encode(frame);frame.close();
-      if(audioEncoder.encodeQueueSize>40)await audioEncoder.flush();
+      if(audioEncoder.encodeQueueSize>40)await new Promise<void>((resolve,reject)=>{
+        const done=()=>{if(audioEncoder.encodeQueueSize<=20){clean();resolve();}};
+        const abort=()=>{clean();reject(new DOMException("Export cancelled","AbortError"));};
+        const clean=()=>{audioEncoder.removeEventListener("dequeue",done);options.signal?.removeEventListener("abort",abort);};
+        audioEncoder.addEventListener("dequeue",done);options.signal?.addEventListener("abort",abort,{once:true});done();
+      });
     }
     await audioEncoder.flush();if(encodingError)throw encodingError;options.signal?.throwIfAborted();report(98,"Finalizing file",totalFrames);muxer.finalize();
     const result:ExportResult={blob:new Blob([target.buffer],{type:extension==="mp4"?"video/mp4":"video/webm"}),extension,width,height,fps,duration:totalFrames/fps,elapsed:(performance.now()-start)/1000};report(100,"Export complete",totalFrames);return result;
