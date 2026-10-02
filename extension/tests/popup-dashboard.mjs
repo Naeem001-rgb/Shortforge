@@ -21,7 +21,7 @@ async function openPopup(browser, { engineUp, dashboardUp }) {
     ({ engineUp, dashboardUp }) => {
       globalThis.fixture = { opened: [] };
       globalThis.chrome = {
-        runtime: { sendMessage: async () => ({ state: undefined }), onMessage: { addListener() {} } },
+        runtime: { getURL: path => `chrome-extension://${'a'.repeat(32)}/${path}`, sendMessage: async () => ({ state: undefined }), onMessage: { addListener() {} } },
         tabs: { create: async ({ url }) => { globalThis.fixture.opened.push(url); } },
         storage: {
           local: { get: async () => ({}), set: async () => {} },
@@ -53,7 +53,7 @@ const browser = await chromium.launch({ headless: true });
 try {
   const working = await openPopup(browser, { engineUp: true, dashboardUp: true });
   assert.deepEqual(await working.evaluate(() => globalThis.fixture.opened), [
-    'http://localhost:5173/',
+    `chrome-extension://${'a'.repeat(32)}/studio/index.html`,
   ]);
   assert.equal(await working.locator('#error').isHidden(), true, 'no error when healthy');
   await working.close();
@@ -61,12 +61,10 @@ try {
   const dashboardDown = await openPopup(browser, { engineUp: true, dashboardUp: false });
   assert.deepEqual(
     await dashboardDown.evaluate(() => globalThis.fixture.opened),
-    [],
-    'must not open a dead tab',
+    [`chrome-extension://${'a'.repeat(32)}/studio/index.html`],
+    'packaged Studio must open without Vite',
   );
-  const message = await dashboardDown.locator('#error').textContent();
-  assert.match(message, /not running/i);
-  assert.match(message, /start\.sh/, 'the message must name the command to run');
+  assert.equal(await dashboardDown.locator('#error').isHidden(), true);
   await dashboardDown.close();
 
   const engineDown = await openPopup(browser, { engineUp: false, dashboardUp: true });
@@ -75,7 +73,7 @@ try {
   await engineDown.close();
 
   console.log(
-    'Popup check passed: the dashboard button opens the app when both processes are up, and explains how to start ShortForge when either is down, instead of opening a refused-connection page.',
+    'Popup check passed: the dashboard button opens bundled Studio with only the engine running and explains how to restart a stopped engine.',
   );
 } finally {
   await browser.close();

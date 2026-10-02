@@ -77,24 +77,16 @@ byId('settings').addEventListener('change', () => {
   void command('saveSettings', { settings: settings() }).then(() => error()).catch(cause => error(cause.message));
 });
 const START_HINT = 'ShortForge is not running. Open the ShortForge folder, run ./start.sh (Windows: double-click start.bat), leave that window open, then click again.';
-// The dashboard and engine are two processes. Say which one is missing
-// instead of letting Chrome show "localhost refused to connect".
-async function reachable(url: string): Promise<boolean> {
-  try { await fetch(url, { signal: AbortSignal.timeout(2500) }); return true; }
-  catch { return false; }
-}
+// The editor is packaged with the extension. Only the engine must be running.
 button('dashboard').addEventListener('click', async () => {
   error();
   button('dashboard').disabled = true;
   try {
-    const [engine, dashboard] = await Promise.all([
-      reachable('http://127.0.0.1:8787/api/health'),
-      reachable('http://127.0.0.1:5173/'),
-    ]);
-    if (!engine || !dashboard) throw new Error(START_HINT);
-    await chrome.tabs.create({ url: 'http://localhost:5173/' });
+    const response = await fetch('http://127.0.0.1:8787/api/health', { signal: AbortSignal.timeout(2500) });
+    if (!response.ok) throw new Error(START_HINT);
+    await chrome.tabs.create({ url: chrome.runtime.getURL('studio/index.html') });
   } catch (cause) {
-    error(cause instanceof Error ? cause.message : START_HINT);
+    error(START_HINT);
   } finally {
     button('dashboard').disabled = false;
   }

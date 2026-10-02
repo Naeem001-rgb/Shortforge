@@ -1,4 +1,4 @@
-# ShortForge Scout
+# ShortForge Scout and Studio
 
 A local Chrome extension for collecting promising YouTube Shorts into ShortForge. **Narrated Shorts** is the default: it collects candidates meeting your likes and views limits, without requiring credits or keywords. Review narration in the Library. Scout does not listen to audio, confirm an AI voice, or detect burned-in subtitles.
 
@@ -18,7 +18,7 @@ Then:
 2. Choose **Load unpacked** and select this project's `extension/dist` folder.
 3. Open a video on `https://www.youtube.com/shorts/`. Refresh an already-open tab after loading/reloading the extension.
 4. Open Scout, choose a discovery mode, and press **Start scouting**. Leave that tab in front.
-5. Open the ShortForge Library to review the collected clips.
+5. Choose **Open dashboard** in Scout to open the bundled Library. **Edit** opens a full Studio tab and automatically fetches a saved Short’s source. The local engine on `127.0.0.1:8787` must be running; the Vite dashboard server is not required.
 
 The default limits are **30 clips**, **5,000 likes**, and **10,000 views**. You can change them while a session runs. Unknown counts are skipped. **Credits first, then narrated** switches after 30 scanned Shorts without a new eligible credited match. **Credited sources only** retains the original discovery option.
 
@@ -33,7 +33,9 @@ The default limits are **30 clips**, **5,000 likes**, and **10,000 views**. You 
 - Matches are stored in extension storage before being sent to the engine. If the engine disconnects, scouting pauses. Restart ShortForge and press **Retry** to save pending clips. A background retry also runs every minute. Do not uninstall the extension while clips are pending.
 - **Self-test** checks page controls and actual readable counts without clicking anything. Open the Short's three-dot menu → **Description** first so its views are visible. Scouting opens the panel automatically, waits for its menu and stats, and closes it only if Scout opened it. If the menu or panel cannot be opened, scouting pauses with the failed step instead of silently skipping every video.
 
-Credit is discovery metadata, not reuse permission. Engine-created external clips begin with unknown rights; the Library controls editing permissions.
+Credit is discovery metadata, not reuse permission. External clips keep unknown rights while local editing is enabled. Record source permissions before publishing reused footage.
+
+The build packages React, fonts, styles, and all executable code locally under `dist/studio`. Manifest V3 uses a strict `script-src 'self'` policy with no remote code or eval. Only loopback engine host permissions are requested alongside Scout’s storage, tabs, and alarms permissions. Long media jobs run in the local engine and remain available when the popup closes or a Studio tab reloads.
 
 ## Tested and remaining limits
 
