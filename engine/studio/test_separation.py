@@ -64,8 +64,8 @@ class AudioEditorTests(unittest.TestCase):
             self.assertAlmostEqual(audio.getnframes() / audio.getframerate(), 1.2, delta=.05)
         self.assertEqual(hashlib.sha256(self.source.read_bytes()).hexdigest(), before)
 
-    def test_rights_and_cross_project_access_fail_before_work_is_created(self):
-        for clip, expected in ((self.unknown, 403), (self.other, 400)):
+    def test_cross_project_access_fails_before_work_is_created(self):
+        for clip, expected in ((self.unknown, 400), (self.other, 400)):
             for operation in ("extract-audio", "separate-audio"):
                 response = self.client.post(f"/api/editor/{clip}/{operation}", json={"asset_id": self.asset["id"]})
                 self.assertEqual(response.status_code, expected, response.text)
@@ -115,7 +115,7 @@ class AudioEditorTests(unittest.TestCase):
         with db.connect() as connection:
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM assets").fetchone()[0], 1)
 
-    def test_permission_is_rechecked_before_saving_processed_audio(self):
+    def test_unknown_rights_remain_metadata_during_local_processing(self):
         real_extract = extract_audio
         def revoke_permission(source, output):
             result = real_extract(source, output)
@@ -125,8 +125,9 @@ class AudioEditorTests(unittest.TestCase):
         with patch("engine.studio.separation_routes.extract_audio", side_effect=revoke_permission):
             response = self.client.post(f"/api/editor/{self.owned}/extract-audio", json={"asset_id": self.asset["id"]})
         job = db.get_job(response.json()["id"])
-        self.assertEqual(job["status"], "failed")
-        self.assertFalse((self.folder / "editor-audio" / self.owned / job["id"]).exists())
+        self.assertEqual(job["status"], "completed",job)
+        self.assertTrue((self.folder / "editor-audio" / self.owned / job["id"]).exists())
+        self.assertEqual(db.get_clip(self.owned)['license_status'],'unknown')
 
     @unittest.skipUnless(os.environ.get("SHORTFORGE_TEST_SEPARATION") == "1", "Real model inference is opt-in; never download in tests")
     def test_actual_cpu_demucs_stems_are_playable_and_reconstruct_source(self):

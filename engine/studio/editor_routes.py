@@ -11,13 +11,35 @@ from starlette.concurrency import run_in_threadpool
 from engine.core import db
 from engine.core.routes import prevent_duplicate_job, video_header_valid
 from .editor_media import editor_media, project_media, probe_media, validate_project_media, normalize_browser_video, get_editor_asset, media_thumbnail, IMAGE_SUFFIXES
-from .editor_models import EditorExport, Project, TimelineItem
-from .editor_render import render_project
+from .editor_models import EditorExport, Project, TimelineItem, StrictModel
+from pydantic import Field
+from .editor_render import render_project, compatibility_issues
 from .media import ffmpeg_binary
 from .routes import RENDER_LOCK
 
 router=APIRouter(prefix='/api/editor')
 MAX_UPLOAD=500*1024*1024
+
+
+class TranscriptionRequest(StrictModel):
+    asset_id: str = Field(min_length=1,max_length=120)
+    model: str | None = Field(None,max_length=500)
+
+
+@router.post('/{clip_id}/transcribe')
+def transcribe(clip_id: str, payload: TranscriptionRequest, background: BackgroundTasks):
+    from .transcription import transcription_job, transcription_capability
+    db.get_clip(clip_id)
+    _,_,metadata=get_editor_asset(clip_id,payload.asset_id)
+    if not metadata['has_audio']:
+        raise HTTPException(400,'Choose video or audio with a soundtrack to transcribe.')
+    capability=transcription_capability()
+    if not capability['runtime_ready']:
+        raise HTTPException(503,capability['message'])
+    prevent_duplicate_job(clip_id,'editor_transcribe')
+    job=db.new_job('editor_transcribe',clip_id)
+    background.add_task(transcription_job,job['id'],clip_id,payload.asset_id,payload.model)
+    return job
 
 
 def editor_response(clip_id, project=None, saved_at=None):
@@ -37,7 +59,10 @@ def editor_response(clip_id, project=None, saved_at=None):
                 saved_at=db.now()
                 connection.execute('INSERT INTO editor_projects (clip_id,project,saved_at) VALUES (?,?,?) ON CONFLICT(clip_id) DO UPDATE SET project=excluded.project,saved_at=excluded.saved_at',
                                    (clip_id,project.model_dump_json(),saved_at))
-    return {'project':project.model_dump(),'media':media,'saved_at':saved_at}
+            elif project.items and not project.source_seeded:
+                project.source_seeded=True
+                connection.execute('UPDATE editor_projects SET project=? WHERE clip_id=?',(project.model_dump_json(),clip_id))
+    return {'project':project.model_dump(),'media':media,'saved_at':saved_at,'compatibility_issues':compatibility_issues(project)}
 
 
 @router.get('/{clip_id}')
@@ -56,7 +81,7 @@ def save_project(clip_id: str, project: Project):
         # Preserve the durable acquisition marker even for older clients that
         # omit additive fields while intentionally clearing their timeline.
         row=connection.execute('SELECT project FROM editor_projects WHERE clip_id=?',(clip_id,)).fetchone()
-        if row and json.loads(row['project']).get('source_seeded'):
+        if project.items or (row and (json.loads(row['project']).get('source_seeded') or json.loads(row['project']).get('items'))):
             project.source_seeded=True
         connection.execute('INSERT INTO editor_projects (clip_id,project,saved_at) VALUES (?,?,?) ON CONFLICT(clip_id) DO UPDATE SET project=excluded.project,saved_at=excluded.saved_at',(clip_id,project.model_dump_json(),saved_at))
         connection.execute("UPDATE clips SET workflow_status='editing' WHERE id=? AND workflow_status!='archived'",(clip_id,))
@@ -202,6 +227,10 @@ def export_project(clip_id: str, payload: EditorExport, background: BackgroundTa
     db.require_editable(clip_id)
     if payload.project.duration<=0:
         raise HTTPException(400,'Add a video, text, or audio item before exporting.')
+    issues=compatibility_issues(payload.project)
+    if issues:
+        features=sorted({feature for issue in issues for feature in issue['features']})
+        raise HTTPException(400,'FFmpeg compatibility export does not support '+ '; '.join(features)+'. Use browser export or remove these treatments.')
     try:
         validate_project_media(clip_id,payload.project)
         ffmpeg_binary()

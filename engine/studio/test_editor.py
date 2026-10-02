@@ -110,6 +110,7 @@ class EditorTests(unittest.TestCase):
                         markers=[{'id':'m','time':1,'label':'beat'}],script='Narration',name='New')
         response=self.client.put(f'/api/editor/{self.clip}',json=project.model_dump())
         self.assertEqual(response.status_code,200,response.text)
+        project.source_seeded=True
         self.assertEqual(response.json()['project'],project.model_dump())
         self.assertEqual(Project.model_validate({'items':[]}).tracks,[])
         self.assertEqual(len(Project(items=[item.model_copy(update={'id':str(n)}) for n in range(5000)]).items),5000)
@@ -144,6 +145,65 @@ class EditorTests(unittest.TestCase):
         self.assertEqual(imported.status_code,200,imported.text)
         self.assertEqual(imported.json()['media_type'],'audio')
         self.assertGreater(max(imported.json()['waveform']),.03)
+
+    def test_track_hidden_muted_freeze_reverse_and_effects(self):
+        hidden=self.project(self.item(fit='cover',duration=.3))
+        from .editor_models import EditorTrack
+        hidden.tracks=[EditorTrack(id=0,hidden=True,muted=True)]
+        output=self.render(hidden)
+        self.assertLess(max(self.pixel(self.pixels(output,.1),240,240)),10)
+        self.assertLess(self.rms(output,.1),.002)
+        frozen=self.item(freeze_at=1,duration=4,fit='cover')
+        output=self.render(self.project(frozen))
+        self.assertGreater(self.pixel(self.pixels(output,3.8),240,240)[0],200)
+        self.assertLess(self.rms(output,.1),.002)
+        base=self.item(duration=.3,fit='cover',muted=True)
+        for values in ({'adjustments':{'saturation':0,'brightness':.1,'contrast':1.2,'exposure':.2}},
+                       {'adjustments':{'temperature':.3,'tint':.2,'highlights':.1,'shadows':.1,'sharpen':.4,'vignette':.1,'grain':.05,'blur':1}},
+                       {'mask':{'shape':'circle','feather':5}},
+                       {'chroma_key':{'enabled':True,'color':'#ff0000','similarity':.3}},
+                       {'conceal':{'mode':'cover','x':0,'y':0,'width':50,'height':100,'color':'#0000ff'}},
+                       {'conceal':{'mode':'blur','x':10,'y':10,'width':40,'height':30}},
+                       {'conceal':{'mode':'mosaic','x':10,'y':10,'width':40,'height':30}},
+                       {'flip_x':True,'flip_y':True,'crop':{'left':20,'top':10}},
+                       {'reverse':True}):
+            item=TimelineItem.model_validate({**base.model_dump(),**values})
+            frame=self.pixels(self.render(self.project(item)),.1)
+            if 'mask' in values: self.assertLess(max(self.pixel(frame,10,10)),20)
+            if 'chroma_key' in values: self.assertLess(max(self.pixel(frame,240,240)),20)
+            if 'conceal' in values and values['conceal']['mode']=='cover':
+                self.assertGreater(self.pixel(frame,100,240)[2],200)
+
+    def test_real_word_timing_and_font_ass(self):
+        from .captions import caption_ass
+        item=TimelineItem(id='caption',kind='text',duration=2,text='ONE TWO',font_size=180,
+                          font_family='DejaVu Sans',text_style={'reveal':'karaoke','highlight':'#ffff00'},
+                          caption_words=[{'word':'ONE','start':.3,'end':.5},{'word':'TWO','start':1.4,'end':1.7}])
+        ass=caption_ass(item,480,480,480/1080)
+        self.assertIn('0:00:01.40,0:00:01.70',ass)
+        self.assertNotIn('\\k100',ass)
+        output=self.render(self.project(item))
+        def yellow(time):
+            frame=self.pixels(output,time)
+            return sum(r>150 and g>150 and b<100 for r,g,b in zip(frame[::3],frame[1::3],frame[2::3]))
+        self.assertGreater(yellow(.4),100)
+        self.assertLess(yellow(.9),10)
+        self.assertGreater(yellow(1.5),100)
+
+    def test_advanced_easing_and_loops_match_ffmpeg_evaluator(self):
+        for easing in ('hold','spring','bounce','cubic-bezier'):
+            item=self.item(duration=1,keyframes=[{'time':0,'x':0,'easing':easing,'bezier':[.25,.1,.25,1]}, {'time':1,'x':100}])
+            expression=visual_expression(item,'x','t').replace(',',chr(92)+',')
+            raw=subprocess.run([self.ffmpeg,'-v','error','-f','lavfi','-i',f"aevalsrc=exprs='{expression}':duration=1:sample_rate=1000",'-f','f32le','-ac','1','pipe:1'],capture_output=True,check=True).stdout
+            samples=array.array('f'); samples.frombytes(raw)
+            for step in (0,100,375,500,999):
+                self.assertAlmostEqual(samples[step],interpolate(item,step/1000)['x'],delta=.01,msg=f'{easing} at {step}')
+        for preset,field in (('pulse','scale'),('wobble','rotation'),('shake','x'),('float','y'),('spin-left','rotation'),('fade','opacity')):
+            item=self.item(duration=1,animation_loop=preset)
+            expression=visual_expression(item,field,'t').replace(',',chr(92)+',')
+            raw=subprocess.run([self.ffmpeg,'-v','error','-f','lavfi','-i',f"aevalsrc=exprs='{expression}':duration=1:sample_rate=1000",'-f','f32le','-ac','1','pipe:1'],capture_output=True,check=True).stdout
+            samples=array.array('f'); samples.frombytes(raw)
+            self.assertAlmostEqual(samples[125],interpolate(item,.125)[field],delta=.01)
 
     def test_caption_styles_word_reveal_and_animation_survive_save_and_render(self):
         item = TimelineItem(id='caption',kind='text',duration=1.2,text='ONE TWO',font_size=180,
@@ -193,7 +253,7 @@ class EditorTests(unittest.TestCase):
             response=self.client.put(f'/api/editor/{self.clip}',json=self.project(item).model_dump()); self.assertEqual(response.status_code,400,response.text)
         project=self.project(self.item())
         response=self.client.put(f'/api/editor/{self.other}',json=project.model_dump()); self.assertEqual(response.status_code,400)
-        self.assertEqual(self.client.post(f'/api/editor/{self.unknown}/export',json={'project':project.model_dump(),'resolution':480}).status_code,403)
+        self.assertEqual(self.client.post(f'/api/editor/{self.unknown}/export',json={'project':project.model_dump(),'resolution':480}).status_code,400)
         db.resolve_data_path(self.source['path']).unlink()
         self.assertEqual(self.client.put(f'/api/editor/{self.clip}',json=project.model_dump()).status_code,404)
 
@@ -312,12 +372,12 @@ class EditorTests(unittest.TestCase):
         output=self.render(self.project(audio))
         self.assertGreater(self.rms(output,.8,.05),self.rms(output,.15,.05)*3)
 
-    def test_rights_revocation_blocks_new_imported_and_derived_media(self):
+    def test_unknown_rights_preserved_without_blocking_local_media(self):
         assets=[self.add_media(self.clip,self.red,kind) for kind in ('video','audio','voiceover','music','vocals','instrumental')]
         with db.connect() as connection:
             connection.execute("UPDATE clips SET license_status='unknown' WHERE id=?",(self.clip,))
         for asset in assets:
-            self.assertEqual(self.client.get(asset['url']).status_code,403)
+            self.assertEqual(self.client.get(asset['url']).status_code,200)
 
     def test_disguised_playlist_upload_is_rejected_before_probe(self):
         result=self.client.post(f'/api/editor/{self.clip}/media',data={'role':'video'},files={'file':('movie.mp4',b'#EXTM3U\nhttps://example.com/private.ts','video/mp4')})

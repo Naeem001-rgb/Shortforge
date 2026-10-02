@@ -35,7 +35,8 @@ def check_source(clip_id: str, asset_id: str) -> Path:
 
 @router.get("/editor-capabilities")
 def capabilities():
-    return {"separation": separation_capability()}
+    from .transcription import transcription_capability
+    return {"separation": separation_capability(), "transcription":transcription_capability()}
 
 
 def audio_job(job_id: str, clip_id: str, asset_id: str, split_voice: bool):

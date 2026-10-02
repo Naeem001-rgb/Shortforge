@@ -280,7 +280,7 @@ def box_padding(fields: dict, font_size: float, has_background: bool) -> float:
     return max(2, font_size * 0.14) if has_background else 0
 
 
-def _word_body(index, word, words, item, fields, keys, pop):
+def _word_body(index, word, words, item, fields, keys, pop, active=None):
     """One word of a caption line, wrapped in its own override block.
 
     A block per word stops overrides leaking sideways, which is what lets the
@@ -293,10 +293,12 @@ def _word_body(index, word, words, item, fields, keys, pop):
     if is_key and fields["emphasis_case"] != "none":
         body = fold_case(word, fields["emphasis_case"])
     tags = []
-    if style.reveal == "karaoke" and total:
+    if style.reveal == "karaoke" and total and active is None:
         # `\k`, not `\kf`: the canvas flips a whole word to the highlight colour
         # the moment it becomes current, and a within-word sweep would disagree.
         tags.append("\\k" + str(max(1, round(item.duration * 100 / total))))
+    elif style.reveal == 'karaoke' and active is not None:
+        tags.append('\\1c' + ass_color(style.highlight if index == active else item.color) + '&')
     if fields["color_ramp"] == "words" or is_key:
         tags.append("\\1c" + ass_color(word_color(index, total, item.color, fields, is_key)) + "&")
     if is_key and fields["emphasis_bold"]:
@@ -307,10 +309,10 @@ def _word_body(index, word, words, item, fields, keys, pop):
     return "{" + prefix + "}" + ass_escape(body) if prefix else ass_escape(body)
 
 
-def caption_line(words, item, fields, keys, pop=-1, count=0):
+def caption_line(words, item, fields, keys, pop=-1, count=0, active=None):
     """A whole caption line, word by word, in reading order."""
     shown = words[:count] if count else words
-    return "".join(_word_body(index, word, words, item, fields, keys, pop) for index, word in enumerate(shown))
+    return "".join(_word_body(index, word, words, item, fields, keys, pop, active) for index, word in enumerate(shown))
 
 
 STYLE_FORMAT = (
@@ -369,6 +371,7 @@ def caption_ass(item, width: int, height: int, ratio: float) -> str:
             number(font_size), ass_color(fields["shadow_color"]), secondary,
             ass_color(fields["shadow_color"]), shadow_byte, common, tail,
         )
+    styles=styles.replace(',DejaVu Sans,', ',' + item.font_family + ',')
     body = "".join(ass_escape(word) for word in words)
     duration = item.duration
     events = []
@@ -390,7 +393,20 @@ def caption_ass(item, width: int, height: int, ratio: float) -> str:
     motion = fields["emphasis"] if fields["emphasis"] in EMPHASIS_TAGS else "none"
     if motion != "none" and fields["emphasis_scope"] == "key" and not keys:
         motion = "none"
-    if style.reveal == "typewriter":
+    timed=bool(item.caption_words)
+    if timed:
+        # Timed captions use recognition/edit timestamps, including silence.
+        # Never replace real timing with evenly spaced estimated word slices.
+        boundaries=sorted({0,duration,*[w.start for w in item.caption_words],*[w.end for w in item.caption_words]})
+        segments=[]
+        for start,end in zip(boundaries,boundaries[1:]):
+            active=next((i for i,w in enumerate(item.caption_words) if w.start<=start<w.end),-1)
+            count=sum(w.start<=start for w in item.caption_words) if style.reveal=='typewriter' else 0
+            if style.reveal=='typewriter' and not count:
+                continue
+            moving=active if motion!='none' and (fields['emphasis_scope']!='key' or active in keys) else -1
+            segments.append((start,end,count,moving,active))
+    elif style.reveal == "typewriter":
         segments = [(index * duration / slices, (index + 1) * duration / slices, index + 1, -1) for index in range(len(words))]
     elif motion != "none" and words:
         segments = []
@@ -400,7 +416,9 @@ def caption_ass(item, width: int, height: int, ratio: float) -> str:
     else:
         segments = [(0, duration, 0, -1)]
 
-    for start, end, count, pop in segments:
+    for segment in segments:
+        start,end,count,pop=segment[:4]
+        active=segment[4] if timed else None
         shown = body if not count else "".join(ass_escape(word) for word in words[:count])
         if not shown:
             continue
@@ -423,7 +441,7 @@ def caption_ass(item, width: int, height: int, ratio: float) -> str:
             ))
         if has_background:
             dialogue(2, start, end, "Box", shown)
-        dialogue(3, start, end, "Default", caption_line(words, item, fields, keys, pop=pop, count=count))
+        dialogue(3, start, end, "Default", caption_line(words, item, fields, keys, pop=pop, count=count, active=active))
 
     dropped = [name for name in ("chip",) if fields[name] != "none"]
     notice = ""

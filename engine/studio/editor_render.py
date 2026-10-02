@@ -20,6 +20,23 @@ from .media import ffmpeg_binary
 STATIC_BLUR: frozenset[str] = frozenset({'blur', 'zoom-blur', 'whip-pan'})
 
 
+def compatibility_issues(project):
+    """Document unsupported treatment instead of silently dropping its intent."""
+    issues=[]
+    for item in project.items:
+        missing=[]
+        if item.blend_mode!='normal': missing.append('blend mode '+item.blend_mode)
+        if item.kind=='text' and item.text_style.chip!='none': missing.append('individual word chips')
+        if item.kind=='text' and item.text_style.line_height!=1: missing.append('custom caption line height')
+        if item.animation_loop not in {'none','pulse','zoom-in','wobble','swing','shake','glitch','float','bounce','spin-right','spin-left','fade'}:
+            missing.append('loop '+item.animation_loop)
+        unsupported={name for frame in item.keyframes for name in frame.values
+                     if name not in {'x','y','scale','rotation','opacity','volume','brightness','contrast','saturation','exposure'}}
+        if unsupported: missing.append('animated '+', '.join(sorted(unsupported)))
+        if missing: issues.append({'item_id':item.id,'name':item.name or item.kind,'features':missing})
+    return issues
+
+
 def number(value):
     return format(float(value), '.10g')
 
@@ -31,6 +48,51 @@ def ease_out(progress, power=5):
     what reads as "modern" next to the linear slides of the original presets.
     """
     return 1-(1-progress)**power
+
+
+def ease_progress(progress, easing, bezier=None):
+    """Mirror editorModel.easeProgress, including inversion of Bezier time."""
+    p=max(0,min(1,progress))
+    if easing=='hold': return 0 if p<1 else 1
+    if easing=='ease-in': return p*p
+    if easing=='ease-out': return 1-(1-p)**2
+    if easing=='ease-in-out': return p*p*(3-2*p)
+    if easing=='spring': return 1 if p==1 else 1-math.cos(p*math.pi*4.5)*math.exp(-6*p)
+    if easing=='bounce':
+        n,d=7.5625,2.75
+        if p<1/d: return n*p*p
+        if p<2/d: return n*(p-1.5/d)**2+.75
+        if p<2.5/d: return n*(p-2.25/d)**2+.9375
+        return n*(p-2.625/d)**2+.984375
+    if easing=='cubic-bezier':
+        x1,y1,x2,y2=bezier or (.25,.1,.25,1)
+        def cubic(t,a,b): return 3*(1-t)**2*t*a+3*(1-t)*t*t*b+t**3
+        lo,hi=0,1
+        for _ in range(18):
+            mid=(lo+hi)/2
+            if cubic(mid,x1,x2)<p: lo=mid
+            else: hi=mid
+        return cubic((lo+hi)/2,y1,y2)
+    return p
+
+
+def ease_expression(q, easing, bezier=None):
+    if easing=='hold': return f'gte({q},1)'
+    if easing=='ease-in': return f'pow({q},2)'
+    if easing=='ease-out': return f'(1-pow(1-{q},2))'
+    if easing=='ease-in-out': return f'(pow({q},2)*(3-2*{q}))'
+    if easing=='spring': return f'if(gte({q},1),1,1-cos(({q})*PI*4.5)*exp(-6*({q})))'
+    if easing=='bounce':
+        return f'if(lt({q},1/2.75),7.5625*pow({q},2),if(lt({q},2/2.75),7.5625*pow(({q})-1.5/2.75,2)+.75,if(lt({q},2.5/2.75),7.5625*pow(({q})-2.25/2.75,2)+.9375,7.5625*pow(({q})-2.625/2.75,2)+.984375)))'
+    if easing=='cubic-bezier':
+        # AVExpr supports local registers and while. Bisection gives the same
+        # 18-iteration inversion as the browser without an enormous expression.
+        x1,y1,x2,y2=bezier or (.25,.1,.25,1)
+        t='((ld(1)+ld(2))/2)'
+        x=f'(3*pow(1-{t},2)*{t}*{number(x1)}+3*(1-{t})*pow({t},2)*{number(x2)}+pow({t},3))'
+        y=f'(3*pow(1-{t},2)*{t}*{number(y1)}+3*(1-{t})*pow({t},2)*{number(y2)}+pow({t},3))'
+        return f'(st(0,{q});st(1,0);st(2,1);st(3,0);while(lt(ld(3),18),if(lt({x},ld(0)),st(1,{t}),st(2,{t}));st(3,ld(3)+1));{y})'
+    return q
 
 
 def interpolate(item, time):
@@ -45,13 +107,26 @@ def interpolate(item, time):
             for a,b in zip(frames,frames[1:]):
                 if a.time <= time < b.time:
                     q=(time-a.time)/(b.time-a.time)
-                    if a.easing == 'ease-in': q=q*q
-                    elif a.easing == 'ease-out': q=1-(1-q)**2
-                    elif a.easing == 'ease-in-out': q=q*q*(3-2*q)
+                    q=ease_progress(q,a.easing,a.bezier)
                     values = {k:getattr(a,k)+(getattr(b,k)-getattr(a,k))*q for k in ('x','y','scale','rotation','opacity','volume')}
+                    break
+    if frames:
+        if time<=frames[0].time: values.update(frames[0].values)
+        elif time>=frames[-1].time: values.update(frames[-1].values)
+        else:
+            for a,b in zip(frames,frames[1:]):
+                if a.time<=time<b.time:
+                    q=ease_progress((time-a.time)/(b.time-a.time),a.easing,a.bezier)
+                    for field in a.values.keys()|b.values.keys():
+                        base=getattr(a,field,getattr(item.adjustments,field,0))
+                        first=a.values.get(field,base); last=b.values.get(field,getattr(b,field,getattr(item.adjustments,field,0)))
+                        values[field]=first+(last-first)*q
                     break
     for preset,p in ((item.animation_in,time/item.animation_duration),(item.animation_out,(item.duration-time)/item.animation_duration)):
         p=max(0,min(1,p))
+        if preset=='pulse': values['scale'] *= 1+.1*math.sin(p*math.pi*4)*(1-p)
+        if preset=='wobble': values['rotation'] += 12*math.sin(p*math.pi*4)*(1-p)
+        if preset=='shake': values['x'] += 5*math.sin(p*math.pi*10)*(1-p)
         if preset == 'fade': values['opacity'] *= p
         if preset == 'slide-left': values['x'] -= 100*(1-p)
         if preset == 'slide-right': values['x'] += 100*(1-p)
@@ -99,27 +174,33 @@ def interpolate(item, time):
         if preset == 'fade-zoom':
             values['opacity'] *= e
             values['scale'] *= .85+.15*e
+    phase=time/max(.1,item.animation_duration)*math.pi*2
+    preset=item.animation_loop
+    if preset in {'pulse','zoom-in'}: values['scale']*=1+.06*math.sin(phase)
+    elif preset in {'wobble','swing'}: values['rotation']+=6*math.sin(phase)
+    elif preset in {'shake','glitch'}: values['x']+=1.4*math.sin(phase*3)
+    elif preset in {'float','bounce'}: values['y']+=2*math.sin(phase)
+    elif preset=='spin-right': values['rotation']+=time/max(.1,item.animation_duration)*360
+    elif preset=='spin-left': values['rotation']-=time/max(.1,item.animation_duration)*360
+    elif preset=='fade': values['opacity']*=.7+.3*math.sin(phase)
     return values
 
 
 def frame_expression(item, field, time):
     frames = item.keyframes
-    base = item.volume if field == 'volume' else getattr(item.transform, field)
+    base = item.volume if field == 'volume' else getattr(item.transform, field, getattr(item.adjustments,field,0))
+    def value(frame):
+        return frame.values.get(field,getattr(frame,field,base))
     if not frames:
         return number(base)
-    if len({getattr(frame, field) for frame in frames}) == 1:
-        return number(getattr(frames[0], field))
+    if len({value(frame) for frame in frames}) == 1:
+        return number(value(frames[0]))
     segments = []
     for left, right in zip(frames, frames[1:]):
         q = f'clip(({time}-{number(left.time)})/{number(right.time-left.time)},0,1)'
-        if left.easing == 'ease-in':
-            q = f'pow({q},2)'
-        elif left.easing == 'ease-out':
-            q = f'(1-pow(1-{q},2))'
-        elif left.easing == 'ease-in-out':
-            q = f'(pow({q},2)*(3-2*{q}))'
-        segments.append(f'({number(getattr(left,field))}+{number(getattr(right,field)-getattr(left,field))}*{q})')
-    segments.append(number(getattr(frames[-1], field)))
+        q=ease_expression(q,left.easing,left.bezier)
+        segments.append(f'({number(value(left))}+{number(value(right)-value(left))}*{q})')
+    segments.append(number(value(frames[-1])))
 
     def branch(start, end):
         # Balanced conditionals avoid FFmpeg expression parser recursion limits
@@ -137,7 +218,10 @@ def visual_expression(item, field, time):
     for preset,progress in ((item.animation_in,f'clip({time}/{number(item.animation_duration)},0,1)'),(item.animation_out,f'clip(({number(item.duration)}-{time})/{number(item.animation_duration)},0,1)')):
         # Quint ease-out 1-pow(1-p,5), mirroring ease_out() used by interpolate().
         ease=f'(1-pow(1-{progress},5))'
-        if preset=='fade' and field=='opacity': expr=f'({expr}*{progress})'
+        if preset=='pulse' and field=='scale': expr=f'({expr}*(1+.1*sin(({progress})*PI*4)*(1-{progress})))'
+        elif preset=='wobble' and field=='rotation': expr=f'({expr}+12*sin(({progress})*PI*4)*(1-{progress}))'
+        elif preset=='shake' and field=='x': expr=f'({expr}+5*sin(({progress})*PI*10)*(1-{progress}))'
+        elif preset=='fade' and field=='opacity': expr=f'({expr}*{progress})'
         elif field=='x' and preset in {'slide-left','slide-right'}:
             expr=f'({expr}{"-" if preset=="slide-left" else "+"}100*(1-{progress}))'
         elif field=='y' and preset in {'slide-up','slide-down'}:
@@ -168,6 +252,14 @@ def visual_expression(item, field, time):
         elif field=='x' and preset=='whip': expr=f'({expr}+120*(1-{ease}))'
         elif field=='rotation' and preset=='whip': expr=f'({expr}-8*(1-{ease}))'
         elif field=='scale' and preset=='fade-zoom': expr=f'({expr}*(0.85+0.15*{ease}))'
+    phase=f'({time}/{number(max(.1,item.animation_duration))}*PI*2)'
+    preset=item.animation_loop
+    if preset in {'pulse','zoom-in'} and field=='scale': expr=f'({expr}*(1+.06*sin({phase})))'
+    elif preset in {'wobble','swing'} and field=='rotation': expr=f'({expr}+6*sin({phase}))'
+    elif preset in {'shake','glitch'} and field=='x': expr=f'({expr}+1.4*sin({phase}*3))'
+    elif preset in {'float','bounce'} and field=='y': expr=f'({expr}+2*sin({phase}))'
+    elif preset in {'spin-right','spin-left'} and field=='rotation': expr=f'({expr}{"+" if preset=="spin-right" else "-"}{time}/{number(max(.1,item.animation_duration))}*360)'
+    elif preset=='fade' and field=='opacity': expr=f'({expr}*(.7+.3*sin({phase})))'
     return expr
 
 
@@ -207,10 +299,10 @@ def build_render_command(project: Project, assets: dict, output: Path, resolutio
             inputs[index]=len(inputs)
             path=assets[item.asset_id][1]
             metadata=assets[item.asset_id][2]
-            if metadata['media_type']=='image':
+            if metadata.get('media_type','video')=='image':
                 command += ['-loop','1','-framerate',str(fps),'-t',number(item.duration),'-i',str(path)]
             elif item.freeze_at is not None:
-                command += ['-ss',number(item.freeze_at),'-t',number(1/fps),'-protocol_whitelist','file,pipe','-i',str(path)]
+                command += ['-ss',number(item.freeze_at),'-protocol_whitelist','file,pipe','-i',str(path)]
             else:
                 command += ['-ss',number(item.source_in),'-t',number(item.duration*item.speed),'-protocol_whitelist','file,pipe','-i',str(path)]
     filters=[f'color=c={project.background}:s={width}x{height}:r={fps}:d={number(duration)},format=yuv420p[base]']
@@ -225,10 +317,10 @@ def build_render_command(project: Project, assets: dict, output: Path, resolutio
             fit='decrease' if item.fit=='contain' else 'increase'
             fitting=f'scale={width}:{height}:force_original_aspect_ratio={fit}:force_divisible_by=2'
             fitting += f',pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0' if item.fit=='contain' else f',crop={width}:{height}'
-            speed=1 if assets[item.asset_id][2]['media_type']=='image' or item.freeze_at is not None else item.speed
+            speed=1 if assets[item.asset_id][2].get('media_type','video')=='image' or item.freeze_at is not None else item.speed
             temporal='reverse,' if item.reverse and item.freeze_at is None else ''
             if item.freeze_at is not None:
-                temporal+=f'trim=end_frame=1,setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={number(item.duration)},'
+                temporal+=f'trim=end_frame=1,loop=loop=-1:size=1:start=0,setpts=N/({fps}*TB),'
             head=f'[{inputs[index]}:v]{temporal}setpts=(PTS-STARTPTS)/{number(speed)},fps={fps},trim=duration={number(item.duration)},format=yuva444p'
             crop=item.crop
             if any(crop.model_dump().values()):
@@ -247,7 +339,32 @@ def build_render_command(project: Project, assets: dict, output: Path, resolutio
             for font in fontdir.rglob('*.ttf'):
                 shutil.copyfile(font,directory/'fonts'/font.name)
             head=f'color=c=black@0:s={width}x{height}:r={fps}:d={number(item.duration)},format=yuva444p,ass={ass}:fontsdir=fonts:alpha=1'
-        transformed = bool(item.keyframes) or any(getattr(item.transform,key)!=value for key,value in {'x':0,'y':0,'scale':1,'rotation':0}.items()) or item.animation_in not in {'none','fade'} or item.animation_out not in {'none','fade'}
+        a=item.adjustments
+        if a.brightness or a.contrast!=1 or a.saturation!=1 or a.exposure or any(frame.values for frame in item.keyframes):
+            head+=f",eq=brightness='{frame_expression(item,'brightness','t')}':contrast='{frame_expression(item,'contrast','t')}':saturation='{frame_expression(item,'saturation','t')}':gamma='pow(2,{frame_expression(item,'exposure','t')})':eval=frame"
+        if a.temperature or a.tint or a.highlights or a.shadows:
+            head+=f',colorbalance=rm={number(a.temperature*.3)}:bm={number(-a.temperature*.3)}:gm={number(a.tint*.3)}:rh={number(a.highlights*.3)}:gh={number(a.highlights*.3)}:bh={number(a.highlights*.3)}:rs={number(a.shadows*.3)}:gs={number(a.shadows*.3)}:bs={number(a.shadows*.3)}:pl=1'
+        if a.sharpen: head+=f',unsharp=luma_msize_x=5:luma_msize_y=5:luma_amount={number(a.sharpen)}'
+        if a.blur: head+=f',gblur=sigma={number(a.blur*ratio)}'
+        if a.grain: head+=f',noise=alls={number(a.grain*40)}:allf=t+u:all_seed=42'
+        if a.vignette: head+=f',vignette=angle={number(a.vignette*math.pi/2)}'
+        if item.mask.shape!='none':
+            distance=('min(W/2-abs(X-W/2),H/2-abs(Y-H/2))' if item.mask.shape=='rectangle' else
+                      '(1-sqrt(pow((X-W/2)/(W/2),2)+pow((Y-H/2)/(H/2),2)))*min(W,H)/2')
+            feather=max(.01,item.mask.feather/100*min(width,height)/2)
+            head+=f",geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='alpha(X,Y)*clip(({distance})/{number(feather)},0,1)'"
+        region=item.conceal
+        if region.mode!='none':
+            x=round(width*region.x/100); y=round(height*region.y/100)
+            w=max(2,min(width-x,round(width*region.width/100)))
+            h=max(2,min(height-y,round(height*region.height/100)))
+            if region.mode=='cover':
+                head+=f',drawbox=x={x}:y={y}:w={w}:h={h}:color={region.color}:t=fill'
+            else:
+                treatment=(f'boxblur=luma_radius={min(20,w//2-1,h//2-1)}:luma_power=3' if region.mode=='blur'
+                           else f'scale={max(1,w//16)}:{max(1,h//16)}:flags=neighbor,scale={w}:{h}:flags=neighbor')
+                head+=f',split=2[conceal-base{index}][conceal-cut{index}];[conceal-cut{index}]crop={w}:{h}:{x}:{y},{treatment}[conceal-region{index}];[conceal-base{index}][conceal-region{index}]overlay={x}:{y}:format=auto'
+        transformed = bool(item.keyframes) or any(getattr(item.transform,key)!=value for key,value in {'x':0,'y':0,'scale':1,'rotation':0}.items()) or item.animation_in not in {'none','fade'} or item.animation_out not in {'none','fade'} or item.animation_loop not in {'none','fade'}
         if transformed:
             # Perspective applies an affine matrix per frame without dynamic
             # buffer sizes. Transparent 2px guards prevent edge extrapolation.
@@ -286,7 +403,7 @@ def build_render_command(project: Project, assets: dict, output: Path, resolutio
     filters.append(f'[{visual}]format=yuv420p[video]')
     audio_labels=[]
     for index,item in enumerate(project.items):
-        if item.kind=='text' or item.muted or not assets[item.asset_id][2]['has_audio']: continue
+        if item.kind=='text' or item.muted or item.freeze_at is not None or (tracks.get(item.track) and tracks[item.track].muted) or not assets[item.asset_id][2]['has_audio']: continue
         speed=item.speed; tempos=[]
         while speed<.5: tempos.append('atempo=0.5'); speed/=.5
         while speed>2: tempos.append('atempo=2'); speed/=2
@@ -295,7 +412,14 @@ def build_render_command(project: Project, assets: dict, output: Path, resolutio
         if item.fade_in: volume=f'({volume})*clip(t/{number(item.fade_in)},0,1)'
         if item.fade_out: volume=f'({volume})*clip(({number(item.duration)}-t)/{number(item.fade_out)},0,1)'
         label=f'a{index}'
-        filters.append(f"[{inputs[index]}:a]asetpts=PTS-STARTPTS,{','.join(tempos)},aresample=48000,atrim=duration={number(item.duration)},volume='{volume}':eval=frame,adelay={round(item.start*48000)}S:all=1[{label}]")
+        if item.ducking:
+            windows=[f'between(t,{number(max(0,voice.start-item.start-.12))},{number(min(item.duration,voice.start+voice.duration-item.start+.2))})'
+                     for voice in project.items if voice.audio_role=='voiceover' and voice.asset_id and not voice.muted
+                     and not (tracks.get(voice.track) and tracks[voice.track].muted)
+                     and voice.start<item.start+item.duration and voice.start+voice.duration>item.start]
+            if windows: volume=f'({volume})*if(gt({"+".join(windows)},0),.25,1)'
+        reverse='areverse,' if item.reverse else ''
+        filters.append(f"[{inputs[index]}:a]{reverse}asetpts=PTS-STARTPTS,{','.join(tempos)},aresample=48000,atrim=duration={number(item.duration)},volume='{volume}':eval=frame,adelay={round(item.start*48000)}S:all=1[{label}]")
         audio_labels.append(label)
     filters.append(f'anullsrc=r=48000:cl=stereo,atrim=duration={number(duration)}[silence]')
     audio_labels.append('silence')
@@ -307,6 +431,10 @@ def build_render_command(project: Project, assets: dict, output: Path, resolutio
 
 def render_project(project, assets, output, resolution, progress=None):
     if project.duration<=0: raise ValueError('Add at least one item before exporting.')
+    issues=compatibility_issues(project)
+    if issues:
+        features=sorted({feature for issue in issues for feature in issue['features']})
+        raise ValueError('The FFmpeg compatibility exporter does not support '+ '; '.join(features)+'. Use the shared browser exporter for these treatments, or remove them before retrying.')
     with tempfile.TemporaryDirectory(prefix='shortforge-render-') as folder:
         directory=Path(folder)
         command=build_render_command(project,assets,output,resolution,directory)
