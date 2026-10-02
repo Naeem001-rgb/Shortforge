@@ -175,6 +175,7 @@ export type EditorProject = {
   markers?: EditorMarker[];
   script?: string;
   name?: string;
+  source_seeded?: boolean;
 };
 export type EditorMedia = Asset & {
   name: string;
@@ -184,6 +185,7 @@ export type EditorMedia = Asset & {
   has_audio: boolean;
   media_type: "video" | "audio" | "image";
   waveform: number[];
+  thumbnail_url?: string;
 };
 export type EditorResponse = {
   project: EditorProject;
@@ -275,7 +277,7 @@ export function newItem(
 export function valueAt(
   item: TimelineItem,
   localTime: number,
-): Transform & { volume: number } {
+): Transform & { volume: number; values?: Record<string, number> } {
   const keys = [...item.keyframes].sort((a, b) => a.time - b.time);
   if (!keys.length) return { ...item.transform, volume: item.volume };
   if (localTime <= keys[0].time) return { ...keys[0] };
@@ -284,10 +286,7 @@ export function valueAt(
   const rightIndex = keys.findIndex((k) => k.time >= localTime),
     left = keys[rightIndex - 1],
     right = keys[rightIndex];
-  let q = (localTime - left.time) / (right.time - left.time);
-  if (left.easing === "ease-in") q *= q;
-  else if (left.easing === "ease-out") q = 1 - (1 - q) ** 2;
-  else if (left.easing === "ease-in-out") q = q * q * (3 - 2 * q);
+  const q = easeProgress((localTime-left.time)/(right.time-left.time), left.easing, left.bezier);
   const result = { ...item.transform, volume: item.volume };
   for (const property of [
     "x",
@@ -298,7 +297,30 @@ export function valueAt(
     "volume",
   ] as const)
     result[property] = left[property] + (right[property] - left[property]) * q;
-  return result;
+  const values: Record<string,number> = {};
+  for (const property of new Set([...Object.keys(left.values || {}), ...Object.keys(right.values || {})])) {
+    const a = left.values?.[property] ?? right.values?.[property] ?? 0;
+    const b = right.values?.[property] ?? a;
+    values[property] = a+(b-a)*q;
+  }
+  return {...result, values};
+}
+export function easeProgress(progress:number, easing:Keyframe["easing"], bezier?: [number,number,number,number]):number {
+  const p=clamp(progress,0,1);
+  if(easing === "hold") return p<1 ? 0 : 1;
+  if(easing === "ease-in") return p*p;
+  if(easing === "ease-out") return 1-(1-p)**2;
+  if(easing === "ease-in-out") return p*p*(3-2*p);
+  if(easing === "spring") return p===1 ? 1 : 1-Math.cos(p*Math.PI*4.5)*Math.exp(-6*p);
+  if(easing === "bounce") { const n=7.5625,d=2.75; if(p<1/d)return n*p*p; if(p<2/d)return n*(p-1.5/d)**2+.75; if(p<2.5/d)return n*(p-2.25/d)**2+.9375;return n*(p-2.625/d)**2+.984375; }
+  if(easing === "cubic-bezier") {
+    const [x1,y1,x2,y2]=bezier || [.25,.1,.25,1];
+    const cubic=(t:number,a:number,b:number)=>3*(1-t)**2*t*a+3*(1-t)*t*t*b+t**3;
+    let lo=0,hi=1;
+    for(let i=0;i<18;i++){const mid=(lo+hi)/2;if(cubic(mid,x1,x2)<p)lo=mid;else hi=mid;}
+    return cubic((lo+hi)/2,y1,y2);
+  }
+  return p;
 }
 // Quint ease-out, mirrors ease_out() in engine/studio/editor_render.py.
 export const easeOut = (p: number, power = 5) => 1 - Math.pow(1 - p, power);
@@ -309,6 +331,9 @@ export function displayAt(item: TimelineItem, localTime: number) {
     [item.animation_out, (item.duration - localTime) / item.animation_duration],
   ] as const) {
     const p = clamp(progress, 0, 1);
+    if (preset === "pulse") value.scale *= 1+.1*Math.sin(p*Math.PI*4)*(1-p);
+    if (preset === "wobble") value.rotation += 12*Math.sin(p*Math.PI*4)*(1-p);
+    if (preset === "shake") value.x += 5*Math.sin(p*Math.PI*10)*(1-p);
     if (preset === "fade") value.opacity *= p;
     if (preset === "slide-left") value.x -= 100 * (1 - p);
     if (preset === "slide-right") value.x += 100 * (1 - p);
@@ -368,6 +393,16 @@ export function displayAt(item: TimelineItem, localTime: number) {
       value.scale *= 0.85 + 0.15 * e;
     }
   }
+  if(item.animation_loop && item.animation_loop !== "none") {
+    const phase=localTime/Math.max(.1,item.animation_duration)*Math.PI*2;
+    if(item.animation_loop === "pulse" || item.animation_loop === "zoom-in") value.scale*=1+.06*Math.sin(phase);
+    else if(item.animation_loop === "wobble" || item.animation_loop === "swing") value.rotation+=6*Math.sin(phase);
+    else if(item.animation_loop === "shake" || item.animation_loop === "glitch") value.x+=1.4*Math.sin(phase*3);
+    else if(item.animation_loop === "float" || item.animation_loop === "bounce") value.y+=2*Math.sin(phase);
+    else if(item.animation_loop === "spin-right") value.rotation+=localTime/Math.max(.1,item.animation_duration)*360;
+    else if(item.animation_loop === "spin-left") value.rotation-=localTime/Math.max(.1,item.animation_duration)*360;
+    else if(item.animation_loop === "fade") value.opacity*=.7+.3*Math.sin(phase);
+  }
   if (item.fade_in > 0) value.volume *= clamp(localTime / item.fade_in, 0, 1);
   if (item.fade_out > 0)
     value.volume *= clamp((item.duration - localTime) / item.fade_out, 0, 1);
@@ -398,9 +433,10 @@ export function trimItem(
   return {
     ...item,
     start: item.start + front,
-    source_in: item.source_in + front * item.speed,
+    source_in: item.reverse ? item.source_in + (item.duration-end)*item.speed : item.source_in + front * item.speed,
     duration,
     keyframes,
+    ...(item.caption_words ? {caption_words:item.caption_words.filter(w => w.end>front && w.start<end).map(w=>({...w,start:Math.max(0,w.start-front),end:Math.min(duration,w.end-front)}))} : {}),
   };
 }
 export function parseSrt(text: string): TimelineItem[] {
