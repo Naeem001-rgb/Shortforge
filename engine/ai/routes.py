@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from engine.core import db
 from engine.studio.media import audio_fit_note, probe_media, resolve_data_path
-from .voice import align_voice, builtin_voices, clone_readiness, provider_list, synthesize
+from .voice import align_voice, builtin_voices, clone_readiness, elevenlabs_voices, provider_list, synthesize
 from .writing import original_script, rewrite_script, seo_pack
 
 router = APIRouter(prefix="/api")
@@ -40,15 +40,16 @@ class TTSRequest(BaseModel):
     text: str = Field(min_length=1, max_length=12000)
     provider: Literal["piper", "espeak", "edge", "elevenlabs", "clone"] = "piper"
     voice_id: str = Field(default="piper-local", max_length=100)
-    speed: float = Field(default=1, ge=0.9, le=1.1)
+    speed: float = Field(default=1, ge=0.7, le=1.2)
+    stability: float = Field(default=0.5, ge=0, le=1)
     pitch: float = Field(default=0, ge=-50, le=50)
 
 
 @router.post("/rewrite")
 def rewrite(payload: RewriteRequest):
     clip = db.get_clip(payload.clip_id)
-    # Script work is available for Library references as requested. Footage
-    # downloads and video edits retain their separate permission checks.
+    # Script work is available for Library references without changing source
+    # rights metadata. Cloud writing only runs after this explicit request.
     try:
         if payload.mode == "original":
             # Unknown footage is never fetched or transcribed for this mode.
@@ -87,7 +88,14 @@ def voices():
     settings = db.get_settings()
     with db.connect() as connection:
         profiles = [dict(row) for row in connection.execute("SELECT * FROM voices ORDER BY created_at DESC")]
-    return {"voices": builtin_voices(settings) + [profile_view(row, settings) for row in profiles], "providers": provider_list(settings)}
+    providers = provider_list(settings)
+    try:
+        remote = elevenlabs_voices(settings)
+    except ValueError as exc:
+        remote = []
+        provider = next(item for item in providers if item["id"] == "elevenlabs")
+        provider.update(available=False, note=str(exc))
+    return {"voices": builtin_voices(settings) + remote + [profile_view(row, settings) for row in profiles], "providers": providers}
 
 
 @router.post("/voices/clone")
@@ -149,7 +157,7 @@ def voice_job(job_id: str, payload: TTSRequest, reference_path: Path | None):
         db.update_job(job_id, status="running", progress=10)
         directory = db.DATA_DIR / "voiceovers"
         directory.mkdir(parents=True, exist_ok=True)
-        path = synthesize(payload.text, payload.provider, payload.voice_id, payload.speed, payload.pitch, directory / f"{job_id}.wav", db.get_settings(), reference_path)
+        path = synthesize(payload.text, payload.provider, payload.voice_id, payload.speed, payload.pitch, directory / f"{job_id}.wav", db.get_settings(), reference_path, stability=payload.stability)
         db.update_job(job_id, progress=80)
         timing = align_voice(path, payload.text)
         path.with_suffix(".timing.json").write_text(json.dumps(timing, ensure_ascii=False), encoding="utf-8")
@@ -159,12 +167,11 @@ def voice_job(job_id: str, payload: TTSRequest, reference_path: Path | None):
         # source only, so the user has useful context before entering Export.
         try:
             from engine.core.media import get_source
-            if db.get_clip(payload.clip_id)["license_status"] != "unknown":
-                _, source = get_source(payload.clip_id)
-                source_media = probe_media(source)
-                fit = audio_fit_note(source_media["duration"], timing["duration"], "replace", source_media["audio"])
-                if fit:
-                    audio_note = "Compared with the full source video before trimming: " + fit
+            _, source = get_source(payload.clip_id)
+            source_media = probe_media(source)
+            fit = audio_fit_note(source_media["duration"], timing["duration"], "replace", source_media["audio"])
+            if fit:
+                audio_note = "Compared with the full source video before trimming: " + fit
         except (HTTPException, ValueError, OSError, subprocess.SubprocessError):
             pass
         db.update_job(job_id, status="completed", progress=100, result={"asset": asset, **timing, "audio_note": audio_note})

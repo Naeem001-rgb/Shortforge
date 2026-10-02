@@ -1,8 +1,12 @@
 """Real TTS providers, with availability checks before any work is queued."""
 
 import asyncio
+import base64
+import binascii
+import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -10,11 +14,64 @@ import shutil
 import subprocess
 import sys
 from threading import Lock
+import time
 from urllib import error, request
 
 from engine.studio.media import audio_duration, approximate_words, ffmpeg_binary
 
 LOCAL_VOICE_LOCK = Lock()
+VOICE_CACHE: dict[str, tuple[float, list[dict]]] = {}
+
+
+def elevenlabs_voices(settings: dict) -> list[dict]:
+    key = settings.get("elevenlabs_api_key", "")
+    if not key:
+        return []
+    cache_key = hashlib.sha256(key.encode()).hexdigest()
+    cached = VOICE_CACHE.get(cache_key)
+    if cached and time.monotonic() - cached[0] < 300:
+        return cached[1]
+    req = request.Request("https://api.elevenlabs.io/v1/voices", headers={"xi-api-key": key, "Accept": "application/json"})
+    try:
+        with request.urlopen(req, timeout=15) as response:
+            payload = json.load(response)
+        rows = [{"id": row["voice_id"], "name": row.get("name") or row["voice_id"], "provider": "elevenlabs", "language": row.get("labels", {}).get("language", "Multilingual"), "description": row.get("description") or "Uses your ElevenLabs account credits.", "available": True, "cloned": row.get("category") in {"cloned", "professional"}} for row in payload["voices"] if re.fullmatch(r"[A-Za-z0-9_-]{8,80}", row.get("voice_id", ""))]
+    except error.HTTPError as exc:
+        raise ValueError(f"ElevenLabs voices could not load (HTTP {exc.code}). Check your key and voice access in Settings, then refresh.") from None
+    except (OSError, ValueError, KeyError, TypeError):
+        raise ValueError("ElevenLabs voices could not load. Check your connection and refresh the voice list.") from None
+    VOICE_CACHE.clear()
+    VOICE_CACHE[cache_key] = (time.monotonic(), rows)
+    return rows
+
+
+def alignment_words(alignment: dict) -> list[dict]:
+    """Convert provider character alignment to real word intervals."""
+    chars = alignment.get("characters", [])
+    starts = alignment.get("character_start_times_seconds", [])
+    ends = alignment.get("character_end_times_seconds", [])
+    if not chars or len(chars) != len(starts) or len(chars) != len(ends):
+        raise ValueError("ElevenLabs returned incomplete word timing. Try generating this line again.")
+    words, current = [], None
+    previous = 0.0
+    for char, start, end in zip(chars, starts, ends):
+        if not isinstance(char, str) or not isinstance(start, (int, float)) or not isinstance(end, (int, float)) or not math.isfinite(start) or not math.isfinite(end) or start < previous or end < start:
+            raise ValueError("ElevenLabs returned invalid word timing. Try generating this line again.")
+        previous = start
+        if char.isspace():
+            if current:
+                words.append(current)
+                current = None
+        elif current:
+            current["word"] += char
+            current["end"] = end
+        else:
+            current = {"word": char, "start": start, "end": end}
+    if current:
+        words.append(current)
+    if not words:
+        raise ValueError("ElevenLabs returned empty word timing. Try generating this line again.")
+    return words
 
 
 def installed(name: str) -> bool:
@@ -59,12 +116,11 @@ def builtin_voices(settings: dict) -> list[dict]:
         ("en-GB-SoniaNeural", "Sonia", "edge", "English (UK)", "British narration. Online, unofficial service."),
         ("ur-PK-UzmaNeural", "Uzma", "edge", "Urdu (Pakistan)", "Urdu narration. Online, unofficial service."),
         ("ur-PK-AsadNeural", "Asad", "edge", "Urdu (Pakistan)", "Urdu narration. Online, unofficial service."),
-        ("JBFqnCBsd6RMkjVDRZzb", "George", "elevenlabs", "Multilingual", "Uses your ElevenLabs account credits. Commercial use needs a paid plan."),
     ]
     return [{"id": id, "name": name, "provider": provider, "language": language, "description": description, "available": available[provider], "cloned": False} for id, name, provider, language, description in rows]
 
 
-def synthesize(text: str, provider: str, voice_id: str, speed: float, pitch: float, output: Path, settings: dict, reference: Path | None = None) -> Path:
+def synthesize(text: str, provider: str, voice_id: str, speed: float, pitch: float, output: Path, settings: dict, reference: Path | None = None, stability: float = 0.5) -> Path:
     if pitch and provider != "edge":
         raise ValueError("Pitch control is available for Edge voices. Keep pitch at 0 for this provider.")
     if provider == "piper":
@@ -96,13 +152,24 @@ def synthesize(text: str, provider: str, voice_id: str, speed: float, pitch: flo
     elif provider == "elevenlabs":
         if not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", voice_id):
             raise ValueError("Choose a valid ElevenLabs voice ID.")
-        req = request.Request(f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}", data=json.dumps({"text": text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": 0.5, "similarity_boost": 0.75, "speed": speed}}).encode(), headers={"xi-api-key": settings["elevenlabs_api_key"], "Content-Type": "application/json", "Accept": "audio/mpeg"}, method="POST")
+        req = request.Request(f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps", data=json.dumps({"text": text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": stability, "similarity_boost": 0.75, "speed": speed}}).encode(), headers={"xi-api-key": settings["elevenlabs_api_key"], "Content-Type": "application/json", "Accept": "application/json"}, method="POST")
         mp3 = output.with_suffix(".mp3")
         try:
             with request.urlopen(req, timeout=120) as response:
-                mp3.write_bytes(response.read())
+                payload = json.load(response)
+            audio = base64.b64decode(payload["audio_base64"], validate=True)
+            words = alignment_words(payload.get("normalized_alignment") or payload.get("alignment") or {})
+            if not audio:
+                raise ValueError("ElevenLabs returned no audio. Try generating this line again.")
+            mp3.write_bytes(audio)
+            timing = {"text": " ".join(word["word"] for word in words), "words": words, "duration": audio_duration(mp3), "timing_method": "elevenlabs", "timing_note": "Word timestamps come from ElevenLabs character alignment for this generated audio."}
+            mp3.with_suffix(".timing.json").write_text(json.dumps(timing, ensure_ascii=False), encoding="utf-8")
         except error.HTTPError as exc:
             raise ValueError(f"ElevenLabs returned HTTP {exc.code}. Check your key, voice access and account credits.") from None
+        except (KeyError, TypeError, binascii.Error):
+            raise ValueError("ElevenLabs returned incomplete audio or timing. Try generating this line again.") from None
+        except OSError:
+            raise ValueError("Could not reach ElevenLabs or save the voice audio. Check your connection and free disk space, then try again.") from None
         return mp3
     elif provider == "clone":
         if reference is None:
@@ -127,6 +194,11 @@ def synthesize(text: str, provider: str, voice_id: str, speed: float, pitch: flo
 
 
 def align_voice(path: Path, text: str) -> dict:
+    sidecar = path.with_suffix(".timing.json")
+    if sidecar.is_file():
+        timing = json.loads(sidecar.read_text(encoding="utf-8"))
+        if timing.get("timing_method") == "elevenlabs" and timing.get("words"):
+            return timing
     duration = audio_duration(path)
     try:
         from engine.core.media import transcribe_file
