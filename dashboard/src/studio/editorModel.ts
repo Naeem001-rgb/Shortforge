@@ -25,7 +25,10 @@ export type Animation =
   | "tilt"
   | "push-in"
   | "whip"
-  | "fade-zoom";
+  | "fade-zoom"
+  | "pulse"
+  | "wobble"
+  | "shake";
 
 /**
  * Transition ids are declared literally rather than aliased to
@@ -96,8 +99,23 @@ export type Transform = {
 export type Keyframe = Transform & {
   time: number;
   volume: number;
-  easing: "linear" | "ease-in" | "ease-out" | "ease-in-out";
+  easing: "linear" | "ease-in" | "ease-out" | "ease-in-out" | "hold" | "spring" | "bounce" | "cubic-bezier";
+  bezier?: [number, number, number, number];
+  values?: Record<string, number>;
 };
+export type CaptionWord = { word: string; start: number; end: number };
+export type Adjustments = {
+  brightness: number; contrast: number; saturation: number; exposure: number;
+  temperature: number; tint: number; highlights: number; shadows: number;
+  vignette: number; sharpen: number; grain: number; blur: number;
+};
+export const defaultAdjustments: Adjustments = {
+  brightness: 0, contrast: 1, saturation: 1, exposure: 0,
+  temperature: 0, tint: 0, highlights: 0, shadows: 0,
+  vignette: 0, sharpen: 0, grain: 0, blur: 0,
+};
+export type EditorTrack = { id: number; name: string; kind: "video" | "audio" | "text"; locked: boolean; hidden: boolean; muted: boolean };
+export type EditorMarker = { id: string; time: number; label: string; color?: string };
 export type TimelineItem = {
   id: string;
   kind: "video" | "audio" | "text";
@@ -127,6 +145,24 @@ export type TimelineItem = {
   color: string;
   text_background: string;
   text_style?: TextStyle;
+  caption_words?: CaptionWord[];
+  caption_style?: string;
+  font_family?: string;
+  reverse?: boolean;
+  freeze_at?: number | null;
+  flip_x?: boolean;
+  flip_y?: boolean;
+  crop?: { top: number; right: number; bottom: number; left: number };
+  adjustments?: Partial<Adjustments>;
+  animation_loop?: Animation;
+  group_id?: string;
+  blend_mode?: "normal" | "multiply" | "screen" | "overlay" | "lighten" | "darken";
+  mask?: { shape: "none" | "circle" | "rectangle"; feather: number };
+  chroma_key?: { enabled: boolean; color: string; similarity: number };
+  conceal?: { mode: "none" | "blur" | "cover" | "mosaic"; x: number; y: number; width: number; height: number; color: string };
+  audio_role?: "original" | "voiceover" | "music" | "sfx";
+  ducking?: boolean;
+
 };
 export type EditorProject = {
   version: 1;
@@ -135,6 +171,10 @@ export type EditorProject = {
   fps: number;
   background: string;
   items: TimelineItem[];
+  tracks?: EditorTrack[];
+  markers?: EditorMarker[];
+  script?: string;
+  name?: string;
 };
 export type EditorMedia = Asset & {
   name: string;
@@ -175,6 +215,9 @@ export const animations: { value: Animation; label: string }[] = [
   { value: "push-in", label: "Push in" },
   { value: "whip", label: "Whip" },
   { value: "fade-zoom", label: "Fade + zoom" },
+  { value: "pulse", label: "Pulse" },
+  { value: "wobble", label: "Wobble" },
+  { value: "shake", label: "Shake" },
 ];
 export const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
