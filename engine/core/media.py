@@ -123,8 +123,10 @@ class QuietDownloadLogger:
 
 
 def download_job(job_id: str, clip_id: str):
+    output = None
     try:
         import yt_dlp
+        from engine.studio.editor_media import normalize_browser_video, probe_media
         clip = db.require_editable(clip_id)
         db.update_job(job_id, status="running", progress=1)
         output = db.DATA_DIR / "downloads" / clip_id / job_id
@@ -153,13 +155,22 @@ def download_job(job_id: str, clip_id: str):
         path = next((p for p in candidates if p.is_file() and p.suffix in {".mp4", ".mkv", ".webm", ".mov"}), None)
         if path is None:
             raise RuntimeError("YouTube did not produce a downloadable video. Update yt-dlp or upload footage you own.")
+        playable = normalize_browser_video(path)
+        probe_media(playable)
+        if playable != path:
+            path.unlink(missing_ok=True)
+            path = playable
         db.require_editable(clip_id)
         asset = db.add_asset(clip_id, "source", path)
         with db.connect() as conn:
-            conn.execute("UPDATE clips SET workflow_status='downloaded' WHERE id=?", (clip_id,))
+            conn.execute("UPDATE clips SET workflow_status='downloaded' WHERE id=? AND workflow_status='collected'", (clip_id,))
         db.update_job(job_id, status="completed", progress=100, result={"asset": asset})
     except Exception as exc:
+        if output:
+            shutil.rmtree(output, ignore_errors=True)
         message = str(exc)
-        if not isinstance(exc, (HTTPException, RuntimeError)):
+        if isinstance(exc, HTTPException):
+            message = str(exc.detail)
+        elif not isinstance(exc, (RuntimeError, ValueError)):
             message = "Download failed. YouTube may require a browser session or a newer yt-dlp. Try again after updating yt-dlp, or upload your own video."
         db.update_job(job_id, status="failed", error=message)

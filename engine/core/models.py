@@ -30,6 +30,10 @@ class ClipBatch(StrictModel):
     clips: list[ClipInput] = Field(min_length=1, max_length=100)
 
 
+class ProjectInput(StrictModel):
+    title: str = Field(default="Untitled project", min_length=1, max_length=1000)
+
+
 class ClipPatch(StrictModel):
     title: str | None = Field(default=None, min_length=1, max_length=1000)
     license_status: Literal["permission", "unknown"] | None = None

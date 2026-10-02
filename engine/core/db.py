@@ -116,10 +116,12 @@ def get_clip(clip_id: str) -> dict:
 
 
 def require_editable(clip_id: str) -> dict:
-    clip = get_clip(clip_id)
-    if clip["license_status"] not in {"cc_by", "permission", "owned"}:
-        raise HTTPException(403, "This clip is inspiration only. Add the creator's permission with a note, or upload footage you own before downloading or editing.")
-    return clip
+    """Local editing is available for every project; rights remain metadata.
+
+    Keep this shared existence check for compatibility with media routes. It
+    must never promote an unknown source to owned or bypass asset ownership.
+    """
+    return get_clip(clip_id)
 
 
 def resolve_data_path(path: str | Path) -> Path:
@@ -140,7 +142,7 @@ def asset_dict(row) -> dict:
 
 # Deleting a clip should also give the disk space back, not just the row.
 # A voice reference recording belongs to its voice profile, not to a clip.
-CLIP_OWNED_ASSETS = ("source", "voiceover", "export", "video", "music", "audio", "vocals", "instrumental")
+CLIP_OWNED_ASSETS = ("source", "voiceover", "export", "video", "image", "music", "audio", "vocals", "instrumental")
 
 
 def _prune_empty_folders(directory: Path) -> None:
@@ -184,7 +186,7 @@ def delete_clip(clip_id: str) -> None:
 
 
 def add_asset(clip_id: str | None, kind: str, path: Path) -> dict:
-    if kind not in {"source", "voiceover", "export", "reference", "video", "music", "audio", "vocals", "instrumental"}:
+    if kind not in {*CLIP_OWNED_ASSETS, "reference"}:
         raise ValueError("Unsupported asset kind")
     resolved = resolve_data_path(path)
     if clip_id is not None:

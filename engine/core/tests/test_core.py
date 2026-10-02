@@ -109,17 +109,21 @@ def test_permission_requires_evidence_and_cannot_claim_verified_license(client):
     assert client.patch(path, json={"permission_note": "  "}).status_code == 422
     assert db.require_editable(clip["id"])["license_status"] == "permission"
     client.patch(path, json={"license_status": "unknown"})
-    with pytest.raises(HTTPException, match="inspiration"):
-        db.require_editable(clip["id"])
+    assert db.require_editable(clip["id"])["license_status"] == "unknown"
 
 
-def test_unknown_clip_is_blocked_before_tool_or_source_checks(client):
+def test_unknown_source_can_edit_without_fabricating_permission(client, monkeypatch):
     clip = import_one(client)
-    for action in ("download", "transcribe"):
-        assert client.post(f"/api/clips/{clip['id']}/{action}", json={}).status_code == 403
-    assert client.put(f"/api/clips/{clip['id']}/transcript", json={"text": "stolen", "words": []}).status_code == 403
-    assert client.post("/api/export", json={"clip_id": clip["id"]}).status_code == 403
-    assert client.post("/api/captions/detect", json={"clip_id": clip["id"]}).status_code == 403
+    monkeypatch.setattr(media, "tool_available", lambda name: False)
+    response = client.post(f"/api/clips/{clip['id']}/download")
+    assert response.status_code == 503
+    assert "yt-dlp" in response.text
+    transcript = {"text": "A reviewed transcript", "words": []}
+    assert client.put(f"/api/clips/{clip['id']}/transcript", json=transcript).status_code == 200
+    assert client.post("/api/export", json={"clip_id": clip["id"]}).status_code == 400
+    result = db.get_clip(clip["id"])
+    assert result["license_status"] == "unknown"
+    assert result["permission_note"] == ""
 
 
 def test_library_reference_can_rewrite_script_without_unlocking_footage(client, monkeypatch):
@@ -137,7 +141,7 @@ def test_library_reference_can_rewrite_script_without_unlocking_footage(client, 
     detail = client.get(f"/api/clips/{clip['id']}").json()
     assert detail["script"]["original_text"] == "Existing narration"
     assert detail["license_status"] == "unknown"
-    assert client.post(f"/api/clips/{clip['id']}/download").status_code == 403
+    assert db.require_editable(clip["id"])["license_status"] == "unknown"
 
 
 def test_uploaded_video_is_owned_and_can_be_served_with_ranges(client):
@@ -176,7 +180,7 @@ def test_asset_paths_and_symlinks_cannot_escape_data(client, tmp_path):
             db.add_asset(None, "reference", path)
 
 
-def test_revoking_permission_blocks_existing_source_files(client):
+def test_unknown_rights_do_not_block_existing_local_files(client):
     clip = import_one(client)
     permit(client, clip)
     path = db.DATA_DIR / "source.mp4"
@@ -184,7 +188,8 @@ def test_revoking_permission_blocks_existing_source_files(client):
     asset = db.add_asset(clip["id"], "source", path)
     assert client.get(asset["url"]).status_code == 200
     client.patch(f"/api/clips/{clip['id']}", json={"license_status": "unknown"})
-    assert client.get(asset["url"]).status_code == 403
+    assert client.get(asset["url"]).status_code == 200
+    assert db.get_clip(clip["id"])["license_status"] == "unknown"
 
 
 def test_settings_never_echo_keys_and_unknown_fields_are_rejected(client):
@@ -251,8 +256,8 @@ def test_job_updates_mask_secrets_and_sse_finishes(client):
     assert event["error"] == "Provider leaked [redacted]"
 
 
-def test_download_runs_in_background_only_after_permission(client, monkeypatch):
-    clip = permit(client, import_one(client))
+def test_download_runs_in_background_with_unknown_source(client, monkeypatch):
+    clip = import_one(client)
     monkeypatch.setattr(media, "tool_available", lambda name: True)
     monkeypatch.setattr(media, "find_ffmpeg", lambda: "/fake/ffmpeg")
     executed = []
@@ -391,3 +396,73 @@ def test_bulk_delete_keeps_going_when_one_clip_is_already_gone(client):
     assert result["deleted"] == [second["id"]]
     assert result["missing"] == [first["id"]]
 
+
+
+def test_download_is_idempotent_for_inflight_and_cached_sources(client, monkeypatch):
+    clip = import_one(client)
+    monkeypatch.setattr(media, "tool_available", lambda name: True)
+    monkeypatch.setattr(media, "find_ffmpeg", lambda: "/fake/ffmpeg")
+    started = []
+    monkeypatch.setattr(media, "download_job", lambda job_id, clip_id: started.append(job_id))
+    def fetch(_):
+        return client.post(f"/api/clips/{clip['id']}/download").json()
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        requests = list(pool.map(fetch, range(8)))
+    assert len({job["id"] for job in requests}) == 1
+    assert len(started) == 1
+    path = db.DATA_DIR / "source.mp4"
+    path.write_bytes(VIDEO)
+    asset = db.add_asset(clip["id"], "source", path)
+    db.update_job(started[0], status="completed", progress=100, result={"asset": asset})
+    monkeypatch.setattr(media, "tool_available", lambda name: False)
+    cached = fetch(0)
+    assert cached["id"] == started[0]
+    assert cached["status"] == "completed"
+    assert cached["result"]["asset"]["id"] == asset["id"]
+    assert len(started) == 1
+    assert db.get_clip(clip["id"])["license_status"] == "unknown"
+
+
+def test_failed_acquisition_retries_without_replacing_existing_edit(client, monkeypatch):
+    clip = import_one(client)
+    with db.connect() as connection:
+        connection.execute("INSERT INTO editor_projects VALUES (?,?,?)", (clip["id"], '{"items":[{"id":"my-title","kind":"text"}]}', db.now()))
+    old = db.new_job("download", clip["id"])
+    db.update_job(old["id"], status="failed", error="Retry me")
+    monkeypatch.setattr(media, "tool_available", lambda name: True)
+    monkeypatch.setattr(media, "find_ffmpeg", lambda: "/fake/ffmpeg")
+    monkeypatch.setattr(media, "download_job", lambda *args: None)
+    response = client.post(f"/api/clips/{clip['id']}/download").json()
+    assert response["id"] != old["id"]
+    assert db.get_job(old["id"])["error"] == "Retry me"
+    with db.connect() as connection:
+        assert "my-title" in connection.execute("SELECT project FROM editor_projects WHERE clip_id=?", (clip["id"],)).fetchone()[0]
+
+
+def test_blank_project_and_duplicate_have_independent_owned_media(client):
+    blank = client.post("/api/projects", json={"title": "My edit"}).json()
+    assert blank["license_status"] == "owned"
+    assert blank["assets"] == []
+    assert blank["url"] == ""
+    assert client.patch(f"/api/projects/{blank['id']}", json={"title": "Renamed edit"}).json()["title"] == "Renamed edit"
+    clip = import_one(client)
+    path = db.DATA_DIR / "copy-source.mp4"
+    path.write_bytes(VIDEO)
+    asset = db.add_asset(clip["id"], "source", path)
+    with db.connect() as connection:
+        connection.execute("INSERT INTO editor_projects VALUES (?,?,?)", (clip["id"], json.dumps({"items": [{"id": "saved-cut", "asset_id": asset["id"]}], "source_seeded": True}), db.now()))
+    duplicate = client.post(f"/api/projects/{clip['id']}/duplicate").json()
+    copy_asset = duplicate["assets"][0]
+    assert duplicate["license_status"] == "unknown"
+    assert duplicate["permission_note"] == ""
+    assert copy_asset["clip_id"] == duplicate["id"]
+    assert copy_asset["id"] != asset["id"]
+    assert copy_asset["path"] != asset["path"]
+    with db.connect() as connection:
+        project = json.loads(connection.execute("SELECT project FROM editor_projects WHERE clip_id=?", (duplicate["id"],)).fetchone()[0])
+    assert project["items"][0]["asset_id"] == copy_asset["id"]
+    assert client.delete(f"/api/projects/{clip['id']}").status_code == 200
+    assert not path.exists()
+    assert client.get(copy_asset["url"]).content == VIDEO
+    assert client.delete(f"/api/projects/{duplicate['id']}").status_code == 200
+    assert not (db.DATA_DIR / copy_asset["path"]).exists()

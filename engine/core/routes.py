@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 import httpx
 
 from . import db, media, script_extraction
-from .models import ClipBatch, ClipDeleteInput, ClipPatch, ExtractScriptInput, SettingsPatch, TranscribeInput, TranscriptInput
+from .models import ClipBatch, ClipDeleteInput, ClipPatch, ExtractScriptInput, ProjectInput, SettingsPatch, TranscribeInput, TranscriptInput
 
 
 router = APIRouter(prefix="/api")
@@ -187,6 +187,78 @@ def delete_clip(clip_id: str):
     return {"ok": True}
 
 
+@router.post("/projects")
+def create_project(body: ProjectInput = Body(default=ProjectInput())):
+    identity = str(uuid4())
+    with db.connect() as conn:
+        conn.execute("INSERT INTO clips(id,title,channel_name,license_status,discovery_mode,created_at) VALUES (?,?,?,?,?,?)", (identity, body.title, "Your workspace", "owned", "project", db.now()))
+    return clip_detail(identity)
+
+
+@router.patch("/projects/{clip_id}")
+def rename_project(clip_id: str, body: ProjectInput):
+    db.get_clip(clip_id)
+    with db.connect() as conn:
+        conn.execute("UPDATE clips SET title=? WHERE id=?", (body.title, clip_id))
+        row = conn.execute("SELECT project FROM editor_projects WHERE clip_id=?", (clip_id,)).fetchone()
+        if row:
+            project = json.loads(row["project"])
+            project["name"] = body.title
+            conn.execute("UPDATE editor_projects SET project=?,saved_at=? WHERE clip_id=?", (json.dumps(project), db.now(), clip_id))
+    return clip_detail(clip_id)
+
+
+@router.delete("/projects/{clip_id}")
+def delete_project(clip_id: str):
+    return delete_clip(clip_id)
+
+
+@router.post("/projects/{clip_id}/duplicate")
+def duplicate_project(clip_id: str, body: ProjectInput | None = Body(default=None)):
+    """Copy media and remap references so deleting either project is safe."""
+    original = db.get_clip(clip_id)
+    identity = str(uuid4())
+    directory = db.DATA_DIR / "projects" / identity
+    directory.mkdir(parents=True)
+    try:
+        with db.connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if not conn.execute("SELECT 1 FROM clips WHERE id=?", (clip_id,)).fetchone():
+                raise HTTPException(404, "Clip not found.")
+            copied = {**original, "id": identity, "video_id": None, "title": body.title if body else (original["title"] + " copy")[:1000], "created_at": db.now()}
+            conn.execute(f"INSERT INTO clips ({','.join(copied)}) VALUES ({','.join('?' for _ in copied)})", tuple(copied.values()))
+            mapping = {}
+            for row in conn.execute("SELECT * FROM assets WHERE clip_id=?", (clip_id,)).fetchall():
+                path = db.resolve_data_path(row["path"])
+                if not path.is_file():
+                    raise HTTPException(409, "A project file is missing. Relink it before duplicating this project.")
+                asset_id = str(uuid4())
+                target = directory / f"{asset_id}{path.suffix}"
+                shutil.copy2(path, target)
+                for source_sidecar, target_sidecar in (
+                    (path.with_suffix(".timing.json"), target.with_suffix(".timing.json")),
+                    (path.with_suffix(path.suffix + ".name.json"), target.with_suffix(target.suffix + ".name.json")),
+                ):
+                    if source_sidecar.is_file():
+                        shutil.copy2(source_sidecar, target_sidecar)
+                mapping[row["id"]] = asset_id
+                conn.execute("INSERT INTO assets VALUES (?,?,?,?,?)", (asset_id, identity, row["kind"], str(target.relative_to(db.DATA_DIR)), db.now()))
+            row = conn.execute("SELECT project FROM editor_projects WHERE clip_id=?", (clip_id,)).fetchone()
+            if row:
+                project = json.loads(row["project"])
+                for item in project.get("items", []):
+                    if item.get("asset_id"):
+                        item["asset_id"] = mapping.get(item["asset_id"], item["asset_id"])
+                project["name"] = copied["title"]
+                conn.execute("INSERT INTO editor_projects VALUES (?,?,?)", (identity, json.dumps(project), db.now()))
+            conn.execute("INSERT INTO scripts SELECT ?,original_text,rewritten_text,words_original,words_rewritten FROM scripts WHERE clip_id=?", (identity, clip_id))
+            conn.execute("INSERT INTO transcripts SELECT ?,text,words FROM transcripts WHERE clip_id=?", (identity, clip_id))
+        return clip_detail(identity)
+    except BaseException:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+
+
 @router.post("/clips/delete-bulk")
 def delete_clips(body: ClipDeleteInput):
     """Delete several videos at once so the library reports one honest count."""
@@ -268,16 +340,36 @@ def prevent_duplicate_job(clip_id: str, job_type: str):
 
 @router.post("/clips/{clip_id}/download")
 def download(clip_id: str, background_tasks: BackgroundTasks):
-    clip = db.require_editable(clip_id)
-    if not clip["video_id"]:
-        raise HTTPException(400, "This is your own uploaded footage; its source file is already available.")
-    if not media.tool_available("yt_dlp"):
-        raise HTTPException(503, "Install yt-dlp in the engine environment to download allowed videos.")
-    if not media.find_ffmpeg():
-        raise HTTPException(503, "Install FFmpeg or set FFMPEG_PATH to its executable, then restart ShortForge.")
-    prevent_duplicate_job(clip_id, "download")
-    job = db.new_job("download", clip_id)
-    background_tasks.add_task(media.download_job, job["id"], clip_id)
+    clip = db.get_clip(clip_id)
+    # Serialize check + insert across tabs/threads so one clip has one fetch.
+    # A failed job is retained for diagnosis and a later request can retry.
+    with db.connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT * FROM jobs WHERE clip_id=? AND type='download' AND status IN ('queued','running') LIMIT 1", (clip_id,)).fetchone()
+        if row:
+            job = dict(row)
+            job["result"] = json.loads(job["result"]) if job["result"] else None
+            return job
+        source = conn.execute("SELECT * FROM assets WHERE clip_id=? AND kind='source' ORDER BY created_at DESC LIMIT 1", (clip_id,)).fetchone()
+        asset = db.asset_dict(source) if source and db.resolve_data_path(source["path"]).is_file() else None
+        if asset:
+            rows = conn.execute("SELECT * FROM jobs WHERE clip_id=? AND type='download' AND status='completed'", (clip_id,)).fetchall()
+            for row in rows:
+                result = json.loads(row["result"] or "{}")
+                if result.get("asset", {}).get("id") == asset["id"]:
+                    return {**dict(row), "result": result}
+        else:
+            if not clip["url"]:
+                raise HTTPException(400, "Import footage into this project to start editing.")
+            canonical_youtube_url(clip["url"], clip["video_id"])
+            if not media.tool_available("yt_dlp"):
+                raise HTTPException(503, "Install yt-dlp in the engine environment to download source videos.")
+            if not media.find_ffmpeg():
+                raise HTTPException(503, "Install FFmpeg or set FFMPEG_PATH to its executable, then restart ShortForge.")
+        job = {"id": str(uuid4()), "type": "download", "clip_id": clip_id, "status": "completed" if asset else "queued", "progress": 100 if asset else 0, "error": None, "result": {"asset": asset} if asset else None}
+        conn.execute("INSERT INTO jobs VALUES (:id,:type,:clip_id,:status,:progress,:error,:result)", {**job, "result": json.dumps(job["result"]) if asset else None})
+    if not asset:
+        background_tasks.add_task(media.download_job, job["id"], clip_id)
     return job
 
 
