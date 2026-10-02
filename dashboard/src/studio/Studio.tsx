@@ -31,6 +31,9 @@ import { EditorInspector } from "./EditorInspector";
 import { EditorPreview } from "./EditorPreview";
 import { EditorTimeline } from "./EditorTimeline";
 import { AnimationTemplates, TextTemplates } from "./EditorTemplates";
+import { ScriptVoicePanel } from "./ScriptVoicePanel";
+import { CaptionPanel } from "./CaptionPanel";
+import { EditorExportPanel } from "./EditorExportPanel";
 import { applyTextPreset } from "./textPresets";
 import {
   buildProjectTemplate,
@@ -151,6 +154,7 @@ function ProjectEditor({
   onSelect,
   onImport,
   onBack,
+  onPublish,
 }: Props) {
   const [clip, setClip] = useState<Clip | undefined>(
     clips.find((c) => c.id === selected),
@@ -168,7 +172,6 @@ function ProjectEditor({
     [historyVersion, setHistoryVersion] = useState(0);
   const [binTab, setBinTab] = useState<Tool>("media"),
     [exportOpen, setExportOpen] = useState(false),
-    [resolution, setResolution] = useState<480 | 720 | 1080>(1080),
     [exported, setExported] = useState<Asset | null>(null);
   const [capability, setCapability] = useState<{
     available: boolean;
@@ -207,6 +210,14 @@ function ProjectEditor({
       history.current.future = [];
     }
     projectRef.current = next;
+    try {
+      localStorage.setItem(
+        `shortforge-recovery:${selected}`,
+        JSON.stringify({ updatedAt: Date.now(), project: next }),
+      );
+    } catch {
+      /* Server autosave still runs if local storage is full. */
+    }
     setProject(next);
     setSaveState("Unsaved changes");
     setHistoryVersion((v) => v + 1);
@@ -234,6 +245,16 @@ function ProjectEditor({
               keepalive: serialized.length < 50000,
             });
             saved.current = serialized;
+            try {
+              const recovery = JSON.parse(
+                localStorage.getItem(`shortforge-recovery:${selected}`) ||
+                  "null",
+              );
+              if (recovery && JSON.stringify(recovery.project) === serialized)
+                localStorage.removeItem(`shortforge-recovery:${selected}`);
+            } catch {
+              /* Recovery storage is optional. */
+            }
             if (mounted.current)
               setSaveState(
                 JSON.stringify(projectRef.current) === serialized
@@ -266,13 +287,39 @@ function ProjectEditor({
     ])
       .then(([data, c]) => {
         if (!mounted.current) return;
-        projectRef.current = data.project;
-        setProject(data.project);
-        setSelection(data.project.items[0]?.id || "");
+        let opened = data.project;
+        try {
+          const recovery = JSON.parse(
+            localStorage.getItem(`shortforge-recovery:${selected}`) || "null",
+          );
+          if (
+            recovery?.project?.version === 1 &&
+            Array.isArray(recovery.project.items) &&
+            recovery.updatedAt > Date.parse(data.saved_at || "1970-01-01") &&
+            JSON.stringify(recovery.project) !== JSON.stringify(data.project)
+          ) {
+            opened = recovery.project;
+            history.current.past = [data.project];
+            setMessage(
+              "Recovered your unsaved edit. Changes are being saved to this project.",
+            );
+          }
+        } catch {
+          /* An invalid recovery snapshot does not block the saved project. */
+        }
+        projectRef.current = opened;
+        setProject(opened);
+        setSelection(opened.items[0]?.id || "");
         setMedia(data.media);
         setClip(c);
         saved.current = JSON.stringify(data.project);
-        setSaveState(data.saved_at ? "Saved" : "Ready to edit");
+        setSaveState(
+          opened !== data.project
+            ? "Unsaved changes"
+            : data.saved_at
+              ? "Saved"
+              : "Ready to edit",
+        );
         setExported(
           c.assets?.filter((a) => a.kind === "export").at(-1) || null,
         );
@@ -490,6 +537,8 @@ function ProjectEditor({
     preferred: number,
   ) => {
     for (let n = preferred; ; n++) {
+      if (current.tracks?.some((track) => track.id === n && track.locked))
+        continue;
       if (
         !current.items.some(
           (i) =>
@@ -740,11 +789,19 @@ function ProjectEditor({
         if (!mounted.current) return;
         setMedia(data.media);
         const current = projectRef.current;
-        if (current && !current.items.length && !current.source_seeded) {
+        if (
+          current &&
+          !current.items.some((item) => item.kind === "video") &&
+          !current.source_seeded
+        ) {
           const asset = data.media.find((a) => a.kind === "source");
           if (asset) {
             const item = newItem("video", asset);
-            commit({ ...current, source_seeded: true, items: [item] });
+            commit({
+              ...current,
+              source_seeded: true,
+              items: [...current.items, item],
+            });
             setSelection(item.id);
           }
         }
@@ -997,6 +1054,16 @@ function ProjectEditor({
             type: "image/png",
           }),
           "video",
+          {
+            name: preset.label,
+            transform: {
+              x: 0,
+              y: 0,
+              scale: 0.28,
+              rotation: preset.rotation,
+              opacity: 1,
+            },
+          },
         );
     }, "image/png");
   };
@@ -1160,70 +1227,32 @@ function ProjectEditor({
           </IconButton>
         </div>
       )}
-      {exportOpen && (
-        <section className="editor-export-panel" aria-label="Export video">
-          <header>
-            <div>
-              <h2>Export your video</h2>
-              <p>MP4 · H.264 / AAC · {formatTime(durationOf(project))}</p>
-            </div>
-            <IconButton
-              label="Close export panel"
-              onClick={() => setExportOpen(false)}
-            >
-              <X size={17} />
-            </IconButton>
-          </header>
-          <label className="editor-field">
-            <span>Resolution</span>
-            <select
-              aria-label="Export resolution"
-              value={resolution}
-              onChange={(event) =>
-                setResolution(Number(event.target.value) as 480 | 720 | 1080)
-              }
-            >
-              <option value={720}>720p — smaller file</option>
-              <option value={1080}>1080p — full HD</option>
-            </select>
-          </label>
-          <p className="editor-panel-note">
-            {project.width > project.height ? "Landscape" : "Portrait"} ·{" "}
-            {project.fps} fps · {project.items.length} clips
-          </p>
-          <button
-            className="button primary full"
-            disabled={!project.items.length || exportJob.busy}
-            onClick={async () => {
-              setPlaying(false);
-              await saveProject();
-              if (mounted.current)
-                void exportJob.start(`/editor/${selected}/export`, {
-                  project: projectRef.current,
-                  resolution,
-                });
-            }}
-          >
-            {exportJob.busy ? (
-              <LoaderCircle size={16} className="spin" />
-            ) : (
-              <Download size={16} />
-            )}{" "}
-            {exportJob.busy ? "Exporting…" : "Export MP4"}
-          </button>
-          <JobProgress job={exportJob.job} />
-          {exported && (
-            <a
-              className="button secondary full"
-              href={assetUrl(exported)}
-              download
-            >
-              <Download size={16} />
-              Download MP4
-            </a>
-          )}
-        </section>
-      )}
+      <EditorExportPanel
+        open={exportOpen}
+        clipId={selected}
+        project={project}
+        media={media}
+        previousExports={[
+          ...(clip?.assets?.filter((asset) => asset.kind === "export") || []),
+          ...(exported ? [exported] : []),
+        ]}
+        onClose={() => setExportOpen(false)}
+        onPublish={onPublish}
+        onSaved={(asset) => {
+          setExported(asset);
+          refreshRef.current();
+        }}
+        saveProject={saveProject}
+        compatibility={{
+          busy: exportJob.busy,
+          job: exportJob.job,
+          start: (exportResolution) =>
+            exportJob.start(`/editor/${selected}/export`, {
+              project: projectRef.current,
+              resolution: exportResolution,
+            }),
+        }}
+      />
       {shortcutsOpen && (
         <ShortcutsPanel onClose={() => setShortcutsOpen(false)} />
       )}
@@ -1250,243 +1279,269 @@ function ProjectEditor({
               </button>
             ))}
           </nav>
-          {!layout.assetCollapsed && (
-            <>
-              <aside
-                className="editor-media-panel"
-                aria-label={`${editorTools.find((tool) => tool.id === binTab)?.label} panel`}
-              >
-                <header className="editor-panel-heading">
-                  <h2>
-                    {editorTools.find((tool) => tool.id === binTab)?.label}
-                  </h2>
-                  <IconButton
-                    label="Collapse asset panel"
-                    onClick={() =>
-                      setLayout((old) => ({ ...old, assetCollapsed: true }))
+          <>
+            <aside
+              hidden={layout.assetCollapsed}
+              className="editor-media-panel"
+              aria-label={`${editorTools.find((tool) => tool.id === binTab)?.label} panel`}
+            >
+              <header className="editor-panel-heading">
+                <h2>{editorTools.find((tool) => tool.id === binTab)?.label}</h2>
+                <IconButton
+                  label="Collapse asset panel"
+                  onClick={() =>
+                    setLayout((old) => ({ ...old, assetCollapsed: true }))
+                  }
+                >
+                  <PanelLeftClose size={16} />
+                </IconButton>
+              </header>
+              <div className="editor-bin-scroll">
+                <div hidden={binTab !== "audio"}>
+                  <ScriptVoicePanel
+                    clipId={selected}
+                    project={project}
+                    media={media}
+                    playhead={time}
+                    playing={playing}
+                    onChange={commit}
+                    onMedia={(asset) =>
+                      setMedia((assets) => [
+                        ...assets.filter((item) => item.id !== asset.id),
+                        asset,
+                      ])
                     }
-                  >
-                    <PanelLeftClose size={16} />
-                  </IconButton>
-                </header>
-                <div className="editor-bin-scroll">
-                  {binTab === "media" && (
-                    <>
-                      <button
-                        className="button primary full editor-import-button"
-                        disabled={uploading}
-                        onClick={() => importInput.current?.click()}
-                      >
-                        {uploading ? (
-                          <LoaderCircle size={16} className="spin" />
-                        ) : (
-                          <Plus size={17} />
-                        )}
-                        {uploading ? "Importing…" : "Import media"}
-                      </button>
-                      {!visibleMedia.length && (
-                        <div className="editor-source-empty">
-                          <div className="editor-media-drop-symbol">
-                            <FolderOpen size={25} strokeWidth={1.4} />
-                          </div>
-                          <h3>
-                            {sourceLoading
-                              ? "Getting your footage ready"
-                              : "Your media belongs here"}
-                          </h3>
-                          <p>
-                            {sourceLoading
-                              ? "You can keep editing while the source downloads."
-                              : "Drop video, photos or audio into the editor, or choose files from your device."}
-                          </p>
-                          <span className="editor-media-formats">
-                            MP4 · MOV · JPG · PNG · MP3
-                          </span>
-                          {!sourceLoading &&
-                            (clip?.video_id || clip?.url) &&
-                            !hasSource && (
-                              <button
-                                className="button secondary full"
-                                onClick={() =>
-                                  void downloadJob.start(
-                                    `/clips/${selected}/download`,
-                                  )
-                                }
-                              >
-                                <Download size={15} />
-                                Retry source download
-                              </button>
-                            )}
-                        </div>
+                    onPlayback={setPlaying}
+                    onSeek={seek}
+                    notify={setMessage}
+                  />
+                </div>
+                <div hidden={binTab !== "captions"}>
+                  <CaptionPanel
+                    clipId={selected}
+                    project={project}
+                    media={media}
+                    selectedIds={selection ? [selection] : []}
+                    playhead={time}
+                    onChange={commit}
+                    onSelect={setSelection}
+                    onSeek={seek}
+                    notify={setMessage}
+                  />
+                </div>
+                {binTab === "media" && (
+                  <>
+                    <button
+                      className="button primary full editor-import-button"
+                      disabled={uploading}
+                      onClick={() => importInput.current?.click()}
+                    >
+                      {uploading ? (
+                        <LoaderCircle size={16} className="spin" />
+                      ) : (
+                        <Plus size={17} />
                       )}
-                      <JobProgress job={downloadJob.job} />
-                      <MediaAssetGrid media={visibleMedia} onAdd={addMedia} />
-                    </>
-                  )}
-                  {binTab === "audio" && (
-                    <>
-                      <div className="editor-import-audio">
-                        <button
-                          className="button secondary full"
-                          disabled={uploading}
-                          onClick={() => voiceInput.current?.click()}
-                        >
-                          <Mic2 size={16} />
-                          Import voiceover
-                        </button>
-                        <button
-                          className="button secondary full"
-                          disabled={uploading}
-                          onClick={() => musicInput.current?.click()}
-                        >
-                          <Music2 size={16} />
-                          Import music
-                        </button>
-                      </div>
-                      <section className="editor-audio-actions">
-                        <h3>Clip audio</h3>
+                      {uploading ? "Importing…" : "Import media"}
+                    </button>
+                    {!visibleMedia.length && (
+                      <div className="editor-source-empty">
+                        <div className="editor-media-drop-symbol">
+                          <FolderOpen size={25} strokeWidth={1.4} />
+                        </div>
+                        <h3>
+                          {sourceLoading
+                            ? "Getting your footage ready"
+                            : "Your media belongs here"}
+                        </h3>
                         <p>
-                          {audioAvailable
-                            ? selectedItem?.name
-                            : "Select a clip with audio to detach or mute its soundtrack."}
+                          {sourceLoading
+                            ? "You can keep editing while the source downloads."
+                            : "Drop video, photos or audio into the editor, or choose files from your device."}
                         </p>
-                        <button
-                          className="button secondary full"
-                          disabled={!audioAvailable || busy}
-                          onClick={() => void runAudio("extract")}
-                        >
-                          <AudioLines size={15} />
-                          Detach audio
-                        </button>
-                        <button
-                          className="button secondary full"
-                          disabled={!audioAvailable || busy}
-                          onClick={() =>
-                            selectedItem &&
-                            updateItem({
-                              ...selectedItem,
-                              muted: !selectedItem.muted,
-                            })
-                          }
-                        >
-                          <VolumeX size={15} />
-                          {selectedItem?.muted
-                            ? "Restore original audio"
-                            : "Mute original audio"}
-                        </button>
-                        <details className="editor-audio-separation">
-                          <summary>Voice isolation</summary>
-                          <p>
-                            {capability?.available
-                              ? "Separate voice and music locally. Results depend on the original mix."
-                              : capability?.message ||
-                                "Checking local voice separation…"}
-                          </p>
-                          <button
-                            className="button secondary full"
-                            disabled={
-                              !audioAvailable || busy || !capability?.available
-                            }
-                            onClick={() => void runAudio("voice")}
-                          >
-                            <Mic2 size={15} />
-                            Isolate voice
-                          </button>
-                          <button
-                            className="button secondary full"
-                            disabled={
-                              !audioAvailable || busy || !capability?.available
-                            }
-                            onClick={() => void runAudio("remove")}
-                          >
-                            <Music2 size={15} />
-                            Reduce voice, keep music
-                          </button>
-                        </details>
-                        <JobProgress job={audioJob.job} />
-                      </section>
-                      <MediaAssetGrid media={visibleMedia} onAdd={addMedia} />
-                    </>
-                  )}
-                  {binTab === "text" && (
-                    <div className="editor-text-tools">
-                      <button className="button primary full" onClick={addText}>
-                        <Type size={16} />
-                        Add text
-                      </button>
-                      <TextTemplates
-                        onApply={applyTemplate}
-                        hasCaptions={project.items.some(
-                          (item) => item.kind === "text",
-                        )}
-                        selectedText={selectedItem?.kind === "text"}
-                      />
-                    </div>
-                  )}
-                  {binTab === "captions" && (
-                    <div className="editor-text-tools">
+                        <span className="editor-media-formats">
+                          MP4 · MOV · JPG · PNG · MP3
+                        </span>
+                        {!sourceLoading &&
+                          (clip?.video_id || clip?.url) &&
+                          !hasSource && (
+                            <button
+                              className="button secondary full"
+                              onClick={() =>
+                                void downloadJob.start(
+                                  `/clips/${selected}/download`,
+                                )
+                              }
+                            >
+                              <Download size={15} />
+                              Retry source download
+                            </button>
+                          )}
+                      </div>
+                    )}
+                    <JobProgress job={downloadJob.job} />
+                    <MediaAssetGrid media={visibleMedia} onAdd={addMedia} />
+                  </>
+                )}
+                {binTab === "audio" && (
+                  <>
+                    <div className="editor-import-audio">
                       <button
-                        className="button primary full"
-                        onClick={() => srtInput.current?.click()}
+                        className="button secondary full"
+                        disabled={uploading}
+                        onClick={() => voiceInput.current?.click()}
                       >
-                        <Subtitles size={16} />
-                        Import SRT captions
+                        <Mic2 size={16} />
+                        Import voiceover
                       </button>
+                      <button
+                        className="button secondary full"
+                        disabled={uploading}
+                        onClick={() => musicInput.current?.click()}
+                      >
+                        <Music2 size={16} />
+                        Import music
+                      </button>
+                    </div>
+                    <section className="editor-audio-actions">
+                      <h3>Clip audio</h3>
                       <p>
-                        Every caption becomes editable text on your timeline.
+                        {audioAvailable
+                          ? selectedItem?.name
+                          : "Select a clip with audio to detach or mute its soundtrack."}
                       </p>
                       <button
                         className="button secondary full"
-                        onClick={addText}
+                        disabled={!audioAvailable || busy}
+                        onClick={() => void runAudio("extract")}
                       >
-                        <Plus size={16} />
-                        Add a caption
+                        <AudioLines size={15} />
+                        Detach audio
                       </button>
-                      <TextTemplates
-                        onApply={applyTemplate}
-                        hasCaptions={project.items.some(
-                          (item) => item.kind === "text",
-                        )}
-                        selectedText={selectedItem?.kind === "text"}
-                      />
-                    </div>
-                  )}
-                  {binTab === "stickers" && (
-                    <StickerPresets
-                      onAdd={(preset) => void addSticker(preset)}
-                      busy={uploading}
+                      <button
+                        className="button secondary full"
+                        disabled={!audioAvailable || busy}
+                        onClick={() =>
+                          selectedItem &&
+                          updateItem({
+                            ...selectedItem,
+                            muted: !selectedItem.muted,
+                          })
+                        }
+                      >
+                        <VolumeX size={15} />
+                        {selectedItem?.muted
+                          ? "Restore original audio"
+                          : "Mute original audio"}
+                      </button>
+                      <details className="editor-audio-separation">
+                        <summary>Voice isolation</summary>
+                        <p>
+                          {capability?.available
+                            ? "Separate voice and music locally. Results depend on the original mix."
+                            : capability?.message ||
+                              "Checking local voice separation…"}
+                        </p>
+                        <button
+                          className="button secondary full"
+                          disabled={
+                            !audioAvailable || busy || !capability?.available
+                          }
+                          onClick={() => void runAudio("voice")}
+                        >
+                          <Mic2 size={15} />
+                          Isolate voice
+                        </button>
+                        <button
+                          className="button secondary full"
+                          disabled={
+                            !audioAvailable || busy || !capability?.available
+                          }
+                          onClick={() => void runAudio("remove")}
+                        >
+                          <Music2 size={15} />
+                          Reduce voice, keep music
+                        </button>
+                      </details>
+                      <JobProgress job={audioJob.job} />
+                    </section>
+                    <MediaAssetGrid media={visibleMedia} onAdd={addMedia} />
+                  </>
+                )}
+                {binTab === "text" && (
+                  <div className="editor-text-tools">
+                    <button className="button primary full" onClick={addText}>
+                      <Type size={16} />
+                      Add text
+                    </button>
+                    <TextTemplates
+                      onApply={applyTemplate}
+                      hasCaptions={project.items.some(
+                        (item) => item.kind === "text",
+                      )}
+                      selectedText={selectedItem?.kind === "text"}
                     />
-                  )}
-                  {binTab === "effects" && (
-                    <AnimationTemplates
-                      item={selectedItem}
-                      onApply={(side, value) =>
-                        selectedItem &&
-                        updateItem({ ...selectedItem, [side]: value })
-                      }
+                  </div>
+                )}
+                {binTab === "captions" && (
+                  <div className="editor-text-tools">
+                    <button
+                      className="button primary full"
+                      onClick={() => srtInput.current?.click()}
+                    >
+                      <Subtitles size={16} />
+                      Import SRT captions
+                    </button>
+                    <p>Every caption becomes editable text on your timeline.</p>
+                    <button className="button secondary full" onClick={addText}>
+                      <Plus size={16} />
+                      Add a caption
+                    </button>
+                    <TextTemplates
+                      onApply={applyTemplate}
+                      hasCaptions={project.items.some(
+                        (item) => item.kind === "text",
+                      )}
+                      selectedText={selectedItem?.kind === "text"}
                     />
-                  )}
-                  {binTab === "transitions" && (
-                    <TransitionPresets
-                      item={selectedItem}
-                      onApply={applyTransition}
-                    />
-                  )}
-                  {binTab === "filters" && (
-                    <FilterPresets
-                      item={selectedItem}
-                      asset={selectedAsset}
-                      onChange={updateItem}
-                    />
-                  )}
-                  {binTab === "templates" && (
-                    <ProjectTemplates
-                      media={media}
-                      onApply={applyProjectTemplate}
-                    />
-                  )}
-                </div>
-              </aside>
+                  </div>
+                )}
+                {binTab === "stickers" && (
+                  <StickerPresets
+                    onAdd={(preset) => void addSticker(preset)}
+                    busy={uploading}
+                  />
+                )}
+                {binTab === "effects" && (
+                  <AnimationTemplates
+                    item={selectedItem}
+                    onApply={(side, value) =>
+                      selectedItem &&
+                      updateItem({ ...selectedItem, [side]: value })
+                    }
+                  />
+                )}
+                {binTab === "transitions" && (
+                  <TransitionPresets
+                    item={selectedItem}
+                    onApply={applyTransition}
+                  />
+                )}
+                {binTab === "filters" && (
+                  <FilterPresets
+                    item={selectedItem}
+                    asset={selectedAsset}
+                    onChange={updateItem}
+                  />
+                )}
+                {binTab === "templates" && (
+                  <ProjectTemplates
+                    media={media}
+                    onApply={applyProjectTemplate}
+                  />
+                )}
+              </div>
+            </aside>
+            {!layout.assetCollapsed && (
               <PaneSplitter
                 axis="x"
                 label="Resize asset panel"
@@ -1497,8 +1552,8 @@ function ProjectEditor({
                   setLayout((old) => ({ ...old, assetWidth }))
                 }
               />
-            </>
-          )}
+            )}
+          </>
           <div
             className={`editor-stage-pane ${!project.items.length ? "is-empty" : ""}`}
             onDragOver={(event) => {

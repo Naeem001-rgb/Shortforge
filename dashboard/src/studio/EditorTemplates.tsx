@@ -79,6 +79,7 @@ export function TextTemplates({
   selectedText: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [hovered, setHovered] = useState("");
   const [category, setCategory] = useState("All");
   const [chosen, setChosen] = useState<TextPreset | null>(null);
   const matches = textPresets.filter(
@@ -136,13 +137,21 @@ export function TextTemplates({
               className="editor-template-card"
               aria-label={`Apply ${preset.name} template`}
               aria-pressed={chosen?.id === preset.id}
+              onMouseEnter={() => setHovered(preset.id)}
+              onMouseLeave={() => setHovered("")}
+              onFocus={() => setHovered(preset.id)}
+              onBlur={() => setHovered("")}
               onClick={() => {
                 setChosen(preset);
                 onApply(preset, false);
               }}
             >
               <span className="editor-template-art">
-                <CaptionLine item={sample} scale={0.25} demo />
+                <CaptionLine
+                  item={sample}
+                  scale={0.25}
+                  demo={hovered === preset.id}
+                />
               </span>
               <span className="editor-template-caption">
                 {preset.name}
