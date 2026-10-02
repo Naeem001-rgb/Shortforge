@@ -5,11 +5,12 @@ import subprocess
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
 from engine.core import db
 from engine.core.routes import prevent_duplicate_job, video_header_valid
-from .editor_media import editor_media, project_media, probe_media, validate_project_media, normalize_browser_video
+from .editor_media import editor_media, project_media, probe_media, validate_project_media, normalize_browser_video, get_editor_asset, media_thumbnail, IMAGE_SUFFIXES
 from .editor_models import EditorExport, Project, TimelineItem
 from .editor_render import render_project
 from .media import ffmpeg_binary
@@ -23,16 +24,19 @@ def editor_response(clip_id, project=None, saved_at=None):
     clip=db.get_clip(clip_id)
     media=project_media(clip_id)
     if project is None:
+        # Serialize the read/seed/write so simultaneous opening tabs seed once.
         with db.connect() as connection:
+            connection.execute('BEGIN IMMEDIATE')
             row=connection.execute('SELECT project,saved_at FROM editor_projects WHERE clip_id=?',(clip_id,)).fetchone()
-        if row:
-            project=Project.model_validate_json(row['project'])
-            saved_at=row['saved_at']
-        else:
-            project=Project()
+            project=Project.model_validate_json(row['project']) if row else Project()
+            saved_at=row['saved_at'] if row else None
             source=next((asset for asset in reversed(media) if asset['kind']=='source' and asset['media_type']=='video'),None)
-            if source and clip['license_status']!='unknown':
+            if source and not project.items and not project.source_seeded:
                 project.items=[TimelineItem(id='source-'+source['id'],kind='video',asset_id=source['id'],name=clip['title'] or source['name'],duration=min(600,source['duration']))]
+                project.source_seeded=True
+                saved_at=db.now()
+                connection.execute('INSERT INTO editor_projects (clip_id,project,saved_at) VALUES (?,?,?) ON CONFLICT(clip_id) DO UPDATE SET project=excluded.project,saved_at=excluded.saved_at',
+                                   (clip_id,project.model_dump_json(),saved_at))
     return {'project':project.model_dump(),'media':media,'saved_at':saved_at}
 
 
@@ -49,6 +53,11 @@ def save_project(clip_id: str, project: Project):
         raise HTTPException(400,str(exc) if isinstance(exc,ValueError) else 'The project media could not be inspected.') from None
     saved_at=db.now()
     with db.connect() as connection:
+        # Preserve the durable acquisition marker even for older clients that
+        # omit additive fields while intentionally clearing their timeline.
+        row=connection.execute('SELECT project FROM editor_projects WHERE clip_id=?',(clip_id,)).fetchone()
+        if row and json.loads(row['project']).get('source_seeded'):
+            project.source_seeded=True
         connection.execute('INSERT INTO editor_projects (clip_id,project,saved_at) VALUES (?,?,?) ON CONFLICT(clip_id) DO UPDATE SET project=excluded.project,saved_at=excluded.saved_at',(clip_id,project.model_dump_json(),saved_at))
         connection.execute("UPDATE clips SET workflow_status='editing' WHERE id=? AND workflow_status!='archived'",(clip_id,))
     return editor_response(clip_id,project,saved_at)
@@ -69,16 +78,33 @@ def finish_upload(clip_id,path,role,name):
         valid = header[:4] == b'fLaC'
     elif suffix in {'.ogg', '.opus'}:
         valid = header[:4] == b'OggS'
+    elif suffix == '.png':
+        valid = header[:8] == b'\x89PNG\r\n\x1a\n'
+    elif suffix in {'.jpg', '.jpeg'}:
+        valid = header[:3] == b'\xff\xd8\xff'
+    elif suffix == '.webp':
+        valid = header[:4] == b'RIFF' and header[8:12] == b'WEBP'
     else:
         valid = False
     if not valid:
-        raise ValueError('The file contents do not match supported media. Choose a real video or audio recording.')
+        raise ValueError('The file contents do not match supported media. Choose a real video, image, or audio recording.')
     metadata=probe_media(path)
-    if role=='video' and metadata['media_type']!='video':
-        raise ValueError('Choose a video file for the video track.')
-    if role!='video' and not metadata['has_audio']:
+    if role in {'video','image'} and metadata['media_type'] not in {'video','image'}:
+        raise ValueError('Choose a video or image file for the visual track.')
+    if role=='image' and metadata['media_type']!='image':
+        raise ValueError('Choose a still PNG, JPEG, or WebP image.')
+    if role not in {'video','image'} and not metadata['has_audio']:
         raise ValueError('This file contains no audio. Choose a voiceover or music recording.')
-    if role=='video':
+    if metadata['media_type']=='image':
+        role='image'
+        # Normalize orientation and strip metadata so browser and FFmpeg agree.
+        from PIL import Image, ImageOps
+        converted=path.with_name(path.stem+'-playable.png')
+        with Image.open(path) as image:
+            ImageOps.exif_transpose(image).convert('RGBA').save(converted)
+        path.unlink(missing_ok=True)
+        path=converted
+    elif role=='video':
         converted=normalize_browser_video(path)
         if converted != path:
             path.unlink(missing_ok=True)
@@ -106,13 +132,13 @@ def finish_upload(clip_id,path,role,name):
 @router.post('/{clip_id}/media')
 async def import_media(clip_id: str, file: UploadFile=File(...), role: str=Form(...)):
     db.require_editable(clip_id)
-    if role not in {'video','voiceover','music'}:
+    if role not in {'video','image','audio','voiceover','music','sfx'}:
         await file.close()
-        raise HTTPException(422,'Choose video, voiceover, or music.')
+        raise HTTPException(422,'Choose video, image, audio, voiceover, music, or sfx.')
     suffix=Path(file.filename or '').suffix.lower()
-    if suffix not in {'.mp4','.mov','.m4v','.webm','.mkv','.avi','.wav','.mp3','.m4a','.aac','.flac','.ogg','.opus'}:
+    if suffix not in {'.mp4','.mov','.m4v','.webm','.mkv','.avi','.wav','.mp3','.m4a','.aac','.flac','.ogg','.opus'} | IMAGE_SUFFIXES:
         await file.close()
-        raise HTTPException(422,'Choose a common video or audio file such as MP4, WAV, or MP3.')
+        raise HTTPException(422,'Choose MP4, WebM, PNG, JPEG, WebP, WAV, MP3, or another supported media file.')
     path=db.DATA_DIR/'editor-media'/clip_id/(str(uuid4())+suffix)
     path.parent.mkdir(parents=True,exist_ok=True)
     try:
@@ -130,6 +156,19 @@ async def import_media(clip_id: str, file: UploadFile=File(...), role: str=Form(
         path.unlink(missing_ok=True)
         raise
     finally: await file.close()
+
+
+@router.get('/{clip_id}/media/{asset_id}/thumbnail')
+def thumbnail(clip_id: str, asset_id: str):
+    db.get_clip(clip_id)
+    _, path, metadata=get_editor_asset(clip_id,asset_id)
+    if metadata['media_type'] not in {'image','video'}:
+        raise HTTPException(400,'Audio files have waveforms rather than preview images.')
+    try:
+        target=media_thumbnail(path,metadata)
+    except (ValueError,OSError,subprocess.SubprocessError) as exc:
+        raise HTTPException(400,str(exc) if isinstance(exc,ValueError) else 'Preview generation failed. Retry this media.') from None
+    return FileResponse(target,media_type='image/jpeg',headers={'Cache-Control':'private, max-age=86400'})
 
 
 def render_job(job_id,clip_id,payload):

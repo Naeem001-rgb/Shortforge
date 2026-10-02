@@ -206,26 +206,46 @@ def build_render_command(project: Project, assets: dict, output: Path, resolutio
         if item.kind!='text':
             inputs[index]=len(inputs)
             path=assets[item.asset_id][1]
-            command += ['-ss',number(item.source_in),'-t',number(item.duration*item.speed),'-protocol_whitelist','file,pipe','-i',str(path)]
+            metadata=assets[item.asset_id][2]
+            if metadata['media_type']=='image':
+                command += ['-loop','1','-framerate',str(fps),'-t',number(item.duration),'-i',str(path)]
+            elif item.freeze_at is not None:
+                command += ['-ss',number(item.freeze_at),'-t',number(1/fps),'-protocol_whitelist','file,pipe','-i',str(path)]
+            else:
+                command += ['-ss',number(item.source_in),'-t',number(item.duration*item.speed),'-protocol_whitelist','file,pipe','-i',str(path)]
     filters=[f'color=c={project.background}:s={width}x{height}:r={fps}:d={number(duration)},format=yuv420p[base]']
     visual='base'
     # Resolved once, before the loop: both halves of a blend must agree on the
     # window they share, and the pairing is O(n^2) so it stays out of the hot path.
     blends=transition_map(project.items)
+    tracks={track.id:track for track in project.tracks}
     for index,item in sorted(enumerate(project.items),key=lambda pair:(pair[1].track,pair[0])):
-        if item.kind=='audio': continue
+        if item.kind=='audio' or (tracks.get(item.track) and tracks[item.track].hidden): continue
         if item.kind=='video':
             fit='decrease' if item.fit=='contain' else 'increase'
             fitting=f'scale={width}:{height}:force_original_aspect_ratio={fit}:force_divisible_by=2'
             fitting += f',pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black@0' if item.fit=='contain' else f',crop={width}:{height}'
-            head=f'[{inputs[index]}:v]setpts=(PTS-STARTPTS)/{number(item.speed)},fps={fps},trim=duration={number(item.duration)},format=yuva444p,{fitting},setsar=1'
+            speed=1 if assets[item.asset_id][2]['media_type']=='image' or item.freeze_at is not None else item.speed
+            temporal='reverse,' if item.reverse and item.freeze_at is None else ''
+            if item.freeze_at is not None:
+                temporal+=f'trim=end_frame=1,setpts=PTS-STARTPTS,tpad=stop_mode=clone:stop_duration={number(item.duration)},'
+            head=f'[{inputs[index]}:v]{temporal}setpts=(PTS-STARTPTS)/{number(speed)},fps={fps},trim=duration={number(item.duration)},format=yuva444p'
+            crop=item.crop
+            if any(crop.model_dump().values()):
+                head+=f',crop=iw*{number(1-(crop.left+crop.right)/100)}:ih*{number(1-(crop.top+crop.bottom)/100)}:iw*{number(crop.left/100)}:ih*{number(crop.top/100)}'
+            if item.flip_x: head+=',hflip'
+            if item.flip_y: head+=',vflip'
+            if item.chroma_key.enabled:
+                head+=f',chromakey={item.chroma_key.color}:{number(max(.01,item.chroma_key.similarity))}:.05'
+            head+=f',{fitting},setsar=1'
         else:
             ass=write_text(item,width,height,directory,index,ratio)
             # ASS font copied under a generated safe name for all platforms.
             fontdir=Path(__file__).parent/'fonts'
             import shutil
             (directory/'fonts').mkdir(exist_ok=True)
-            shutil.copyfile(fontdir/'DejaVuSans.ttf',directory/'fonts'/'DejaVuSans.ttf')
+            for font in fontdir.rglob('*.ttf'):
+                shutil.copyfile(font,directory/'fonts'/font.name)
             head=f'color=c=black@0:s={width}x{height}:r={fps}:d={number(item.duration)},format=yuva444p,ass={ass}:fontsdir=fonts:alpha=1'
         transformed = bool(item.keyframes) or any(getattr(item.transform,key)!=value for key,value in {'x':0,'y':0,'scale':1,'rotation':0}.items()) or item.animation_in not in {'none','fade'} or item.animation_out not in {'none','fade'}
         if transformed:

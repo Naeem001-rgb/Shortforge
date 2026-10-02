@@ -72,18 +72,78 @@ class EditorTests(unittest.TestCase):
         values=array.array('f'); values.frombytes(result.stdout)
         return math.sqrt(sum(v*v for v in values)/max(1,len(values)))
 
-    def test_initial_read_is_unsaved_and_save_is_lossless(self):
+    def test_initial_source_is_persisted_once_and_save_is_lossless(self):
         result=self.client.get(f'/api/editor/{self.clip}'); self.assertEqual(result.status_code,200,result.text)
-        self.assertIsNone(result.json()['saved_at'])
+        self.assertIsNotNone(result.json()['saved_at'])
+        self.assertTrue(result.json()['project']['source_seeded'])
         source=result.json()['project']['items'][0]
         self.assertAlmostEqual(source['duration'],3,places=1)
         with db.connect() as connection:
-            self.assertEqual(connection.execute('SELECT count(*) FROM editor_projects').fetchone()[0],0)
+            self.assertEqual(connection.execute('SELECT count(*) FROM editor_projects').fetchone()[0],1)
         project=self.project(self.item(keyframes=[{'time':1,'x':20},{'time':0,'x':-20},{'time':1,'x':30}]))
         saved=self.client.put(f'/api/editor/{self.clip}',json=project.model_dump())
         self.assertEqual(saved.status_code,200,saved.text)
         self.assertEqual(saved.json()['project'],self.client.get(f'/api/editor/{self.clip}').json()['project'])
         self.assertEqual([f['x'] for f in saved.json()['project']['items'][0]['keyframes']],[-20,30])
+
+    def test_saved_empty_source_seed_and_deliberate_clear(self):
+        self.add_media(self.unknown,self.red,'source')
+        self.client.put(f'/api/editor/{self.unknown}',json=Project().model_dump())
+        seeded=self.client.get(f'/api/editor/{self.unknown}').json()
+        self.assertEqual(len(seeded['project']['items']),1)
+        self.assertTrue(seeded['project']['source_seeded'])
+        self.assertEqual(db.get_clip(self.unknown)['license_status'],'unknown')
+        # An old client omitting the marker can still deliberately clear all.
+        self.client.put(f'/api/editor/{self.unknown}',json=Project().model_dump())
+        self.assertEqual(self.client.get(f'/api/editor/{self.unknown}').json()['project']['items'],[])
+        self.assertEqual(self.client.get(f'/api/editor/{self.unknown}').json()['saved_at'],
+                         self.client.get(f'/api/editor/{self.unknown}').json()['saved_at'])
+
+    def test_additive_document_contract_and_modern_caption_style(self):
+        from .editor_models import TextStyle
+        from .captions import CAPTION_DEFAULTS
+        style=TextStyle.model_validate({**CAPTION_DEFAULTS,'emphasis':'pop','glow':20})
+        item=TimelineItem(id='text',kind='text',track=512,duration=2,text='One two',
+                          text_style=style,caption_words=[{'word':'One','start':.1,'end':.4},{'word':'two','start':1,'end':1.5}],
+                          font_family='DejaVu Sans',animation_loop='pulse',keyframes=[{'time':0,'easing':'hold','values':{'scale':.5}}])
+        project=Project(items=[item],tracks=[{'id':512,'name':'Captions','kind':'text','hidden':True}],
+                        markers=[{'id':'m','time':1,'label':'beat'}],script='Narration',name='New')
+        response=self.client.put(f'/api/editor/{self.clip}',json=project.model_dump())
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(response.json()['project'],project.model_dump())
+        self.assertEqual(Project.model_validate({'items':[]}).tracks,[])
+        self.assertEqual(len(Project(items=[item.model_copy(update={'id':str(n)}) for n in range(5000)]).items),5000)
+        for bad in ({'caption_words':[{'word':'Oops','start':1,'end':3}]},
+                    {'crop':{'left':80,'right':30}}, {'keyframes':[{'time':0,'values':{'scale':100}}]}):
+            with self.assertRaises(ValueError):
+                TimelineItem.model_validate({**item.model_dump(),**bad})
+
+    def test_image_import_thumbnail_and_long_still_export(self):
+        from PIL import Image
+        for format,suffix in (('PNG','png'),('JPEG','jpg'),('WEBP','webp')):
+            buffer=io.BytesIO(); Image.new('RGB',(80,60),(0,255,0)).save(buffer,format=format)
+            imported=self.client.post(f'/api/editor/{self.clip}/media',data={'role':'image'},files={'file':(f'picture.{suffix}',buffer.getvalue(),f'image/{suffix}')})
+            self.assertEqual(imported.status_code,200,imported.text)
+            media=imported.json()
+            self.assertEqual((media['media_type'],media['duration'],media['width'],media['height']),('image',5,80,60))
+            self.assertFalse(media['has_audio'])
+            preview=self.client.get(media['thumbnail_url'])
+            self.assertEqual(preview.status_code,200,preview.text if preview.status_code!=200 else '')
+            self.assertEqual(preview.headers['content-type'],'image/jpeg')
+        still=self.item(asset_id=media['id'],duration=6,fit='cover',speed=10)
+        output=self.render(self.project(still))
+        self.assertAlmostEqual(probe_media(output)['duration'],6,delta=1/30)
+        self.assertGreater(self.pixel(self.pixels(output,5.8),240,240)[1],200)
+        bad=self.client.post(f'/api/editor/{self.clip}/media',data={'role':'image'},files={'file':('broken.png',b'\x89PNG\r\n\x1a\nnot an image','image/png')})
+        self.assertEqual(bad.status_code,400)
+
+    def test_webm_microphone_recording_import(self):
+        recording=self.folder/'recording.webm'
+        subprocess.run([self.ffmpeg,'-v','error','-y','-i',str(self.red),'-vn','-c:a','libopus',str(recording)],check=True)
+        imported=self.client.post(f'/api/editor/{self.clip}/media',data={'role':'voiceover'},files={'file':('recording.webm',recording.read_bytes(),'audio/webm')})
+        self.assertEqual(imported.status_code,200,imported.text)
+        self.assertEqual(imported.json()['media_type'],'audio')
+        self.assertGreater(max(imported.json()['waveform']),.03)
 
     def test_caption_styles_word_reveal_and_animation_survive_save_and_render(self):
         item = TimelineItem(id='caption',kind='text',duration=1.2,text='ONE TWO',font_size=180,

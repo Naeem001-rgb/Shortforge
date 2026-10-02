@@ -1,5 +1,6 @@
 """Inspect owned local media and sample its real audio envelope."""
 from functools import lru_cache
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -11,7 +12,8 @@ from engine.core import db
 from engine.core.media import find_ffprobe
 from .media import ffmpeg_binary
 
-EDITOR_KINDS = {'source','video','voiceover','music','audio','vocals','instrumental'}
+EDITOR_KINDS = {'source','video','image','voiceover','music','sfx','audio','vocals','instrumental'}
+IMAGE_SUFFIXES = {'.png', '.jpg', '.jpeg', '.webp'}
 
 def probe_media(path: Path) -> dict:
     path = Path(path)
@@ -22,6 +24,22 @@ def probe_media(path: Path) -> dict:
 def _probe(path: str, modified: int, size: int) -> dict:
     if size == 0:
         raise ValueError('The media file is empty.')
+    if Path(path).suffix.lower() in IMAGE_SUFFIXES:
+        from PIL import Image, ImageOps, UnidentifiedImageError
+        try:
+            with Image.open(path) as source:
+                if source.format not in {'PNG', 'JPEG', 'WEBP'} or getattr(source, 'n_frames', 1) != 1:
+                    raise ValueError('Choose a still PNG, JPEG, or WebP image.')
+                if source.width > 8192 or source.height > 8192:
+                    raise ValueError('Use an image no larger than 8K.')
+                source.verify()
+            with Image.open(path) as source:
+                decoded = ImageOps.exif_transpose(source)
+                decoded.load()
+                width, height = decoded.size
+        except (UnidentifiedImageError, OSError, SyntaxError, Image.DecompressionBombError) as exc:
+            raise ValueError('This image could not be decoded. Try a different PNG, JPEG, or WebP.') from exc
+        return {'duration':5.0, 'width':width, 'height':height, 'has_audio':False, 'media_type':'image'}
     ffprobe = find_ffprobe()
     info = None
     if ffprobe:
@@ -142,7 +160,38 @@ def editor_media(asset: dict) -> dict:
     if sidecar.is_file():
         try: name = str(json.loads(sidecar.read_text())['name'])[:500]
         except (ValueError,KeyError,OSError): pass
-    return {**asset, 'url':f"/api/assets/{asset['id']}", 'name':name, **metadata,'waveform':wave}
+    thumbnail_url = (f"/api/editor/{asset['clip_id']}/media/{asset['id']}/thumbnail"
+                     if metadata['media_type'] in {'image','video'} else None)
+    return {**asset, 'url':f"/api/assets/{asset['id']}", 'name':name, **metadata,'waveform':wave,
+            'thumbnail_url':thumbnail_url}
+
+
+def media_thumbnail(path: Path, metadata: dict) -> Path:
+    """Content-versioned local preview; never register it as editable media."""
+    stat = path.stat()
+    version = hashlib.sha256(f'{path.resolve()}:{stat.st_mtime_ns}:{stat.st_size}'.encode()).hexdigest()[:24]
+    target = db.DATA_DIR / 'editor-thumbnails' / (version + '.jpg')
+    if target.is_file():
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    import tempfile
+    with tempfile.TemporaryDirectory(dir=target.parent) as directory:
+        output = Path(directory) / 'thumbnail.jpg'
+        if metadata['media_type'] == 'image':
+            from PIL import Image, ImageOps
+            with Image.open(path) as source:
+                decoded = ImageOps.exif_transpose(source).convert('RGB')
+                decoded.thumbnail((320,320))
+                decoded.save(output, quality=85)
+        else:
+            command = [ffmpeg_binary(), '-v','error','-nostdin','-y','-ss',str(min(.5,metadata['duration']/2)),
+                       '-protocol_whitelist','file,pipe','-i',str(path),'-frames:v','1','-vf',
+                       'scale=320:320:force_original_aspect_ratio=decrease','-q:v','3',str(output)]
+            result = subprocess.run(command, capture_output=True, timeout=30)
+            if result.returncode or not output.is_file():
+                raise ValueError('A preview frame could not be generated. The media is still available.')
+        output.replace(target)
+    return target
 
 def get_editor_asset(clip_id: str, asset_id: str) -> tuple[dict,Path,dict]:
     asset = db.get_asset(asset_id)
@@ -170,11 +219,17 @@ def validate_project_media(clip_id,project):
         if item.asset_id not in assets:
             assets[item.asset_id] = get_editor_asset(clip_id,item.asset_id)
         metadata = assets[item.asset_id][2]
-        if item.kind == 'video' and metadata['media_type'] != 'video':
-            raise ValueError('A video item must use a video file.')
+        if item.kind == 'video' and metadata['media_type'] not in {'video','image'}:
+            raise ValueError('A visual item must use a video or image file.')
         if item.kind == 'audio' and not metadata['has_audio']:
             raise ValueError('This media has no audio track.')
         # ffmpeg's fallback reports duration to 10 ms; tolerate only rounding.
+        if metadata['media_type'] == 'image':
+            continue
+        if item.freeze_at is not None:
+            if item.kind != 'video' or item.freeze_at >= metadata['duration']:
+                raise ValueError('Choose a freeze frame inside the source video.')
+            continue
         if item.source_in + item.duration * item.speed > metadata['duration'] + .021:
             raise ValueError(f'“{item.name or "Media"}” extends beyond its source. Reduce its duration or speed.')
     return assets
