@@ -21,7 +21,8 @@ def main():
     runtime=args.data_dir/'runtime'/'transcription'
     venv.EnvBuilder(with_pip=True).create(runtime)
     python=runtime/('Scripts/python.exe' if sys.platform=='win32' else 'bin/python')
-    subprocess.run([str(python),'-m','pip','install','faster-whisper==1.2.1'],check=True)
+    # PyAV 19 removed metadata_errors, which faster-whisper 1.2 still passes.
+    subprocess.run([str(python),'-m','pip','install','faster-whisper==1.2.1','av==15.1.0'],check=True)
     if args.download_model:
         target=args.data_dir/'models'/'whisper'/args.model
         subprocess.run([str(python),'-c','from faster_whisper.utils import download_model; import sys; download_model(sys.argv[1],output_dir=sys.argv[2])',args.model,str(target)],check=True)

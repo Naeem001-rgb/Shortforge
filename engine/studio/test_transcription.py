@@ -12,7 +12,7 @@ from engine.studio.transcription import transcribe_asset, transcription_job
 
 
 def test_text_without_word_timing_is_not_invented(tmp_path):
-    with patch.object(db,'DATA_DIR',tmp_path), patch('engine.core.media.transcribe_file',return_value={'text':'spoken words','words':[]}):
+    with patch.object(db,'DATA_DIR',tmp_path), patch('engine.studio.transcription.runtime_python',return_value=tmp_path/'not-installed'), patch('engine.core.media.transcribe_file',return_value={'text':'spoken words','words':[]}):
         with pytest.raises(ValueError,match='without word timestamps'):
             transcribe_asset(tmp_path/'recording.wav')
 
@@ -23,7 +23,7 @@ def test_selected_asset_job_preserves_actual_timestamps(tmp_path):
         with db.connect() as connection:
             connection.execute("INSERT INTO clips (id,title,license_status,created_at) VALUES ('clip','Recording','unknown',?)",(db.now(),))
         job=db.new_job('editor_transcribe','clip')
-        with patch('engine.studio.editor_media.get_editor_asset',return_value=({},tmp_path/'recording.wav',{'has_audio':True})), patch('engine.core.media.transcribe_file',return_value=actual):
+        with patch('engine.studio.transcription.runtime_python',return_value=tmp_path/'not-installed'), patch('engine.studio.editor_media.get_editor_asset',return_value=({},tmp_path/'recording.wav',{'has_audio':True})), patch('engine.core.media.transcribe_file',return_value=actual):
             transcription_job(job['id'],'clip','selected-recording',None)
         result=db.get_job(job['id'])
         assert result['status']=='completed',result
