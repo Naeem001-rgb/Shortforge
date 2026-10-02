@@ -1,32 +1,52 @@
 import {
   AudioLines,
+  Captions,
   Check,
   ChevronDown,
   Download,
   Film,
   FolderOpen,
+  LayoutTemplate,
   LoaderCircle,
   Mic2,
   Music2,
+  PanelLeftClose,
   Plus,
-  Save,
   Scissors,
+  SlidersHorizontal,
   Sparkles,
+  Sticker,
   Subtitles,
   Type,
   Upload,
   VolumeX,
+  WandSparkles,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Asset, Clip } from "../api";
-import { api, assetUrl, editable, useJob } from "../api";
-import { Badge, IconButton, JobProgress, Notice } from "../ui";
+import { api, assetUrl, useJob } from "../api";
+import { IconButton, JobProgress, Notice } from "../ui";
 import { EditorInspector } from "./EditorInspector";
 import { EditorPreview } from "./EditorPreview";
 import { EditorTimeline } from "./EditorTimeline";
 import { AnimationTemplates, TextTemplates } from "./EditorTemplates";
 import { applyTextPreset } from "./textPresets";
+import {
+  buildProjectTemplate,
+  FilterPresets,
+  MediaAssetGrid,
+  ProjectTemplates,
+  StickerPresets,
+  TransitionPresets,
+} from "./EditorAssetPanels";
+import type { ProjectTemplate, StickerPreset } from "./EditorAssetPanels";
+import {
+  EditorTopbar,
+  PaneSplitter,
+  ShortcutsPanel,
+  useEditorLayout,
+} from "./EditorChrome";
 import type { TextPreset } from "./textPresets";
 import {
   clamp,
@@ -42,6 +62,7 @@ import type {
   EditorProject,
   EditorResponse,
   TimelineItem,
+  TransitionId,
 } from "./editorModel";
 
 type Props = {
@@ -51,58 +72,86 @@ type Props = {
   refresh: () => void;
   onImport: () => void;
   onPublish: () => void;
+  onBack?: () => void;
 };
+const editorTools = [
+  { id: "media", label: "Media", icon: FolderOpen },
+  { id: "audio", label: "Audio", icon: Music2 },
+  { id: "text", label: "Text", icon: Type },
+  { id: "captions", label: "Captions", icon: Captions },
+  { id: "stickers", label: "Stickers", icon: Sticker },
+  { id: "effects", label: "Effects", icon: WandSparkles },
+  { id: "transitions", label: "Transitions", icon: Scissors },
+  { id: "filters", label: "Filters", icon: SlidersHorizontal },
+  { id: "templates", label: "Templates", icon: LayoutTemplate },
+] as const;
+type Tool = (typeof editorTools)[number]["id"];
 export function Studio(props: Props) {
+  if (props.selected)
+    return (
+      <div className="timeline-studio">
+        <ProjectEditor key={props.selected} {...props} />
+      </div>
+    );
   return (
-    <div className="timeline-studio">
-      <div className="editor-project-heading">
-        <div>
-          <Film size={19} />
-          <h1>Studio</h1>
-          <span className="editor-heading-rule" />
-          <select
-            aria-label="Studio project"
-            value={props.selected}
-            onChange={(e) => props.onSelect(e.target.value)}
-          >
-            <option value="">Choose a project</option>
-            {props.clips
-              .filter((c) => c.workflow_status !== "archived")
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-          </select>
+    <div className="timeline-studio editor-start-screen">
+      <header className="editor-topbar">
+        <span className="editor-brand-mark">
+          <Scissors size={19} />
+        </span>
+        <span className="editor-brand-name">
+          ShortForge<span>Studio</span>
+        </span>
+        <div className="editor-topbar-spacer" />
+        {props.onBack && (
+          <button className="button secondary" onClick={props.onBack}>
+            Back to library
+          </button>
+        )}
+      </header>
+      <div className="editor-welcome">
+        <div className="editor-welcome-icon">
+          <Film size={30} />
         </div>
-        <button className="button secondary small" onClick={props.onImport}>
-          <Plus size={15} />
+        <h1>Make room for your next story.</h1>
+        <p>Start with your footage. Find your rhythm. Make it yours.</p>
+        <button className="button primary" onClick={props.onImport}>
+          <Plus size={17} />
           New project
         </button>
+        {props.clips.some((clip) => clip.workflow_status !== "archived") && (
+          <label className="editor-open-recent">
+            <span>Or open a recent project</span>
+            <select
+              aria-label="Studio project"
+              defaultValue=""
+              onChange={(event) => props.onSelect(event.target.value)}
+            >
+              <option value="" disabled>
+                Choose a project
+              </option>
+              {props.clips
+                .filter((clip) => clip.workflow_status !== "archived")
+                .map((clip) => (
+                  <option key={clip.id} value={clip.id}>
+                    {clip.title}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
       </div>
-      {props.selected ? (
-        <ProjectEditor key={props.selected} {...props} />
-      ) : (
-        <div className="editor-welcome">
-          <div className="editor-welcome-icon">
-            <Scissors size={30} />
-          </div>
-          <h2>Your next edit starts here.</h2>
-          <p>
-            Choose a Short from your library, or import footage to start a
-            project. Arrange clips, replace audio and add motion on the
-            timeline.
-          </p>
-          <button className="button primary" onClick={props.onImport}>
-            <Upload size={16} />
-            Import footage
-          </button>
-        </div>
-      )}
     </div>
   );
 }
-function ProjectEditor({ selected, clips, refresh }: Props) {
+function ProjectEditor({
+  selected,
+  clips,
+  refresh,
+  onSelect,
+  onImport,
+  onBack,
+}: Props) {
   const [clip, setClip] = useState<Clip | undefined>(
     clips.find((c) => c.id === selected),
   );
@@ -117,9 +166,7 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
     [uploading, setUploading] = useState(false);
   const [saveState, setSaveState] = useState("Saved"),
     [historyVersion, setHistoryVersion] = useState(0);
-  const [binTab, setBinTab] = useState<"media" | "audio" | "text" | "motion">(
-      "media",
-    ),
+  const [binTab, setBinTab] = useState<Tool>("media"),
     [exportOpen, setExportOpen] = useState(false),
     [resolution, setResolution] = useState<480 | 720 | 1080>(1080),
     [exported, setExported] = useState<Asset | null>(null);
@@ -128,9 +175,10 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
     model_ready: boolean;
     message: string;
   } | null>(null);
-  const [permissionOpen, setPermissionOpen] = useState(false),
-    [permissionNote, setPermissionNote] = useState(""),
-    [rights, setRights] = useState<"permission" | "owned">("permission");
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const { layout, setLayout, style: layoutStyle } = useEditorLayout();
+  const sourceAttempted = useRef(false);
+  const projectInput = useRef<HTMLInputElement>(null);
   const projectRef = useRef<EditorProject | null>(null),
     mounted = useRef(true),
     history = useRef<{ past: EditorProject[]; future: EditorProject[] }>({
@@ -152,16 +200,10 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   const commit = useCallback((next: EditorProject, remember = true) => {
-    if (next.items.length > 100) {
-      setError(
-        "A project supports up to 100 timeline clips. Remove a clip before adding more.",
-      );
-      return;
-    }
     const previous = projectRef.current;
     if (previous && JSON.stringify(previous) === JSON.stringify(next)) return;
     if (previous && remember) {
-      history.current.past = [...history.current.past.slice(-79), previous];
+      history.current.past = [...history.current.past.slice(-119), previous];
       history.current.future = [];
     }
     projectRef.current = next;
@@ -352,6 +394,7 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
   }, [selection, commit]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       const target = e.target as HTMLElement;
       if (target.closest("input,textarea,select,[contenteditable=true]"))
         return;
@@ -361,6 +404,45 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         void saveProject();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        setExportOpen(true);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        duplicate();
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setShortcutsOpen((open) => !open);
+      } else if (e.key === "Escape") {
+        setShortcutsOpen(false);
+        setExportOpen(false);
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        setPlaying(false);
+        setTime((current) =>
+          clamp(
+            current +
+              (e.key === "ArrowRight" ? 1 : -1) *
+                (e.shiftKey ? 1 : 1 / (projectRef.current?.fps || 30)),
+            0,
+            projectRef.current ? durationOf(projectRef.current) : 0,
+          ),
+        );
+      } else if (e.key.toLowerCase() === "m" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const current = projectRef.current;
+        if (current)
+          commit({
+            ...current,
+            markers: [
+              ...(current.markers || []),
+              {
+                id: uid(),
+                time,
+                label: `Marker ${(current.markers?.length || 0) + 1}`,
+              },
+            ],
+          });
       } else if (e.code === "Space") {
         e.preventDefault();
         setPlaying((p) => !p);
@@ -374,7 +456,7 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [undo, redo, remove, split, saveProject]);
+  }, [undo, redo, remove, split, saveProject, duplicate, commit, time]);
   useEffect(() => {
     if (!playing) return;
     let frame = 0,
@@ -407,7 +489,7 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
     duration: number,
     preferred: number,
   ) => {
-    for (let n = preferred; n < 8; n++) {
+    for (let n = preferred; ; n++) {
       if (
         !current.items.some(
           (i) =>
@@ -418,19 +500,30 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
       )
         return n;
     }
-    return preferred;
   };
-  const addMedia = (asset: EditorMedia) => {
+  const addMedia = (
+    asset: EditorMedia,
+    at = time,
+    track?: number,
+    patch: Partial<TimelineItem> = {},
+  ) => {
     const current = projectRef.current;
     if (!current) return;
-    const start = clamp(time, 0, 599.9),
+    const start = clamp(at, 0, 599.9),
       duration = Math.min(asset.duration || 5, 600 - start);
     const item = newItem(
       asset.media_type === "audio" ? "audio" : "video",
       asset,
       start,
-      freeTrack(current, start, duration, asset.media_type === "audio" ? 1 : 0),
+      track ??
+        freeTrack(
+          current,
+          start,
+          duration,
+          asset.media_type === "audio" ? 1 : 0,
+        ),
     );
+    Object.assign(item, patch);
     commit({ ...current, items: [...current.items, item] });
     setSelection(item.id);
     setMessage("");
@@ -438,6 +531,7 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
   const upload = async (
     file: File | undefined,
     role: "video" | "voiceover" | "music",
+    patch: Partial<TimelineItem> = {},
   ) => {
     if (!file) return;
     setUploading(true);
@@ -452,7 +546,10 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
       });
       if (!mounted.current) return;
       setMedia((m) => [...m.filter((a) => a.id !== asset.id), asset]);
-      addMedia(asset);
+      addMedia(asset, time, undefined, {
+        ...(role === "video" ? {} : { audio_role: role }),
+        ...patch,
+      });
       setMessage(`${asset.name} added to the timeline.`);
     } catch (e) {
       if (mounted.current) setError((e as Error).message);
@@ -629,7 +726,13 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
   }, [exportJob.job]);
   useEffect(() => {
     const job = downloadJob.job;
-    if (job?.status !== "completed" || completed.current.has(job.id)) return;
+    if (
+      !project ||
+      loading ||
+      job?.status !== "completed" ||
+      completed.current.has(job.id)
+    )
+      return;
     completed.current.add(job.id);
     if (sessionStorage.getItem(`editor-applied:${job.id}`)) return;
     api<EditorResponse>(`/editor/${selected}`)
@@ -637,11 +740,11 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
         if (!mounted.current) return;
         setMedia(data.media);
         const current = projectRef.current;
-        if (current && !current.items.length) {
+        if (current && !current.items.length && !current.source_seeded) {
           const asset = data.media.find((a) => a.kind === "source");
           if (asset) {
             const item = newItem("video", asset);
-            commit({ ...current, items: [item] });
+            commit({ ...current, source_seeded: true, items: [item] });
             setSelection(item.id);
           }
         }
@@ -652,539 +755,872 @@ function ProjectEditor({ selected, clips, refresh }: Props) {
       .catch((e) => {
         if (mounted.current) setError(e.message);
       });
-  }, [downloadJob.job, selected, commit]);
-  const recordPermission = async () => {
-    if (!permissionNote.trim()) return;
-    setError("");
+  }, [downloadJob.job, selected, commit, project, loading]);
+  useEffect(() => {
+    if (
+      loading ||
+      !project ||
+      !(clip?.video_id || clip?.url) ||
+      media.some((asset) => asset.kind === "source") ||
+      sourceAttempted.current
+    )
+      return;
+    sourceAttempted.current = true;
+    if (downloadJob.busy || downloadJob.job?.status === "failed") return;
+    void downloadJob.start(`/clips/${selected}/download`);
+  }, [
+    loading,
+    project,
+    clip?.video_id,
+    clip?.url,
+    media,
+    downloadJob.busy,
+    downloadJob.job?.status,
+    downloadJob.start,
+    selected,
+  ]);
+  const downloadProject = () => {
+    const current = projectRef.current;
+    if (!current) return;
+    const url = URL.createObjectURL(
+      new Blob(
+        [
+          JSON.stringify(
+            { format: "shortforge-project", project: current, media },
+            null,
+            2,
+          ),
+        ],
+        { type: "application/json" },
+      ),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${(current.name || clip?.title || "ShortForge project").replace(/[^a-z0-9 _-]/gi, "").slice(0, 100)}.shortforge.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const importProject = async (file?: File) => {
+    if (!file || !projectRef.current) return;
     try {
-      const updated = await api<Clip>(`/clips/${selected}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          license_status: rights,
-          permission_note: permissionNote.trim(),
-        }),
+      const parsed = JSON.parse(await file.text());
+      const next = (parsed.project || parsed) as EditorProject;
+      if (
+        next.version !== 1 ||
+        !Array.isArray(next.items) ||
+        !Number.isFinite(next.width) ||
+        !Number.isFinite(next.height) ||
+        next.width < 16 ||
+        next.height < 16 ||
+        !Number.isFinite(next.fps) ||
+        next.fps <= 0
+      )
+        throw new Error("Choose a valid ShortForge project JSON file.");
+      if (
+        next.items.some(
+          (item) =>
+            !["video", "audio", "text"].includes(item.kind) ||
+            !Number.isFinite(item.start) ||
+            item.start < 0 ||
+            !Number.isFinite(item.duration) ||
+            item.duration <= 0 ||
+            item.start + item.duration > 600 ||
+            !item.transform ||
+            !Array.isArray(item.keyframes),
+        )
+      )
+        throw new Error(
+          "This project contains invalid clip timing or properties.",
+        );
+      const ids = new Set(media.map((asset) => asset.id));
+      const missing = next.items.filter(
+        (item) => item.asset_id && !ids.has(item.asset_id),
+      ).length;
+      // Validate with the same server contract used by autosave before applying.
+      const validated = await api<EditorResponse>(`/editor/${selected}`, {
+        method: "PUT",
+        body: JSON.stringify(next),
       });
       if (!mounted.current) return;
-      setClip(updated);
-      setPermissionOpen(false);
-      refreshRef.current();
+      commit(validated.project);
+      setSelection("");
+      setTime(0);
       setMessage(
-        "Footage permission recorded. You can now prepare the source video.",
+        missing
+          ? `Project opened. ${missing} clip${missing === 1 ? " needs" : "s need"} the original media to be reimported.`
+          : "Project opened. Use Undo to restore your previous edit.",
       );
-    } catch (e) {
-      setError((e as Error).message);
+    } catch (error) {
+      setError(`Could not open project. ${(error as Error).message}`);
     }
+  };
+  const applyTransition = (
+    id: TransitionId,
+    requested: number,
+    all: boolean,
+  ) => {
+    const current = projectRef.current;
+    if (!current) return;
+    const items = structuredClone(current.items);
+    const targets = items
+      .filter((item) => item.kind === "video" && (all || item.id === selection))
+      .sort((a, b) => a.start - b.start);
+    let applied = 0;
+    for (const item of targets) {
+      if (id === "none") {
+        item.transition_in = "none";
+        applied++;
+        continue;
+      }
+      const previous = items
+        .filter(
+          (other) =>
+            other.kind === "video" &&
+            other.track === item.track &&
+            other.start < item.start,
+        )
+        .sort((a, b) => b.start - a.start)[0];
+      if (!previous) continue;
+      const duration = Math.min(
+        requested,
+        previous.duration / 2,
+        item.duration / 2,
+      );
+      item.start = Math.max(
+        previous.start + 0.1,
+        previous.start + previous.duration - duration,
+      );
+      item.transition_in = id;
+      item.transition_duration = duration;
+      applied++;
+    }
+    if (!applied) {
+      setMessage(
+        "Add a second video on the same track, then select it to create a transition.",
+      );
+      return;
+    }
+    commit({ ...current, items });
+    setMessage(
+      `${applied === 1 ? "Transition" : `${applied} transitions`} ${id === "none" ? "removed" : "applied"}.`,
+    );
+  };
+  const addSticker = async (preset: StickerPreset) => {
+    const current = projectRef.current;
+    if (!current) return;
+    if (!preset.shape) {
+      const item = newItem(
+        "text",
+        undefined,
+        Math.min(time, 595),
+        freeTrack(current, time, 5, 2),
+      );
+      item.text = preset.text;
+      item.name = preset.label;
+      item.font_size = 82;
+      item.color = preset.color;
+      item.text_background = preset.background;
+      item.transform.rotation = preset.rotation;
+      item.text_style = {
+        bold: true,
+        italic: false,
+        uppercase: true,
+        align: "center",
+        stroke: 0,
+        stroke_color: "#000000",
+        shadow: 0,
+        letter_spacing: 2,
+        reveal: "none",
+        highlight: preset.color,
+      };
+      item.animation_in = "pop";
+      commit({ ...current, items: [...current.items, item] });
+      setSelection(item.id);
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 512;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.strokeStyle = preset.color;
+    context.fillStyle = preset.color;
+    context.lineWidth = 32;
+    context.lineCap = "round";
+    context.lineJoin = "round";
+    if (preset.shape === "circle") {
+      context.beginPath();
+      context.arc(256, 256, 166, 0, Math.PI * 2);
+      context.stroke();
+    } else if (preset.shape === "arrow") {
+      context.beginPath();
+      context.moveTo(90, 405);
+      context.lineTo(398, 118);
+      context.moveTo(195, 118);
+      context.lineTo(398, 118);
+      context.lineTo(398, 323);
+      context.stroke();
+    } else if (preset.shape === "frame") {
+      for (const [x, y, sx, sy] of [
+        [72, 72, 1, 1],
+        [440, 72, -1, 1],
+        [72, 440, 1, -1],
+        [440, 440, -1, -1],
+      ]) {
+        context.beginPath();
+        context.moveTo(x, y + 115 * sy);
+        context.lineTo(x, y);
+        context.lineTo(x + 115 * sx, y);
+        context.stroke();
+      }
+    } else {
+      context.beginPath();
+      [
+        [256, 20],
+        [310, 202],
+        [492, 256],
+        [310, 310],
+        [256, 492],
+        [202, 310],
+        [20, 256],
+        [202, 202],
+      ].forEach(([x, y], index) =>
+        index ? context.lineTo(x, y) : context.moveTo(x, y),
+      );
+      context.closePath();
+      context.fill();
+    }
+    canvas.toBlob((blob) => {
+      if (blob)
+        void upload(
+          new File([blob], `ShortForge ${preset.label}.png`, {
+            type: "image/png",
+          }),
+          "video",
+        );
+    }, "image/png");
+  };
+  const applyProjectTemplate = (preset: ProjectTemplate) => {
+    if (!projectRef.current) return;
+    const next = buildProjectTemplate(projectRef.current, media, preset);
+    commit(next);
+    setTime(0);
+    setSelection(next.items.find((item) => item.kind === "text")?.id || "");
+    setMessage(
+      `${preset.name} applied. Edit the titles on the canvas; Undo restores your previous edit.`,
+    );
   };
   if (loading)
     return (
-      <div className="editor-loading" aria-label="Loading editor">
-        <div />
-        <div />
-        <div />
-        <div />
+      <div className="editor-loading" role="status">
+        <LoaderCircle size={24} className="spin" />
+        <span>Opening your edit…</span>
       </div>
     );
   if (!project)
     return (
-      <Notice>
-        {error || "The editor could not load. Refresh the page to try again."}
-      </Notice>
+      <div className="editor-load-error">
+        <Notice>{error || "The editor could not load."}</Notice>
+        <button
+          className="button secondary"
+          onClick={() => window.location.reload()}
+        >
+          Try again
+        </button>
+      </div>
     );
-  const selectedItem = project.items.find((i) => i.id === selection),
-    selectedAsset = media.find((a) => a.id === selectedItem?.asset_id),
-    permitted = clip ? editable(clip) : false;
-  const audioAvailable =
-    selectedItem && selectedItem.kind !== "text" && selectedAsset?.has_audio;
-  const busy = audioJob.busy || uploading,
-    jobError = audioJob.error || downloadJob.error || exportJob.error;
-  const visibleMedia = media.filter((a) =>
-    binTab === "audio" ? a.media_type === "audio" : a.media_type !== "audio",
+  const selectedItem = project.items.find((item) => item.id === selection);
+  const selectedAsset = media.find(
+    (asset) => asset.id === selectedItem?.asset_id,
   );
+  const audioAvailable =
+    !!selectedItem &&
+    selectedItem.kind !== "text" &&
+    !!selectedAsset?.has_audio;
+  const busy = audioJob.busy || uploading;
+  const jobError = audioJob.error || downloadJob.error || exportJob.error;
+  const hasSource = media.some((asset) => asset.kind === "source");
+  const sourceLoading = !hasSource && downloadJob.busy;
+  const visibleMedia = media.filter((asset) =>
+    binTab === "audio"
+      ? asset.media_type === "audio"
+      : asset.media_type !== "audio",
+  );
+  const canUndo = historyVersion >= 0 && history.current.past.length > 0;
+  const canRedo = history.current.future.length > 0;
   return (
     <>
-      <div className="editor-action-bar">
-        <div>
-          {clip && <Badge clip={clip} />}
-          <span
-            className={`editor-save-state ${saveState === "Save failed" ? "error" : ""}`}
-          >
-            {saveState === "Saving…" ? (
-              <LoaderCircle size={13} className="spin" />
-            ) : (
-              <Check size={13} />
-            )}
-            <span role="status">{saveState}</span>
-          </span>
-        </div>
-        <div>
-          <button
-            className="button secondary small"
-            onClick={() => setSelection("")}
-            aria-pressed={!selection}
-          >
-            Canvas
-          </button>
-          <button
-            className="button secondary small"
-            onClick={() => void saveProject()}
-          >
-            <Save size={14} />
-            Save project
-          </button>
-          <button
-            className="button primary small"
-            onClick={() => setExportOpen(!exportOpen)}
-            aria-expanded={exportOpen}
-          >
-            <Download size={14} />
-            Export
-            <ChevronDown size={13} />
-          </button>
-        </div>
-      </div>
-      {(error || jobError) && (
-        <Notice>
-          {error || jobError}
-          <button
-            className="editor-dismiss"
-            aria-label="Dismiss error"
+      <EditorTopbar
+        clips={clips}
+        selected={selected}
+        name={project.name ?? clip?.title ?? "Untitled project"}
+        saveState={saveState}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onName={(name) => commit({ ...project, name })}
+        onSelect={onSelect}
+        onBack={onBack}
+        onNew={onImport}
+        onUndo={undo}
+        onRedo={redo}
+        onSave={() => void saveProject()}
+        onExport={() => setExportOpen((open) => !open)}
+        onDownload={downloadProject}
+        onImport={() => projectInput.current?.click()}
+        onShortcuts={() => setShortcutsOpen((open) => !open)}
+        assetCollapsed={layout.assetCollapsed}
+        inspectorCollapsed={layout.inspectorCollapsed}
+        onAssetToggle={() =>
+          setLayout((old) => ({ ...old, assetCollapsed: !old.assetCollapsed }))
+        }
+        onInspectorToggle={() =>
+          setLayout((old) => ({
+            ...old,
+            inspectorCollapsed: !old.inspectorCollapsed,
+          }))
+        }
+      />
+      <input
+        hidden
+        ref={importInput}
+        aria-label="Import media"
+        type="file"
+        accept="video/*,image/*,audio/*"
+        multiple
+        onChange={(event) => {
+          for (const file of Array.from(event.target.files || []))
+            void upload(
+              file,
+              file.type.startsWith("audio/") ? "music" : "video",
+            );
+          event.target.value = "";
+        }}
+      />
+      <input
+        hidden
+        ref={voiceInput}
+        aria-label="Import voiceover"
+        type="file"
+        accept="audio/*"
+        onChange={(event) => {
+          void upload(event.target.files?.[0], "voiceover");
+          event.target.value = "";
+        }}
+      />
+      <input
+        hidden
+        ref={musicInput}
+        aria-label="Import music"
+        type="file"
+        accept="audio/*"
+        onChange={(event) => {
+          void upload(event.target.files?.[0], "music");
+          event.target.value = "";
+        }}
+      />
+      <input
+        hidden
+        ref={srtInput}
+        aria-label="Import captions"
+        type="file"
+        accept=".srt"
+        onChange={(event) => {
+          void importSrt(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
+      <input
+        hidden
+        ref={projectInput}
+        aria-label="Open project JSON"
+        type="file"
+        accept=".json"
+        onChange={(event) => {
+          void importProject(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
+      {(error || jobError || message) && (
+        <div
+          className={`editor-status-toast ${error || jobError ? "is-error" : ""}`}
+          role={error || jobError ? "alert" : "status"}
+        >
+          <span>{error || jobError || message}</span>
+          <IconButton
+            label="Dismiss message"
             onClick={() => {
               setError("");
+              setMessage("");
               audioJob.setError("");
               downloadJob.setError("");
               exportJob.setError("");
             }}
           >
-            <X size={14} />
-          </button>
-        </Notice>
-      )}
-      {message && (
-        <div className="editor-message" role="status">
-          <Check size={14} />
-          <span>{message}</span>
-          <IconButton label="Dismiss message" onClick={() => setMessage("")}>
-            <X size={14} />
+            <X size={15} />
           </IconButton>
         </div>
       )}
       {exportOpen && (
-        <div className="editor-export-panel">
-          <div>
-            <strong>Export video</strong>
-            <span>MP4 · H.264 / AAC · {formatTime(durationOf(project))}</span>
-          </div>
-          <label className="editor-export-resolution">
-            Resolution
+        <section className="editor-export-panel" aria-label="Export video">
+          <header>
+            <div>
+              <h2>Export your video</h2>
+              <p>MP4 · H.264 / AAC · {formatTime(durationOf(project))}</p>
+            </div>
+            <IconButton
+              label="Close export panel"
+              onClick={() => setExportOpen(false)}
+            >
+              <X size={17} />
+            </IconButton>
+          </header>
+          <label className="editor-field">
+            <span>Resolution</span>
             <select
               aria-label="Export resolution"
               value={resolution}
-              onChange={(e) =>
-                setResolution(Number(e.target.value) as 480 | 720 | 1080)
+              onChange={(event) =>
+                setResolution(Number(event.target.value) as 480 | 720 | 1080)
               }
             >
-              <option value={480}>480p</option>
-              <option value={720}>720p</option>
-              <option value={1080}>1080p</option>
+              <option value={720}>720p — smaller file</option>
+              <option value={1080}>1080p — full HD</option>
             </select>
           </label>
+          <p className="editor-panel-note">
+            {project.width > project.height ? "Landscape" : "Portrait"} ·{" "}
+            {project.fps} fps · {project.items.length} clips
+          </p>
           <button
-            className="button primary small"
-            disabled={!permitted || !project.items.length || exportJob.busy}
+            className="button primary full"
+            disabled={!project.items.length || exportJob.busy}
             onClick={async () => {
               setPlaying(false);
               await saveProject();
-              if (!mounted.current) return;
-              void exportJob.start(`/editor/${selected}/export`, {
-                project: projectRef.current,
-                resolution,
-              });
+              if (mounted.current)
+                void exportJob.start(`/editor/${selected}/export`, {
+                  project: projectRef.current,
+                  resolution,
+                });
             }}
           >
             {exportJob.busy ? (
-              <LoaderCircle size={14} className="spin" />
+              <LoaderCircle size={16} className="spin" />
             ) : (
-              <Download size={14} />
-            )}
-            Export MP4
+              <Download size={16} />
+            )}{" "}
+            {exportJob.busy ? "Exporting…" : "Export MP4"}
           </button>
+          <JobProgress job={exportJob.job} />
           {exported && (
             <a
-              className="button secondary small"
+              className="button secondary full"
               href={assetUrl(exported)}
               download
             >
+              <Download size={16} />
               Download MP4
             </a>
           )}
-          <IconButton
-            label="Close export panel"
-            onClick={() => setExportOpen(false)}
-          >
-            <X size={16} />
-          </IconButton>
-          {!permitted && (
-            <p>
-              Record footage permission in the Media panel before exporting.
-            </p>
-          )}
-          <JobProgress job={exportJob.job} />
-        </div>
+        </section>
       )}
-      <div className="editor-workspace">
-        <aside className="editor-media-panel" aria-label="Media bin">
-          <nav className="editor-bin-tabs" aria-label="Editor tools">
-            {(
-              [
-                { id: "media", label: "Media", icon: FolderOpen },
-                { id: "audio", label: "Audio", icon: Music2 },
-                { id: "text", label: "Text", icon: Type },
-                { id: "motion", label: "Motion", icon: Sparkles },
-              ] as const
-            ).map(({ id, label, icon: Icon }) => (
+      {shortcutsOpen && (
+        <ShortcutsPanel onClose={() => setShortcutsOpen(false)} />
+      )}
+      <div
+        className={`editor-editing-area ${layout.assetCollapsed ? "asset-collapsed" : ""} ${layout.inspectorCollapsed ? "inspector-collapsed" : ""}`}
+        style={layoutStyle}
+      >
+        <div className="editor-workspace">
+          <nav className="editor-tool-rail" aria-label="Editor tools">
+            {editorTools.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
-                aria-pressed={binTab === id}
-                className={binTab === id ? "active" : ""}
-                onClick={() => setBinTab(id)}
+                aria-pressed={binTab === id && !layout.assetCollapsed}
+                className={
+                  binTab === id && !layout.assetCollapsed ? "active" : ""
+                }
+                onClick={() => {
+                  setBinTab(id);
+                  setLayout((old) => ({ ...old, assetCollapsed: false }));
+                }}
               >
-                <Icon size={17} />
-                {label}
+                <Icon size={20} strokeWidth={1.7} />
+                <span>{label}</span>
               </button>
             ))}
           </nav>
-          <div className="editor-bin-scroll">
-            <input
-              hidden
-              ref={importInput}
-              aria-label="Import media"
-              type="file"
-              accept="video/*"
-              onChange={(e) => {
-                void upload(e.target.files?.[0], "video");
-                e.target.value = "";
-              }}
-            />
-            <input
-              hidden
-              ref={voiceInput}
-              aria-label="Import voiceover"
-              type="file"
-              accept="audio/*"
-              onChange={(e) => {
-                void upload(e.target.files?.[0], "voiceover");
-                e.target.value = "";
-              }}
-            />
-            <input
-              hidden
-              ref={musicInput}
-              aria-label="Import music"
-              type="file"
-              accept="audio/*"
-              onChange={(e) => {
-                void upload(e.target.files?.[0], "music");
-                e.target.value = "";
-              }}
-            />
-            <input
-              hidden
-              ref={srtInput}
-              aria-label="Import captions"
-              type="file"
-              accept=".srt"
-              onChange={(e) => {
-                void importSrt(e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-            {binTab === "media" && (
-              <>
-                <button
-                  className="button secondary small full editor-import-button"
-                  disabled={uploading || !permitted}
-                  onClick={() => importInput.current?.click()}
-                >
-                  {uploading ? (
-                    <LoaderCircle size={15} className="spin" />
-                  ) : (
-                    <Upload size={15} />
-                  )}
-                  Import media
-                </button>
-                {!media.some((a) => a.media_type !== "audio") && (
-                  <div className="editor-source-empty">
-                    <Film size={25} />
-                    <h3>Bring in your footage</h3>
-                    <p>
-                      {permitted
-                        ? "Import a video. Your files stay on this device."
-                        : "Record permission to edit this project, or use New project for your own footage."}
-                    </p>
-                    {clip?.video_id && (
-                      <>
-                        {permitted ? (
-                          <button
-                            className="button secondary small full"
-                            disabled={downloadJob.busy}
-                            onClick={() =>
-                              void downloadJob.start(
-                                `/clips/${selected}/download`,
-                              )
-                            }
-                          >
-                            <Download size={14} />
-                            Prepare source video
-                          </button>
-                        ) : (
-                          <>
-                            <p>
-                              This saved Short is marked as inspiration. Record
-                              your permission to use its footage.
-                            </p>
-                            <button
-                              className="button secondary small full"
-                              onClick={() => setPermissionOpen(!permissionOpen)}
-                            >
-                              Record permission
-                            </button>
-                          </>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-                {permissionOpen && (
-                  <div className="editor-permission">
-                    <label className="editor-field">
-                      <span>Permission</span>
-                      <select
-                        aria-label="Footage permission"
-                        value={rights}
-                        onChange={(e) =>
-                          setRights(e.target.value as "permission" | "owned")
-                        }
-                      >
-                        <option value="permission">I have permission</option>
-                        <option value="owned">I own this footage</option>
-                      </select>
-                    </label>
-                    <label className="editor-field">
-                      <span>Permission details</span>
-                      <textarea
-                        aria-label="Permission details"
-                        rows={3}
-                        value={permissionNote}
-                        onChange={(e) => setPermissionNote(e.target.value)}
-                        placeholder="Record who granted permission or how you own the footage."
-                      />
-                    </label>
-                    <button
-                      className="button primary small full"
-                      disabled={!permissionNote.trim()}
-                      onClick={() => void recordPermission()}
-                    >
-                      Save permission
-                    </button>
-                  </div>
-                )}
-                <JobProgress job={downloadJob.job} />
-              </>
-            )}
-            {binTab === "audio" && (
-              <>
-                <div className="editor-import-audio">
-                  <button
-                    className="button secondary small full"
-                    disabled={uploading || !permitted}
-                    onClick={() => voiceInput.current?.click()}
-                  >
-                    <Mic2 size={15} />
-                    Import voiceover
-                  </button>
-                  <button
-                    className="button secondary small full"
-                    disabled={uploading || !permitted}
-                    onClick={() => musicInput.current?.click()}
-                  >
-                    <Music2 size={15} />
-                    Import music
-                  </button>
-                </div>
-                <section className="editor-audio-actions">
-                  <h3>Selected clip</h3>
-                  <p>
-                    {audioAvailable
-                      ? selectedItem?.name
-                      : "Select a video or audio clip with a soundtrack."}
-                  </p>
-                  <button
-                    className="button secondary small full"
-                    disabled={!audioAvailable || busy}
-                    onClick={() => void runAudio("extract")}
-                  >
-                    <AudioLines size={14} />
-                    Extract audio
-                  </button>
-                  <button
-                    className="button secondary small full"
-                    disabled={!audioAvailable || busy}
+          {!layout.assetCollapsed && (
+            <>
+              <aside
+                className="editor-media-panel"
+                aria-label={`${editorTools.find((tool) => tool.id === binTab)?.label} panel`}
+              >
+                <header className="editor-panel-heading">
+                  <h2>
+                    {editorTools.find((tool) => tool.id === binTab)?.label}
+                  </h2>
+                  <IconButton
+                    label="Collapse asset panel"
                     onClick={() =>
-                      selectedItem &&
-                      updateItem({
-                        ...selectedItem,
-                        muted: !selectedItem.muted,
-                      })
+                      setLayout((old) => ({ ...old, assetCollapsed: true }))
                     }
                   >
-                    <VolumeX size={14} />
-                    {selectedItem?.muted
-                      ? "Restore original audio"
-                      : "Remove all original audio"}
-                  </button>
-                  <div className="editor-audio-separation">
-                    <h3>Voice isolation</h3>
-                    <button
-                      className="button secondary small full"
-                      disabled={
-                        !audioAvailable || busy || !capability?.available
+                    <PanelLeftClose size={16} />
+                  </IconButton>
+                </header>
+                <div className="editor-bin-scroll">
+                  {binTab === "media" && (
+                    <>
+                      <button
+                        className="button primary full editor-import-button"
+                        disabled={uploading}
+                        onClick={() => importInput.current?.click()}
+                      >
+                        {uploading ? (
+                          <LoaderCircle size={16} className="spin" />
+                        ) : (
+                          <Plus size={17} />
+                        )}
+                        {uploading ? "Importing…" : "Import media"}
+                      </button>
+                      {!visibleMedia.length && (
+                        <div className="editor-source-empty">
+                          <div className="editor-media-drop-symbol">
+                            <FolderOpen size={25} strokeWidth={1.4} />
+                          </div>
+                          <h3>
+                            {sourceLoading
+                              ? "Getting your footage ready"
+                              : "Your media belongs here"}
+                          </h3>
+                          <p>
+                            {sourceLoading
+                              ? "You can keep editing while the source downloads."
+                              : "Drop video, photos or audio into the editor, or choose files from your device."}
+                          </p>
+                          <span className="editor-media-formats">
+                            MP4 · MOV · JPG · PNG · MP3
+                          </span>
+                          {!sourceLoading &&
+                            (clip?.video_id || clip?.url) &&
+                            !hasSource && (
+                              <button
+                                className="button secondary full"
+                                onClick={() =>
+                                  void downloadJob.start(
+                                    `/clips/${selected}/download`,
+                                  )
+                                }
+                              >
+                                <Download size={15} />
+                                Retry source download
+                              </button>
+                            )}
+                        </div>
+                      )}
+                      <JobProgress job={downloadJob.job} />
+                      <MediaAssetGrid media={visibleMedia} onAdd={addMedia} />
+                    </>
+                  )}
+                  {binTab === "audio" && (
+                    <>
+                      <div className="editor-import-audio">
+                        <button
+                          className="button secondary full"
+                          disabled={uploading}
+                          onClick={() => voiceInput.current?.click()}
+                        >
+                          <Mic2 size={16} />
+                          Import voiceover
+                        </button>
+                        <button
+                          className="button secondary full"
+                          disabled={uploading}
+                          onClick={() => musicInput.current?.click()}
+                        >
+                          <Music2 size={16} />
+                          Import music
+                        </button>
+                      </div>
+                      <section className="editor-audio-actions">
+                        <h3>Clip audio</h3>
+                        <p>
+                          {audioAvailable
+                            ? selectedItem?.name
+                            : "Select a clip with audio to detach or mute its soundtrack."}
+                        </p>
+                        <button
+                          className="button secondary full"
+                          disabled={!audioAvailable || busy}
+                          onClick={() => void runAudio("extract")}
+                        >
+                          <AudioLines size={15} />
+                          Detach audio
+                        </button>
+                        <button
+                          className="button secondary full"
+                          disabled={!audioAvailable || busy}
+                          onClick={() =>
+                            selectedItem &&
+                            updateItem({
+                              ...selectedItem,
+                              muted: !selectedItem.muted,
+                            })
+                          }
+                        >
+                          <VolumeX size={15} />
+                          {selectedItem?.muted
+                            ? "Restore original audio"
+                            : "Mute original audio"}
+                        </button>
+                        <details className="editor-audio-separation">
+                          <summary>Voice isolation</summary>
+                          <p>
+                            {capability?.available
+                              ? "Separate voice and music locally. Results depend on the original mix."
+                              : capability?.message ||
+                                "Checking local voice separation…"}
+                          </p>
+                          <button
+                            className="button secondary full"
+                            disabled={
+                              !audioAvailable || busy || !capability?.available
+                            }
+                            onClick={() => void runAudio("voice")}
+                          >
+                            <Mic2 size={15} />
+                            Isolate voice
+                          </button>
+                          <button
+                            className="button secondary full"
+                            disabled={
+                              !audioAvailable || busy || !capability?.available
+                            }
+                            onClick={() => void runAudio("remove")}
+                          >
+                            <Music2 size={15} />
+                            Reduce voice, keep music
+                          </button>
+                        </details>
+                        <JobProgress job={audioJob.job} />
+                      </section>
+                      <MediaAssetGrid media={visibleMedia} onAdd={addMedia} />
+                    </>
+                  )}
+                  {binTab === "text" && (
+                    <div className="editor-text-tools">
+                      <button className="button primary full" onClick={addText}>
+                        <Type size={16} />
+                        Add text
+                      </button>
+                      <TextTemplates
+                        onApply={applyTemplate}
+                        hasCaptions={project.items.some(
+                          (item) => item.kind === "text",
+                        )}
+                        selectedText={selectedItem?.kind === "text"}
+                      />
+                    </div>
+                  )}
+                  {binTab === "captions" && (
+                    <div className="editor-text-tools">
+                      <button
+                        className="button primary full"
+                        onClick={() => srtInput.current?.click()}
+                      >
+                        <Subtitles size={16} />
+                        Import SRT captions
+                      </button>
+                      <p>
+                        Every caption becomes editable text on your timeline.
+                      </p>
+                      <button
+                        className="button secondary full"
+                        onClick={addText}
+                      >
+                        <Plus size={16} />
+                        Add a caption
+                      </button>
+                      <TextTemplates
+                        onApply={applyTemplate}
+                        hasCaptions={project.items.some(
+                          (item) => item.kind === "text",
+                        )}
+                        selectedText={selectedItem?.kind === "text"}
+                      />
+                    </div>
+                  )}
+                  {binTab === "stickers" && (
+                    <StickerPresets
+                      onAdd={(preset) => void addSticker(preset)}
+                      busy={uploading}
+                    />
+                  )}
+                  {binTab === "effects" && (
+                    <AnimationTemplates
+                      item={selectedItem}
+                      onApply={(side, value) =>
+                        selectedItem &&
+                        updateItem({ ...selectedItem, [side]: value })
                       }
-                      onClick={() => void runAudio("voice")}
-                    >
-                      <Mic2 size={14} />
-                      Isolate voice
-                    </button>
-                    <button
-                      className="button secondary small full"
-                      disabled={
-                        !audioAvailable || busy || !capability?.available
-                      }
-                      onClick={() => void runAudio("remove")}
-                    >
-                      <Music2 size={14} />
-                      Remove voice, keep music
-                    </button>
-                    <p>
-                      {capability?.available
-                        ? "Separates voice and music locally. Results depend on the original mix."
-                        : capability?.message ||
-                          "Checking local voice separation…"}
-                    </p>
-                  </div>
-                  <JobProgress job={audioJob.job} />
-                </section>
-              </>
-            )}
-            {binTab === "text" ? (
-              <div className="editor-text-tools">
-                <h3>Text & captions</h3>
-                <p>Add your own text or import timed subtitles.</p>
-                <button
-                  className="button secondary small full"
-                  onClick={addText}
-                >
-                  <Type size={15} />
-                  Add text
-                </button>
-                <button
-                  className="button secondary small full"
-                  onClick={() => srtInput.current?.click()}
-                >
-                  <Subtitles size={15} />
-                  Import SRT captions
-                </button>
-                <p>Every caption becomes an editable timeline clip.</p>
-                <TextTemplates
-                  onApply={applyTemplate}
-                  hasCaptions={project.items.some((i) => i.kind === "text")}
-                  selectedText={selectedItem?.kind === "text"}
-                />
-              </div>
-            ) : binTab === "motion" ? (
-              <AnimationTemplates
-                item={selectedItem}
-                onApply={(side, value) =>
-                  selectedItem && updateItem({ ...selectedItem, [side]: value })
+                    />
+                  )}
+                  {binTab === "transitions" && (
+                    <TransitionPresets
+                      item={selectedItem}
+                      onApply={applyTransition}
+                    />
+                  )}
+                  {binTab === "filters" && (
+                    <FilterPresets
+                      item={selectedItem}
+                      asset={selectedAsset}
+                      onChange={updateItem}
+                    />
+                  )}
+                  {binTab === "templates" && (
+                    <ProjectTemplates
+                      media={media}
+                      onApply={applyProjectTemplate}
+                    />
+                  )}
+                </div>
+              </aside>
+              <PaneSplitter
+                axis="x"
+                label="Resize asset panel"
+                value={layout.assetWidth}
+                min={220}
+                max={420}
+                onChange={(assetWidth) =>
+                  setLayout((old) => ({ ...old, assetWidth }))
                 }
               />
-            ) : (
-              <div className="editor-media-list">
-                {visibleMedia.length > 0 && (
-                  <div className="editor-bin-list-heading">
-                    <h3>Project files</h3>
-                    <span>{visibleMedia.length}</span>
-                  </div>
-                )}
-                {visibleMedia.map((asset) => (
+            </>
+          )}
+          <div
+            className={`editor-stage-pane ${!project.items.length ? "is-empty" : ""}`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "copy";
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              const id = event.dataTransfer.getData(
+                "application/x-shortforge-media",
+              );
+              const asset = media.find((candidate) => candidate.id === id);
+              if (asset) addMedia(asset);
+              else
+                for (const file of Array.from(event.dataTransfer.files))
+                  void upload(
+                    file,
+                    file.type.startsWith("audio/") ? "music" : "video",
+                  );
+            }}
+          >
+            <EditorPreview
+              project={project}
+              media={media}
+              time={time}
+              playing={playing}
+              selected={selection}
+              onTime={seek}
+              onPlaying={setPlaying}
+              onSelect={setSelection}
+              onChange={updateItem}
+            />
+            {!project.items.length && (
+              <div className="editor-stage-empty">
+                <div className="editor-empty-frame">
+                  <Film size={28} strokeWidth={1.3} />
+                </div>
+                <h2>
+                  {sourceLoading
+                    ? "Your footage is on its way"
+                    : "A blank canvas. Your story."}
+                </h2>
+                <p>
+                  {sourceLoading
+                    ? "The source is downloading. It will appear here when ready."
+                    : "Drop your media here to start editing."}
+                </p>
+                {sourceLoading ? (
+                  <LoaderCircle size={21} className="spin" />
+                ) : (
                   <button
-                    className="editor-media-asset"
-                    key={asset.id}
-                    onClick={() => addMedia(asset)}
-                    title={`Add ${asset.name} to timeline`}
+                    className="button secondary"
+                    onClick={() => importInput.current?.click()}
                   >
-                    <span
-                      className={`editor-asset-preview ${asset.media_type}`}
-                    >
-                      {asset.media_type === "audio" ? (
-                        <AudioLines size={24} />
-                      ) : asset.media_type === "image" ? (
-                        <img src={assetUrl(asset)} alt="" />
-                      ) : (
-                        <video
-                          src={`${assetUrl(asset)}#t=0.1`}
-                          preload="metadata"
-                          muted
-                        />
-                      )}
-                      <span>{formatTime(asset.duration)}</span>
-                    </span>
-                    <strong>{asset.name}</strong>
-                    <span className="editor-asset-add">
-                      <Plus size={12} />
-                      Add to timeline
-                    </span>
+                    <Upload size={16} />
+                    Import media
                   </button>
-                ))}
+                )}
               </div>
             )}
           </div>
-        </aside>
-        <EditorPreview
-          project={project}
-          media={media}
-          time={time}
-          playing={playing}
-          selected={selection}
-          onTime={seek}
-          onPlaying={setPlaying}
-          onSelect={setSelection}
+          {!layout.inspectorCollapsed && (
+            <>
+              <PaneSplitter
+                axis="x"
+                label="Resize inspector"
+                value={layout.inspectorWidth}
+                min={250}
+                max={420}
+                reverse
+                onChange={(inspectorWidth) =>
+                  setLayout((old) => ({ ...old, inspectorWidth }))
+                }
+              />
+              <EditorInspector
+                project={project}
+                item={selectedItem}
+                asset={selectedAsset}
+                time={time}
+                onChange={updateItem}
+                onProject={(patch) => commit({ ...project, ...patch })}
+                onTime={seek}
+              />
+            </>
+          )}
+        </div>
+        <PaneSplitter
+          axis="y"
+          label="Resize timeline"
+          value={layout.timelineHeight}
+          min={170}
+          max={Math.max(200, Math.min(480, window.innerHeight * 0.55))}
+          reverse
+          onChange={(timelineHeight) =>
+            setLayout((old) => ({ ...old, timelineHeight }))
+          }
         />
-        <EditorInspector
-          project={project}
-          item={selectedItem}
-          asset={selectedAsset}
-          time={time}
-          onChange={updateItem}
-          onProject={(patch) => commit({ ...project, ...patch })}
-          onTime={seek}
-        />
+        <div className="editor-timeline-pane">
+          <EditorTimeline
+            project={project}
+            media={media}
+            selected={selection}
+            time={time}
+            onTime={seek}
+            onSelect={setSelection}
+            onChange={updateItem}
+            onSplit={split}
+            onDelete={remove}
+            onDuplicate={duplicate}
+            onUndo={undo}
+            onRedo={redo}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onProjectChange={commit}
+            playing={playing}
+            onDropMedia={(assetId, start, track) => {
+              const asset = media.find((candidate) => candidate.id === assetId);
+              if (asset) addMedia(asset, start, track);
+            }}
+          />
+        </div>
       </div>
-      <EditorTimeline
-        project={project}
-        media={media}
-        selected={selection}
-        time={time}
-        onTime={seek}
-        onSelect={setSelection}
-        onChange={updateItem}
-        onSplit={split}
-        onDelete={remove}
-        onDuplicate={duplicate}
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={historyVersion >= 0 && history.current.past.length > 0}
-        canRedo={history.current.future.length > 0}
-      />
     </>
   );
 }

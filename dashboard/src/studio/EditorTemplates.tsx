@@ -80,7 +80,7 @@ export function TextTemplates({
 }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
-  const [chosen, setChosen] = useState(textPresets[0]);
+  const [chosen, setChosen] = useState<TextPreset | null>(null);
   const matches = textPresets.filter(
     (p) =>
       (category === "All" || p.category === category) &&
@@ -92,7 +92,7 @@ export function TextTemplates({
       aria-label="Subtitle templates"
     >
       <h3>
-        Subtitle templates <span>{textPresets.length}</span>
+        Text styles <span>{textPresets.length}</span>
       </h3>
       <label className="editor-template-search">
         <Search size={13} />
@@ -135,14 +135,14 @@ export function TextTemplates({
               key={preset.id}
               className="editor-template-card"
               aria-label={`Apply ${preset.name} template`}
-              aria-pressed={chosen.id === preset.id}
+              aria-pressed={chosen?.id === preset.id}
               onClick={() => {
                 setChosen(preset);
                 onApply(preset, false);
               }}
             >
               <span className="editor-template-art">
-                <CaptionLine item={sample} scale={0.2} demo />
+                <CaptionLine item={sample} scale={0.25} demo />
               </span>
               <span className="editor-template-caption">
                 {preset.name}
@@ -159,7 +159,7 @@ export function TextTemplates({
                     preview only: {preset.previewOnly.join(", ")}
                   </small>
                 ) : null}
-                {chosen.id === preset.id && <Check size={12} />}
+                {chosen?.id === preset.id && <Check size={12} />}
               </span>
             </button>
           );
@@ -170,10 +170,10 @@ export function TextTemplates({
       )}
       <button
         className="button secondary small full"
-        disabled={!hasCaptions}
-        onClick={() => onApply(chosen, true)}
+        disabled={!hasCaptions || !chosen}
+        onClick={() => chosen && onApply(chosen, true)}
       >
-        Apply {chosen.name} to all captions
+        Apply {chosen?.name || "style"} to all captions
       </button>
     </section>
   );
@@ -184,11 +184,14 @@ export function AnimationTemplates({
   onApply,
 }: {
   item?: TimelineItem;
-  onApply: (side: "animation_in" | "animation_out", value: Animation) => void;
+  onApply: (
+    side: "animation_in" | "animation_out" | "animation_loop",
+    value: Animation,
+  ) => void;
 }) {
-  const [side, setSide] = useState<"animation_in" | "animation_out">(
-    "animation_in",
-  );
+  const [side, setSide] = useState<
+    "animation_in" | "animation_out" | "animation_loop"
+  >("animation_in");
   const available = item && item.kind !== "audio";
   return (
     <section className="editor-template-section" aria-label="Animation presets">
@@ -206,6 +209,12 @@ export function AnimationTemplates({
         >
           Out
         </button>
+        <button
+          aria-pressed={side === "animation_loop"}
+          onClick={() => setSide("animation_loop")}
+        >
+          Loop
+        </button>
       </div>
       <p>
         {available
@@ -218,7 +227,7 @@ export function AnimationTemplates({
             key={preset.value}
             className="editor-animation-card"
             disabled={!available}
-            aria-label={`Apply ${preset.label} ${side === "animation_in" ? "in" : "out"} animation`}
+            aria-label={`Apply ${preset.label} ${side === "animation_in" ? "in" : side === "animation_out" ? "out" : "loop"} animation`}
             aria-pressed={available && item[side] === preset.value}
             onClick={() => onApply(side, preset.value)}
           >
