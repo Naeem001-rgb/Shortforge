@@ -413,7 +413,7 @@ export function trimItem(
   front: number,
   end: number,
 ): TimelineItem {
-  const duration = Math.max(0.1, end - front),
+  const duration = Math.max(0.000001, end - front),
     originalKeys = item.keyframes;
   const keyframes: Keyframe[] = originalKeys.length
     ? [

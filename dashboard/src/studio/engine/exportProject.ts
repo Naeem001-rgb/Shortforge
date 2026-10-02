@@ -49,7 +49,7 @@ export async function exportProject(project:EditorProject,media:EditorMedia[],op
       }
     }
     // Fonts must have settled before measuring any caption for either path.
-    await document.fonts.ready;report(4,"Mixing audio");const audio=await mixProjectAudio(project,media,options.signal);
+    await Promise.all([...new Set(project.items.filter(i=>i.kind==="text").map(i=>i.font_family||"ShortForge Captions"))].map(family=>document.fonts.load(`800 64px "${family}"`)));await document.fonts.ready;report(4,"Mixing audio");const audio=await mixProjectAudio(project,media,options.signal);
     encoder.configure(videoConfig);audioEncoder.configure(audioConfig);report(8,"Rendering video");
     for(let frame=0;frame<totalFrames;frame++){
       options.signal?.throwIfAborted();if(encodingError)throw encodingError;const time=frame/fps;

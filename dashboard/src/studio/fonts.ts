@@ -1,0 +1,1 @@
+export const captionFonts = ["Montserrat", "Anton", "Bebas Neue", "Oswald", "Poppins", "Roboto Condensed", "Lato", "Nunito Sans", "Space Grotesk", "DM Sans", "Barlow Condensed", "Archivo Black", "Playfair Display", "Libre Baskerville", "DM Serif Display", "IBM Plex Mono", "Caveat", "Permanent Marker", "Righteous", "Rubik"] as const;

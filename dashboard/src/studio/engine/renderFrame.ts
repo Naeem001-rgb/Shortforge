@@ -71,10 +71,11 @@ function drawCaption(ctx:CanvasRenderingContext2D,item:TimelineItem,time:number,
       if(highlight&&style.emphasis==="tilt")ctx.rotate(-.045);
       if(highlight&&style.emphasis==="shake")ctx.translate(Math.sin(local*60)*2,Math.cos(local*40)*2);
       if(highlight&&style.chip==="emphasis") {ctx.fillStyle=style.highlight;rounded(ctx,-word.width/2-10,-item.font_size*.59,word.width+20,item.font_size*1.18,9);ctx.fill();}
-      ctx.shadowColor=style.glow>0?style.glow_color:style.shadow_color;ctx.shadowBlur=style.glow||style.shadow_soft;ctx.shadowOffsetY=style.shadow;
+      ctx.shadowColor=style.glow>0?style.glow_color:`${style.shadow_color}${Math.round(style.shadow_opacity*255).toString(16).padStart(2,"0")}`;ctx.shadowBlur=style.glow||style.shadow_soft;ctx.shadowOffsetY=style.shadow;
       ctx.lineJoin="round";ctx.miterLimit=2;ctx.strokeStyle=style.stroke_color;ctx.lineWidth=style.stroke*2;
-      const fill=highlight?style.chip==="emphasis"?"#101014":style.highlight:item.color;
+      const fill=highlight?style.chip==="emphasis"?"#101014":isActive?style.highlight:style.emphasis_color:item.color;
       ctx.fillStyle=fill;
+      if(item.caption_style==="karaoke"&&isActive){const sweep=ctx.createLinearGradient(-word.width/2,0,word.width/2,0);sweep.addColorStop(0,style.highlight);sweep.addColorStop(progress,style.highlight);sweep.addColorStop(Math.min(1,progress+.001),item.color);sweep.addColorStop(1,item.color);ctx.fillStyle=sweep;}
       if(style.color_ramp==="words"){
         const gradient=ctx.createLinearGradient(-word.width/2,0,word.width/2,0);gradient.addColorStop(0,fill);gradient.addColorStop(1,style.ramp_color);ctx.fillStyle=gradient;
       }
@@ -129,7 +130,7 @@ export function renderFrame(ctx:CanvasRenderingContext2D,project:EditorProject,t
             ctx.save();ctx.beginPath();ctx.rect(x,y,rw,rh);ctx.clip();
             if(conceal.mode==="cover"){ctx.fillStyle=conceal.color;ctx.fillRect(x,y,rw,rh);}
             else if(conceal.mode==="blur"){ctx.filter="blur(24px)";ctx.drawImage(source,sx,sy,srcw,srch,-dw/2,-dh/2,dw,dh);}
-            else {const pixel=resources.gpu.process(source,sw,sh,undefined,undefined,time,40);ctx.drawImage(pixel,sx,sy,srcw,srch,-dw/2,-dh/2,dw,dh);}
+            else {let input=source;if(source===resources.gpu.canvas){resources.layer.width=sw;resources.layer.height=sh;resources.layer.getContext("2d")!.drawImage(source,0,0);input=resources.layer;}const pixel=resources.gpu.process(input,sw,sh,undefined,undefined,time,40);ctx.drawImage(pixel,sx,sy,srcw,srch,-dw/2,-dh/2,dw,dh);}
             ctx.restore();
           }
         }

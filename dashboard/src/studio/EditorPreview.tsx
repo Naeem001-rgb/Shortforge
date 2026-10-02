@@ -18,6 +18,7 @@ export function EditorPreview({project,media,time,playing,selected,onTime,onPlay
   const live=useRef({project,time,playing});live.current={project,time,playing};
   const drag=useRef<{mode:"move"|"scale"|"rotate";item:TimelineItem;x:number;y:number;latest:TimelineItem;angle:number}|null>(null);
   const duration=durationOf(project), selectedItem=project.items.find(i=>i.id===selected&&i.kind!=="audio");
+  useEffect(()=>{let live=true;Promise.all([...new Set(project.items.filter(i=>i.kind==="text").map(i=>i.font_family||"ShortForge Captions"))].map(family=>document.fonts.load(`800 64px "${family}"`))).then(()=>{if(live)setReady(v=>v+1);});return()=>{live=false;};},[project.items]);
   useEffect(()=>{resources.current=createRenderResources();return()=>{resources.current?.gpu.dispose();resources.current=null;elements.current.forEach(e=>e.pause());audioSource.current?.stop();void audio.current?.close();};},[]);
   useEffect(()=>{const resize=()=>{if(!stage.current)return;const b=stage.current.getBoundingClientRect(),h=Math.max(80,Math.min(b.height-38,(b.width-64)*project.height/project.width));setSize({width:h*project.width/project.height,height:h});};const observer=new ResizeObserver(resize);if(stage.current)observer.observe(stage.current);resize();return()=>observer.disconnect();},[project.width,project.height]);
   useEffect(()=>{

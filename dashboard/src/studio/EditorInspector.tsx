@@ -1,3 +1,8 @@
+import { useEffect, useState } from "react";
+import { EditorClipTools } from "./EditorClipTools";
+import { tracksOf } from "./timelineOps";
+import { captionFonts } from "./fonts";
+import "./fonts.css";
 import {
   Diamond,
   Film,
@@ -33,6 +38,7 @@ function NumberField({
   step = 0.1,
   suffix,
   onChange,
+  onKeyframe,
 }: {
   label: string;
   value: number;
@@ -41,6 +47,7 @@ function NumberField({
   step?: number;
   suffix?: string;
   onChange: (n: number) => void;
+  onKeyframe?: () => void;
 }) {
   return (
     <label className="editor-field">
@@ -59,6 +66,7 @@ function NumberField({
           }}
         />
         {suffix && <span>{suffix}</span>}
+        {onKeyframe && <button type="button" className="keyframe-diamond" aria-label={`Keyframe ${label}`} onClick={onKeyframe}><Diamond size={12}/></button>}
       </div>
     </label>
   );
@@ -124,6 +132,8 @@ export function EditorInspector({
   onProject: (patch: Partial<EditorProject>) => void;
   onTime: (n: number) => void;
 }) {
+  const [tab, setTab] = useState("basic");
+  useEffect(()=>setTab("basic"),[item?.kind]);
   if (!item)
     return (
       <aside className="editor-inspector" aria-label="Inspector">
@@ -233,8 +243,13 @@ export function EditorInspector({
           {item.name}
         </span>
       </div>
+      <div className="inspector-tabs" role="tablist" aria-label="Clip properties">
+        {[["basic",item.kind==="text"?"Text":"Basic"],...(item.kind!=="text"?[["audio","Audio"]]:[]),["animation","Animation"],...(item.kind==="video"?[["adjust","Adjust"]]:[])].map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} onClick={()=>setTab(id)}>{label}</button>)}
+      </div>
       <div className="editor-inspector-scroll">
-        <section className="editor-inspector-section">
+        {item.kind==="video"&&tab==="adjust"&&<EditorClipTools item={item} time={time} onChange={onChange} mode="adjust"/>}
+
+        <section className="editor-inspector-section" hidden={tab!=="basic"}>
           <h3>Timing</h3>
           <div className="editor-field-pair">
             <NumberField
@@ -251,7 +266,7 @@ export function EditorInspector({
               min={0.1}
               max={Math.min(
                 600 - item.start,
-                asset?.duration
+                asset?.duration && asset.media_type !== "image" && item.freeze_at == null
                   ? (asset.duration - item.source_in) / item.speed
                   : 600,
               )}
@@ -280,9 +295,9 @@ export function EditorInspector({
               <NumberField
                 label="Speed"
                 value={item.speed}
-                min={0.25}
-                max={4}
-                step={0.25}
+                min={0.1}
+                max={10}
+                step={0.1}
                 suffix="×"
                 onChange={(speed) => {
                   const ratio = item.speed / speed;
@@ -308,21 +323,21 @@ export function EditorInspector({
               value={item.track}
               onChange={(e) => update({ track: Number(e.target.value) })}
             >
-              {Array.from({ length: 8 }, (_, n) => (
+              {tracksOf(project).map(({id:n,name}) => (
                 <option value={n} key={n}>
-                  {n + 1}
-                  {n === 0 ? " · Video" : n === 1 ? " · Audio" : " · Layer"}
+                  {name}
                 </option>
               ))}
             </select>
           </label>
         </section>
         {item.kind !== "audio" && (
-          <section className="editor-inspector-section">
+          <section className="editor-inspector-section" hidden={tab!=="basic"}>
             <h3>Transform</h3>
             <div className="editor-field-pair">
               <NumberField
                 label="Position X"
+                onKeyframe={addKey}
                 value={value.x}
                 min={-200}
                 max={200}
@@ -332,6 +347,7 @@ export function EditorInspector({
               />
               <NumberField
                 label="Position Y"
+                onKeyframe={addKey}
                 value={value.y}
                 min={-200}
                 max={200}
@@ -341,6 +357,7 @@ export function EditorInspector({
               />
               <NumberField
                 label="Scale"
+                onKeyframe={addKey}
                 value={value.scale * 100}
                 min={10}
                 max={400}
@@ -350,6 +367,7 @@ export function EditorInspector({
               />
               <NumberField
                 label="Rotation"
+                onKeyframe={addKey}
                 value={value.rotation}
                 min={-360}
                 max={360}
@@ -359,6 +377,7 @@ export function EditorInspector({
               />
               <NumberField
                 label="Opacity"
+                onKeyframe={addKey}
                 value={value.opacity * 100}
                 min={0}
                 max={100}
@@ -384,8 +403,9 @@ export function EditorInspector({
             </div>
           </section>
         )}
+        {item.kind==="video"&&tab==="basic"&&<EditorClipTools item={item} time={time} onChange={onChange} mode="basic"/>}
         {item.kind === "text" && (
-          <section className="editor-inspector-section">
+          <section className="editor-inspector-section" hidden={tab!=="basic"}>
             <h3>Text</h3>
             <div
               style={{
@@ -416,6 +436,7 @@ export function EditorInspector({
                 }
               />
             </label>
+            <label className="editor-field"><span>Font family</span><select aria-label="Font family" value={item.font_family||"ShortForge Captions"} onChange={e=>update({font_family:e.target.value})}><option>ShortForge Captions</option><option>DejaVu Sans</option>{captionFonts.map(font=><option key={font}>{font}</option>)}</select></label>
             <NumberField
               label="Font size"
               value={item.font_size}
@@ -732,8 +753,7 @@ export function EditorInspector({
             )}
             {textStyle.emphasis !== "none" && (
               <p>
-                The word being spoken bounces as it reaches the front. Export
-                timing follows this caption’s own duration.
+                Word animation follows the caption’s word timestamps. Generate captions from narration to add precise timing.
               </p>
             )}
             <GroupLabel>Effects</GroupLabel>
@@ -829,15 +849,13 @@ export function EditorInspector({
             />
             {textStyle.chip === "emphasis" && (
               <p>
-                The word chip is preview only. ASS has no per-word background,
-                so the exported MP4 shows the highlight colour without the
-                filled box.
+                The highlighted word receives a rounded background in the preview and browser export.
               </p>
             )}
           </section>
         )}
         {item.kind !== "text" && (
-          <section className="editor-inspector-section">
+          <section className="editor-inspector-section" hidden={tab!=="audio"}>
             <h3>
               Audio
               <IconButton
@@ -848,8 +866,10 @@ export function EditorInspector({
                 {item.muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
               </IconButton>
             </h3>
+            {item.kind==="audio"&&<><label className="editor-field"><span>Audio role</span><select value={item.audio_role||"original"} onChange={e=>update({audio_role:e.target.value as TimelineItem["audio_role"]})}><option value="original">Original audio</option><option value="voiceover">Voiceover</option><option value="music">Music</option><option value="sfx">Sound effect</option></select></label><label className="editor-checkbox"><input type="checkbox" checked={item.ducking||false} onChange={e=>update({ducking:e.target.checked,audio_role:"music"})}/>Lower music under voiceover</label></>}
             <NumberField
               label="Volume"
+                onKeyframe={addKey}
               value={value.volume * 100}
               min={0}
               max={200}
@@ -878,7 +898,7 @@ export function EditorInspector({
           </section>
         )}
         {item.kind !== "audio" && (
-          <section className="editor-inspector-section">
+          <section className="editor-inspector-section" hidden={tab!=="animation"}>
             <h3>Animation</h3>
             <div className="editor-field-pair">
               <label className="editor-field">
@@ -920,6 +940,8 @@ export function EditorInspector({
                 </select>
               </label>
             </div>
+            <label className="editor-field"><span>Loop animation</span><select aria-label="Loop animation" value={item.animation_loop||"none"} onChange={e=>update({animation_loop:e.target.value as TimelineItem["animation_loop"]})}>{animations.filter(a=>["none","pulse","wobble","shake","float","spin-left","spin-right","fade"].includes(a.value)).map(a=><option key={a.value} value={a.value}>{a.label}</option>)}</select></label>
+            <button className="button secondary small full" onClick={()=>update({animation_in:"none",animation_out:"none",keyframes:[{...item.transform,volume:item.volume,time:0,easing:"ease-in-out"},{...item.transform,scale:Math.min(4,item.transform.scale*1.18),x:item.transform.x-3,volume:item.volume,time:item.duration,easing:"linear"}]})}>Apply slow zoom & pan</button>
             <NumberField
               label="Animation duration"
               value={item.animation_duration}
@@ -936,7 +958,7 @@ export function EditorInspector({
           none, rather than offering a control the engine would reject on save.
         */}
         {overlap && (
-          <section className="editor-inspector-section">
+          <section className="editor-inspector-section" hidden={tab!=="animation"}>
             <h3>Transition</h3>
             <label className="editor-field">
               <span>Transition</span>
@@ -971,7 +993,7 @@ export function EditorInspector({
             </p>
           </section>
         )}
-        <section className="editor-inspector-section">
+        <section className="editor-inspector-section" hidden={tab!=="animation"}>
           <h3>
             Keyframes<span>{item.keyframes.length}</span>
           </h3>
@@ -985,6 +1007,7 @@ export function EditorInspector({
               ? "Property changes add or update a keyframe at the playhead."
               : "Animate transform and volume between points in time."}
           </p>
+          {activeKey?.easing==="cubic-bezier"&&<div className="editor-keyframe-curve"><svg viewBox="0 0 100 100" role="img" aria-label="Keyframe easing curve"><path d={`M0 100 C ${(activeKey.bezier||[.25,.1,.25,1])[0]*100} ${100-(activeKey.bezier||[.25,.1,.25,1])[1]*100}, ${(activeKey.bezier||[.25,.1,.25,1])[2]*100} ${100-(activeKey.bezier||[.25,.1,.25,1])[3]*100}, 100 0`} fill="none" stroke="var(--accent)" strokeWidth="2"/></svg><div className="editor-field-pair">{["X1","Y1","X2","Y2"].map((label,n)=><NumberField key={label} label={`Curve ${label}`} value={(activeKey.bezier||[.25,.1,.25,1])[n]} min={n%2===0?0:-2} max={n%2===0?1:3} step={.05} onChange={value=>{const bezier=[...(activeKey.bezier||[.25,.1,.25,1])] as [number,number,number,number];bezier[n]=value;update({keyframes:item.keyframes.map(k=>k===activeKey?{...k,bezier}:k)});}}/>)}</div></div>}
           {item.keyframes.map((key, index) => (
             <div
               className={`editor-keyframe-row ${Math.abs(key.time - local) < 0.02 ? "active" : ""}`}
@@ -1014,6 +1037,7 @@ export function EditorInspector({
                 <option value="ease-in">Ease in</option>
                 <option value="ease-out">Ease out</option>
                 <option value="ease-in-out">Ease in/out</option>
+                <option value="hold">Hold</option><option value="spring">Spring</option><option value="bounce">Bounce</option><option value="cubic-bezier">Cubic bezier</option>
               </select>
               <IconButton
                 label={`Delete keyframe ${index + 1}`}

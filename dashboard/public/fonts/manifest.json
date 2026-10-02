@@ -1,0 +1,162 @@
+[
+  {
+    "name": "Montserrat",
+    "weight": 800,
+    "file": "montserrat.ttf",
+    "source": "https://fonts.gstatic.com/s/montserrat/v31/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCvr70w-.ttf",
+    "repo": "montserrat",
+    "bytes": 183604
+  },
+  {
+    "name": "Anton",
+    "weight": 400,
+    "file": "anton.ttf",
+    "source": "https://fonts.gstatic.com/s/anton/v27/1Ptgg87LROyAm0K0.ttf",
+    "repo": "anton",
+    "bytes": 130324
+  },
+  {
+    "name": "Bebas Neue",
+    "weight": 400,
+    "file": "bebas-neue.ttf",
+    "source": "https://fonts.gstatic.com/s/bebasneue/v16/JTUSjIg69CK48gW7PXooxW4.ttf",
+    "repo": "bebasneue",
+    "bytes": 56136
+  },
+  {
+    "name": "Oswald",
+    "weight": 700,
+    "file": "oswald.ttf",
+    "source": "https://fonts.gstatic.com/s/oswald/v57/TK3_WkUHHAIjg75cFRf3bXL8LICs1xZogUE.ttf",
+    "repo": "oswald",
+    "bytes": 86416
+  },
+  {
+    "name": "Poppins",
+    "weight": 800,
+    "file": "poppins.ttf",
+    "source": "https://fonts.gstatic.com/s/poppins/v24/pxiByp8kv8JHgFVrLDD4V1s.ttf",
+    "repo": "poppins",
+    "bytes": 149072
+  },
+  {
+    "name": "Roboto Condensed",
+    "weight": 700,
+    "file": "roboto-condensed.ttf",
+    "source": "https://fonts.gstatic.com/s/robotocondensed/v31/ieVo2ZhZI2eCN5jzbjEETS9weq8-_d6T_POl0fRJeyVVpfBJ.ttf",
+    "repo": "robotocondensed",
+    "bytes": 113112
+  },
+  {
+    "name": "Lato",
+    "weight": 700,
+    "file": "lato.ttf",
+    "source": "https://fonts.gstatic.com/s/lato/v25/S6u9w4BMUTPHh6UVew8.ttf",
+    "repo": "lato",
+    "bytes": 70576
+  },
+  {
+    "name": "Nunito Sans",
+    "weight": 800,
+    "file": "nunito-sans.ttf",
+    "source": "https://fonts.gstatic.com/s/nunitosans/v19/pe1mMImSLYBIv1o4X1M8ce2xCx3yop4tQpF_MeTm0lfGWVpNn64CL7U8upHZIbMV51Q42ptCp5F5bxqqtQ1yiU4GVi5ntA.ttf",
+    "repo": "nunitosans",
+    "bytes": 106804
+  },
+  {
+    "name": "Space Grotesk",
+    "weight": 700,
+    "file": "space-grotesk.ttf",
+    "source": "https://fonts.gstatic.com/s/spacegrotesk/v22/V8mQoQDjQSkFtoMM3T6r8E7mF71Q-gOoraIAEj4PVksj.ttf",
+    "repo": "spacegrotesk",
+    "bytes": 69308
+  },
+  {
+    "name": "DM Sans",
+    "weight": 700,
+    "file": "dm-sans.ttf",
+    "source": "https://fonts.gstatic.com/s/dmsans/v17/rP2tp2ywxg089UriI5-g4vlH9VoD8CmcqZG40F9JadbnoEwARZthTg.ttf",
+    "repo": "dmsans",
+    "bytes": 48200
+  },
+  {
+    "name": "Barlow Condensed",
+    "weight": 800,
+    "file": "barlow-condensed.ttf",
+    "source": "https://fonts.gstatic.com/s/barlowcondensed/v13/HTxwL3I-JCGChYJ8VI-L6OO_au7B47b1_3E.ttf",
+    "repo": "barlowcondensed",
+    "bytes": 87556
+  },
+  {
+    "name": "Archivo Black",
+    "weight": 400,
+    "file": "archivo-black.ttf",
+    "source": "https://fonts.gstatic.com/s/archivoblack/v23/HTxqL289NzCGg4MzN6KJ7eW6OYs.ttf",
+    "repo": "archivoblack",
+    "bytes": 87996
+  },
+  {
+    "name": "Playfair Display",
+    "weight": 700,
+    "file": "playfair-display.ttf",
+    "source": "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKeiukDQ.ttf",
+    "repo": "playfairdisplay",
+    "bytes": 123536
+  },
+  {
+    "name": "Libre Baskerville",
+    "weight": 700,
+    "file": "libre-baskerville.ttf",
+    "source": "https://fonts.gstatic.com/s/librebaskerville/v24/kmKUZrc3Hgbbcjq75U4uslyuy4kn0olVQ-LglH6T17ujFgkSCQ.ttf",
+    "repo": "librebaskerville",
+    "bytes": 106752
+  },
+  {
+    "name": "DM Serif Display",
+    "weight": 400,
+    "file": "dm-serif-display.ttf",
+    "source": "https://fonts.gstatic.com/s/dmserifdisplay/v17/-nFnOHM81r4j6k0gjAW3mujVU2B2K_c.ttf",
+    "repo": "dmserifdisplay",
+    "bytes": 70348
+  },
+  {
+    "name": "IBM Plex Mono",
+    "weight": 500,
+    "file": "ibm-plex-mono.ttf",
+    "source": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3twJ8lc.ttf",
+    "repo": "ibmplexmono",
+    "bytes": 129916
+  },
+  {
+    "name": "Caveat",
+    "weight": 700,
+    "file": "caveat.ttf",
+    "source": "https://fonts.gstatic.com/s/caveat/v23/WnznHAc5bAfYB2QRah7pcpNvOx-pjRV6SII.ttf",
+    "repo": "caveat",
+    "bytes": 251256
+  },
+  {
+    "name": "Permanent Marker",
+    "weight": 400,
+    "file": "permanent-marker.ttf",
+    "source": "https://fonts.gstatic.com/s/permanentmarker/v16/Fh4uPib9Iyv2ucM6pGQMWimMp004Hao.ttf",
+    "repo": "permanentmarker",
+    "bytes": 73276
+  },
+  {
+    "name": "Righteous",
+    "weight": 400,
+    "file": "righteous.ttf",
+    "source": "https://fonts.gstatic.com/s/righteous/v18/1cXxaUPXBpj2rGoU7C9mjw.ttf",
+    "repo": "righteous",
+    "bytes": 40364
+  },
+  {
+    "name": "Rubik",
+    "weight": 800,
+    "file": "rubik.ttf",
+    "source": "https://fonts.gstatic.com/s/rubik/v31/iJWZBXyIfDnIV5PNhY1KTN7Z-Yh-h4-1UA.ttf",
+    "repo": "rubik",
+    "bytes": 175524
+  }
+]

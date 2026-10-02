@@ -286,7 +286,7 @@ export const CAPTION_CSS =
 export function textAppearance(
   item: Pick<
     TimelineItem,
-    "font_size" | "color" | "text_background" | "text_style"
+    "font_size" | "color" | "text_background" | "text_style" | "font_family"
   >,
   scale: number,
 ): CSSProperties {
@@ -316,6 +316,7 @@ export function textAppearance(
     );
   return {
     fontSize,
+    fontFamily: `"${item.font_family || "ShortForge Captions"}", sans-serif`,
     // 1.16 is libass's natural leading for DejaVu Sans; see FONT_LEADING in
     // engine/studio/captions.py, which turns the same number into `\fsp`.
     lineHeight: Math.round(style.line_height * FONT_LEADING * 100) / 100,
@@ -617,7 +618,7 @@ export const textPresets: TextPreset[] = [
   },
   {
     id: "hormozi",
-    name: "Hormozi yellow",
+    name: "Bold Pop",
     category: "Popular",
     sample: "Get rich or stay rich",
     size: 80,
@@ -654,7 +655,7 @@ export const textPresets: TextPreset[] = [
   },
   {
     id: "beast-yellow",
-    name: "Beast yellow",
+    name: "Single-Word Slam",
     category: "Popular",
     sample: "I did it again",
     size: 78,
@@ -956,6 +957,8 @@ export function applyTextPreset(
   return {
     ...item,
     font_size: preset.size,
+    caption_style: preset.id,
+    font_family: ({ classic:"Lato", clean:"DM Sans", boxed:"Space Grotesk", lower:"Roboto Condensed", "soft-shadow":"Nunito Sans", "word-pop":"Montserrat", "keyword-bounce":"Poppins", "tilt-beat":"Rubik", "flash-beat":"Anton", "shake-callout":"Permanent Marker", "punch-hook":"Archivo Black", "drift-ramp":"Righteous", hormozi:"Montserrat", "tiktok-bold":"Poppins", "beast-yellow":"Anton", karaoke:"Montserrat", typewriter:"IBM Plex Mono", "neon-purple":"Space Grotesk", "neon-cyan":"Rubik", "cyber-outline":"Barlow Condensed", "sunset-ramp":"Righteous", "ice-crystal":"Oswald", "headline-wide":"Bebas Neue", "quote-italic":"Playfair Display", "news-strap":"Roboto Condensed", "pull-quote":"DM Serif Display", whisper:"Libre Baskerville", "minimal-caps":"Lato", "soft-card":"Nunito Sans", "mono-ledger":"IBM Plex Mono" } as Record<string,string>)[preset.id] || "Montserrat",
     color: preset.color,
     text_background: preset.background || "transparent",
     // A template is a complete look, not a layer on top of the last one, so
