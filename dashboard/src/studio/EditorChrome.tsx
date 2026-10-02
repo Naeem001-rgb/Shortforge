@@ -226,7 +226,7 @@ export function useEditorLayout() {
       assetWidth: 268,
       inspectorWidth: 290,
       timelineHeight: 240,
-      assetCollapsed: window.innerWidth < 800,
+      assetCollapsed: window.innerWidth < 950,
       inspectorCollapsed: window.innerWidth < 1100,
     };
     try {
@@ -235,6 +235,9 @@ export function useEditorLayout() {
         ? {
             ...initial,
             ...saved,
+            assetCollapsed: window.innerWidth < 950 || !!saved.assetCollapsed,
+            inspectorCollapsed:
+              window.innerWidth < 1100 || !!saved.inspectorCollapsed,
             assetWidth: clamp(Number(saved.assetWidth) || 268, 220, 420),
             inspectorWidth: clamp(
               Number(saved.inspectorWidth) || 290,
@@ -252,6 +255,19 @@ export function useEditorLayout() {
       return initial;
     }
   });
+  useEffect(() => {
+    const query = matchMedia("(max-width: 950px)");
+    const collapse = () => {
+      if (query.matches)
+        setLayout((old) => ({
+          ...old,
+          assetCollapsed: true,
+          inspectorCollapsed: true,
+        }));
+    };
+    query.addEventListener("change", collapse);
+    return () => query.removeEventListener("change", collapse);
+  }, []);
   useEffect(() => {
     try {
       localStorage.setItem(layoutKey, JSON.stringify(layout));
@@ -364,6 +380,9 @@ export function ShortcutsPanel({ onClose }: { onClose: () => void }) {
           ["Save project", "Ctrl / ⌘ S"],
           ["Export", "Ctrl / ⌘ E"],
           ["Add marker", "M"],
+          ["Add keyframe", "K"],
+          ["Copy / paste in timeline", "Ctrl / ⌘ C / V"],
+          ["Ripple delete in timeline", "Shift Delete"],
           ["Show shortcuts", "?"],
         ].map(([label, key]) => (
           <div key={label}>

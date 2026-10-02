@@ -13,7 +13,6 @@ import type { Asset, Job } from "../api";
 import { IconButton, JobProgress } from "../ui";
 import { durationOf, formatTime } from "./editorModel";
 import type { EditorMedia, EditorProject } from "./editorModel";
-import { exportProject } from "./engine/exportProject";
 import type { ExportProgress, ExportResult } from "./engine/exportProject";
 
 function filename(project: EditorProject, extension: string) {
@@ -104,6 +103,7 @@ export function EditorExportPanel({
     });
     try {
       await saveProject();
+      const { exportProject } = await import("./engine/exportProject");
       const exported = await exportProject(snapshot, media, {
         resolution,
         fps,

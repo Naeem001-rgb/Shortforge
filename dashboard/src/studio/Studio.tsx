@@ -31,6 +31,8 @@ import { EditorInspector } from "./EditorInspector";
 import { EditorPreview } from "./EditorPreview";
 import { EditorTimeline } from "./EditorTimeline";
 import { AnimationTemplates, TextTemplates } from "./EditorTemplates";
+import { CustomTemplates } from "./CustomTemplates";
+import { addKeyframe } from "./timelineOps";
 import { ScriptVoicePanel } from "./ScriptVoicePanel";
 import { CaptionPanel } from "./CaptionPanel";
 import { EditorExportPanel } from "./EditorExportPanel";
@@ -489,6 +491,19 @@ function ProjectEditor({
                 label: `Marker ${(current.markers?.length || 0) + 1}`,
               },
             ],
+          });
+      } else if (e.key.toLowerCase() === "k" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        const current = projectRef.current;
+        const item = current?.items.find(
+          (candidate) => candidate.id === selection,
+        );
+        if (item && current)
+          commit({
+            ...current,
+            items: current.items.map((candidate) =>
+              candidate.id === item.id ? addKeyframe(item, time) : candidate,
+            ),
           });
       } else if (e.code === "Space") {
         e.preventDefault();
@@ -1144,6 +1159,9 @@ function ProjectEditor({
           setLayout((old) => ({
             ...old,
             inspectorCollapsed: !old.inspectorCollapsed,
+            ...(window.innerWidth <= 950 && old.inspectorCollapsed
+              ? { assetCollapsed: true }
+              : {}),
           }))
         }
       />
@@ -1271,7 +1289,13 @@ function ProjectEditor({
                 }
                 onClick={() => {
                   setBinTab(id);
-                  setLayout((old) => ({ ...old, assetCollapsed: false }));
+                  setLayout((old) => ({
+                    ...old,
+                    assetCollapsed: false,
+                    ...(window.innerWidth <= 950
+                      ? { inspectorCollapsed: true }
+                      : {}),
+                  }));
                 }}
               >
                 <Icon size={20} strokeWidth={1.7} />
@@ -1531,6 +1555,17 @@ function ProjectEditor({
                     item={selectedItem}
                     asset={selectedAsset}
                     onChange={updateItem}
+                  />
+                )}
+                {binTab === "templates" && (
+                  <CustomTemplates
+                    project={project}
+                    media={media}
+                    onApply={(next) => {
+                      commit(next);
+                      setSelection("");
+                      setTime(0);
+                    }}
                   />
                 )}
                 {binTab === "templates" && (

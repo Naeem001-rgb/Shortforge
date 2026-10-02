@@ -2553,3 +2553,66 @@
 .editor-bin-scroll > div:not([hidden]) > .script-voice-panel {
   margin-bottom: 24px;
 }
+.editor-custom-templates {
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+.editor-custom-template-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.editor-custom-template-actions > .button {
+  flex: 1;
+  font-size: 10px;
+  padding-inline: 8px;
+}
+.editor-custom-templates > .editor-panel-note {
+  font-size: 10px;
+  margin: 12px 0 0;
+}
+.editor-custom-templates h3 {
+  font-size: 11px;
+  font-weight: 550;
+  margin: 18px 0 8px;
+  display: flex;
+  justify-content: space-between;
+}
+.editor-custom-templates h3 > span {
+  color: var(--muted);
+}
+.editor-saved-template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.editor-saved-template-list > div {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 0;
+}
+.editor-saved-template-apply {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+  padding: 6px;
+  border: 0;
+  background: #252830;
+  border-radius: 5px;
+}
+.editor-saved-template-apply > strong {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editor-saved-template-apply > span {
+  display: block;
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 3px;
+}

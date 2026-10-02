@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Check, Search } from "lucide-react";
-import { animations } from "./editorModel";
+import { animations, newItem } from "./editorModel";
 import type { Animation, TimelineItem } from "./editorModel";
 import {
+  applyTextPreset,
   captionWordAppearance,
   captionWords,
   CAPTION_CSS,
@@ -123,14 +124,10 @@ export function TextTemplates({
       </p>
       <div className="editor-template-grid">
         {matches.map((preset) => {
-          const sample = {
-            text: preset.sample,
-            font_size: preset.size,
-            color: preset.color,
-            text_background: preset.background || "transparent",
-            text_style: preset.style,
-            duration: 3,
-          } as unknown as TimelineItem;
+          const sample = applyTextPreset(
+            { ...newItem("text"), text: preset.sample, duration: 3 },
+            preset,
+          );
           return (
             <button
               key={preset.id}
@@ -155,19 +152,6 @@ export function TextTemplates({
               </span>
               <span className="editor-template-caption">
                 {preset.name}
-                {preset.previewOnly?.length ? (
-                  <small
-                    title={`Preview only: ${preset.previewOnly.join(", ")}`}
-                    style={{
-                      display: "block",
-                      fontSize: 9,
-                      opacity: 0.6,
-                      fontWeight: 400,
-                    }}
-                  >
-                    preview only: {preset.previewOnly.join(", ")}
-                  </small>
-                ) : null}
                 {chosen?.id === preset.id && <Check size={12} />}
               </span>
             </button>
