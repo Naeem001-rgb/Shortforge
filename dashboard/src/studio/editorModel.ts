@@ -1,4 +1,5 @@
 import type { Asset } from "../api";
+import { transitionIds } from "./transitions";
 
 export type Animation =
   | "none"
@@ -25,6 +26,42 @@ export type Animation =
   | "push-in"
   | "whip"
   | "fade-zoom";
+
+/**
+ * Transition ids are declared literally rather than aliased to
+ * `Transition["id"]` (which is just `string`), so a typo becomes a compile
+ * error instead of a runtime rejection from the engine.
+ *
+ * The ids must stay identical to `TRANSITIONS` in
+ * engine/studio/editor_transitions.py. The guard below fails the build the
+ * moment the catalogue and this union drift apart.
+ */
+export type TransitionId =
+  | "none"
+  | "blur"
+  | "circle-close"
+  | "circle-open"
+  | "clock-wipe"
+  | "crossfade"
+  | "dip-to-black"
+  | "dip-to-white"
+  | "luma-burn"
+  | "pixelize"
+  | "push"
+  | "slide-down"
+  | "slide-left"
+  | "slide-right"
+  | "slide-up"
+  | "whip-pan"
+  | "wipe-down"
+  | "wipe-left"
+  | "wipe-right"
+  | "wipe-up"
+  | "zoom-blur";
+
+// Compile-time guard: every catalogue id must exist in the union above.
+const _idsMatch: TransitionId[] = transitionIds as TransitionId[];
+void _idsMatch;
 export type TextStyle = {
   bold: boolean;
   italic: boolean;
@@ -78,6 +115,10 @@ export type TimelineItem = {
   animation_in: Animation;
   animation_out: Animation;
   animation_duration: number;
+  /** Blend between this clip and the previous one on the same track. */
+  transition_in: TransitionId;
+  /** Seconds. Shared by both halves of the pair. */
+  transition_duration: number;
   fade_in: number;
   fade_out: number;
   fit: "contain" | "cover";
@@ -177,6 +218,8 @@ export function newItem(
     animation_in: "none",
     animation_out: "none",
     animation_duration: 0.5,
+    transition_in: "none",
+    transition_duration: 0.6,
     fade_in: 0,
     fade_out: 0,
     fit: "contain",

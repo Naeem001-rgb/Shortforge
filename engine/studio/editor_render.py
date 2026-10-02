@@ -10,7 +10,14 @@ import subprocess
 import tempfile
 
 from .editor_models import Project, TimelineItem
+from .editor_transitions import transition_alpha_expression, transition_map
 from .media import ffmpeg_binary
+
+#: Transitions whose FFmpeg build cannot ramp a blur radius over time — `gblur`,
+#: `boxblur` and `unsharp` all reject time expressions for it. They are rendered
+#: as a STATIC blur gated to the blend window by `enable=` instead, which is
+#: visually correct at the seam and far cheaper than a per-frame blur.
+STATIC_BLUR: frozenset[str] = frozenset({'blur', 'zoom-blur', 'whip-pan'})
 
 
 def number(value):
@@ -169,52 +176,16 @@ def ass_color(hex_color):
 
 
 def write_text(item, width, height, directory, index, ratio):
-    from .captions import ass_time
-    style = item.text_style
-    content = item.text.upper() if style.uppercase else item.text
-    def escaped(value):
-        return value.replace('\\','＼').replace('{','｛').replace('}','｝').replace('\r','').replace('\n','\\N')
-    words = re.findall(r'\S+\s*', content)
-    font_size=item.font_size*ratio
-    margin=round(width*.05)
-    primary = ass_color(style.highlight if style.reveal == 'karaoke' else item.color)
-    alignment = {'left':4, 'center':5, 'right':6}[style.align]
-    bold, italic = (-1 if style.bold else 0), (-1 if style.italic else 0)
-    common = f'{bold},{italic},0,0,100,100,{style.letter_spacing*ratio},0'
-    tail = f'{alignment},{margin},{margin},0,1'
-    styles = f'Style: Default,DejaVu Sans,{font_size},{primary},{ass_color(item.color)},{ass_color(style.stroke_color)},&H80000000,{common},1,{style.stroke*ratio},{style.shadow*ratio},{tail}\n'
-    if item.text_background != 'transparent':
-        background = ass_color(item.text_background)
-        styles += f'Style: Box,DejaVu Sans,{font_size},{ass_color(item.color)},{ass_color(item.color)},{background},{background},{common},3,{max(2,font_size*.14)},0,{tail}\n'
-    events = []
-    def event(start, end, value, box_value):
-        if item.text_background != 'transparent':
-            events.append(f'Dialogue: 0,{ass_time(start)},{ass_time(end)},Box,,0,0,0,,{box_value}')
-        events.append(f'Dialogue: 1,{ass_time(start)},{ass_time(end)},Default,,0,0,0,,{value}')
-    if style.reveal == 'typewriter' and words:
-        for n in range(len(words)):
-            value = escaped(''.join(words[:n+1]).rstrip())
-            event(n*item.duration/len(words), (n+1)*item.duration/len(words), value, value)
-    else:
-        value = escaped(content)
-        if style.reveal == 'karaoke' and words:
-            value = ''.join('{\\k'+str(max(1,round((n+1)*item.duration*100/len(words))-round(n*item.duration*100/len(words))))+'}'+escaped(word) for n,word in enumerate(words))
-        event(0,item.duration,value,escaped(content))
-    ass=f'''[Script Info]
-ScriptType: v4.00+
-PlayResX: {width}
-PlayResY: {height}
-WrapStyle: 0
-ScaledBorderAndShadow: yes
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-{styles}
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-{chr(10).join(events)}
-'''
-    name=f'text-{index}.ass'
-    (directory/name).write_text(ass,encoding='utf-8')
+    """Write one text item's ASS subtitle file and return its name.
+
+    The document itself is built by `captions.caption_ass`, which is the same
+    builder the dashboard's caption preview mirrors. Keeping one builder is what
+    stops the exported MP4 from silently differing from what the user saw.
+    """
+    from .captions import caption_ass
+    name = f'text-{index}.ass'
+    (directory / name).write_text(
+        caption_ass(item, width, height, ratio), encoding='utf-8')
     return name
 
 
@@ -238,6 +209,9 @@ def build_render_command(project: Project, assets: dict, output: Path, resolutio
             command += ['-ss',number(item.source_in),'-t',number(item.duration*item.speed),'-protocol_whitelist','file,pipe','-i',str(path)]
     filters=[f'color=c={project.background}:s={width}x{height}:r={fps}:d={number(duration)},format=yuv420p[base]']
     visual='base'
+    # Resolved once, before the loop: both halves of a blend must agree on the
+    # window they share, and the pairing is O(n^2) so it stays out of the hot path.
+    blends=transition_map(project.items)
     for index,item in sorted(enumerate(project.items),key=lambda pair:(pair[1].track,pair[0])):
         if item.kind=='audio': continue
         if item.kind=='video':
@@ -268,6 +242,21 @@ def build_render_command(project: Project, assets: dict, output: Path, resolutio
                 entries.extend([f"x{corner}='{xx}'",f"y{corner}='{yy}'"])
             head+=f',pad={width+4}:{height+4}:2:2:color=black@0,perspective='+':'.join(entries)+f':sense=destination:eval=frame:interpolation=cubic,crop={width}:{height}:2:2'
         opacity=visual_expression(item,'opacity','T')
+        # A clip can be both arriving and leaving (the middle of A->B->C), so
+        # both ramps are multiplied rather than one chosen between them.
+        blend=blends.get(item.id,{})
+        ramps=[]
+        for side in ('incoming','outgoing'):
+            if blend.get(side):
+                blend_start,length,identifier=blend[side]
+                ramps.append(transition_alpha_expression(identifier,'T',length,side=='incoming',blend_start))
+                if identifier in STATIC_BLUR:
+                    # Static blur, but gated to the blend window. The layer
+                    # exists for the clip's whole duration, so without this the
+                    # blur would cover the entire clip instead of the seam.
+                    radius=max(2,round(min(width,height)*.012))
+                    head+=f",boxblur=luma_radius={radius}:luma_power=1:enable='between(t,{number(blend_start)},{number(blend_start+length)})'"
+        if ramps: opacity=f"({opacity})*"+'*'.join(f'({r})' for r in ramps)
         if opacity!='1': head+=f",geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='alpha(X,Y)*({opacity})'"
         head+=f',setpts=PTS+{number(item.start)}/TB[layer{index}]'
         filters.append(head)

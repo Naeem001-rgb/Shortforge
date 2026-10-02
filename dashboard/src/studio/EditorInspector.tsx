@@ -8,6 +8,13 @@ import {
 } from "lucide-react";
 import { IconButton } from "../ui";
 import { animations, clamp, formatTime, valueAt } from "./editorModel";
+import type { TransitionId } from "./editorModel";
+import {
+  findTransitionOverlap,
+  maxTransitionDuration,
+  minTransitionOverlap,
+  transitions,
+} from "./transitions";
 import type {
   EditorMedia,
   EditorProject,
@@ -167,6 +174,16 @@ export function EditorInspector({
   const updateTextStyle = (patch: Partial<ResolvedTextStyle>) =>
     onChange(withTextStyle(item, patch));
   const activeKey = item.keyframes.find((k) => Math.abs(k.time - local) < 0.02);
+  // The blend window with the previous clip on the same track. Null means a
+  // transition cannot play here, so the whole control is hidden.
+  const overlap = (() => {
+    const siblings = project.items
+      .filter((other) => other.kind !== "audio")
+      .sort((a, b) => a.track - b.track || a.start - b.start);
+    const index = siblings.findIndex((other) => other.id === item.id);
+    if (index <= 0) return null;
+    return findTransitionOverlap(siblings[index - 1], item);
+  })();
   const update = (patch: Partial<TimelineItem>) =>
     onChange({ ...item, ...patch });
   const writeValue = (
@@ -911,6 +928,47 @@ export function EditorInspector({
               suffix="s"
               onChange={(animation_duration) => update({ animation_duration })}
             />
+          </section>
+        )}
+        {/*
+          A transition blends this clip with the PREVIOUS one on the same track,
+          so it needs real overlap. The section is hidden entirely when there is
+          none, rather than offering a control the engine would reject on save.
+        */}
+        {overlap && (
+          <section className="editor-inspector-section">
+            <h3>Transition</h3>
+            <label className="editor-field">
+              <span>Transition</span>
+              <select
+                aria-label="Transition"
+                value={item.transition_in}
+                onChange={(e) =>
+                  update({ transition_in: e.target.value as TransitionId })
+                }
+              >
+                <option value="none">None</option>
+                {transitions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <NumberField
+              label="Transition duration"
+              value={item.transition_duration}
+              min={minTransitionOverlap}
+              max={Math.min(maxTransitionDuration, overlap.duration)}
+              suffix="s"
+              onChange={(transition_duration) =>
+                update({ transition_duration })
+              }
+            />
+            <p className="editor-hint">
+              Blends with the clip before it over {formatTime(overlap.duration)}
+              .
+            </p>
           </section>
         )}
         <section className="editor-inspector-section">

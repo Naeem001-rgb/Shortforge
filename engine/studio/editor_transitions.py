@@ -12,6 +12,7 @@ The ids here MUST stay identical to those in dashboard/src/studio/transitions.ts
 the two cannot drift apart silently.
 """
 from dataclasses import dataclass, field
+from typing import Literal
 
 
 @dataclass(frozen=True)
@@ -81,6 +82,11 @@ TRANSITIONS: dict[str, Transition] = {
 
 #: Ids accepted on the wire. Frozen so no caller can widen it at runtime.
 TRANSITION_IDS: frozenset[str] = frozenset(TRANSITIONS)
+
+#: The typing Literal the Pydantic model validates against. Built FROM the
+#: catalogue rather than hand-written, so adding a transition to `TRANSITIONS`
+#: widens the model in the same commit and the two can never drift.
+TransitionName = Literal[tuple(sorted({NO_TRANSITION, *TRANSITIONS}))]
 
 #: xfade names referenced by the table, checked against the real binary by the
 #: inline sanity script so a typo is caught before a user hits it.
@@ -341,6 +347,64 @@ def transition_alpha_expression(transition_id, local_time, duration, incoming=Tr
     # for every frame of the clip rather than only inside the transition.
     ramp = f'clip(({local_time}-{start})/{d},0,1)'
     return ramp if incoming else f'(1-{ramp})'
+
+
+def transition_map(items) -> dict:
+    """Pair every item with its neighbours on the same track and resolve the
+    blend window each of them takes part in.
+
+    This is the renderer's single source of truth for "which frames blend with
+    which". It is computed ONCE per render, before the filter loop, so the two
+    halves of a pair cannot disagree about the window they share.
+
+    Mirrors `findTransitionOverlap` in dashboard/src/studio/transitions.ts.
+
+    Args:
+        items: TimelineItem objects (anything with `id`, `kind`, `track`,
+            `start`, `duration`, `transition_in`, `transition_duration`).
+
+    Returns:
+        A dict keyed by item id. Each value is `{'incoming': pair|None,
+        'outgoing': pair|None}` where a pair is `(blend_start, length, id)`:
+
+        - `incoming` — this clip is arriving, blending in from the clip before.
+        - `outgoing` — the next clip is arriving, so this one blends away.
+
+        `blend_start` is ITEM-LOCAL seconds, because the `geq` filter that
+        consumes it runs before `setpts` and its `T` is therefore local too.
+        Both keys may be present at once: in A->B->C the middle clip is both.
+
+    An item with no transition, no neighbour, or too little overlap is simply
+    absent from the map, which the renderer reads as "render this layer plain".
+    """
+    visual = sorted(
+        (item for item in items if getattr(item, 'kind', 'video') != 'audio'),
+        key=lambda item: (getattr(item, 'track', 0), item.start, item.id),
+    )
+    blends: dict = {}
+    for index, item in enumerate(visual):
+        identifier = validate_transition(getattr(item, 'transition_in', None))
+        if identifier == NO_TRANSITION or index == 0:
+            continue
+        previous = visual[index - 1]
+        window = transition_overlap(previous, item)
+        if window is None:
+            continue
+        window_start, window_length = window
+        # Clamp to the real overlap: a ramp longer than the overlap would run
+        # past the end of one of the two clips.
+        length = min(
+            getattr(item, 'transition_duration', DEFAULT_TRANSITION_DURATION),
+            window_length,
+        )
+        length = max(MIN_TRANSITION_OVERLAP, length)
+        blends.setdefault(item.id, {})['incoming'] = (
+            window_start - item.start, length, identifier,
+        )
+        blends.setdefault(previous.id, {})['outgoing'] = (
+            window_start - previous.start, length, identifier,
+        )
+    return blends
 
 
 def validate_project_transitions(items) -> list[tuple[str, str, float]]:

@@ -42,13 +42,13 @@ test("subtitle templates and motion presets persist and export with the editor l
       .setInputFiles(subtitleFixture);
     await page
       .getByRole("button", {
-        name: "Apply Karaoke highlight template",
+        name: "Apply Karaoke sweep template",
         exact: true,
       })
       .click();
     await page
       .getByRole("button", {
-        name: "Apply Karaoke highlight to all captions",
+        name: "Apply Karaoke sweep to all captions",
         exact: true,
       })
       .click();

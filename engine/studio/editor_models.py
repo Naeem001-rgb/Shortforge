@@ -4,6 +4,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Animation = Literal['none', 'fade', 'slide-left', 'slide-right', 'slide-up', 'slide-down', 'zoom-in', 'zoom-out', 'pop', 'bounce', 'spin-left', 'spin-right', 'drop', 'float', 'drift', 'rise-fade', 'punch', 'blur-in', 'glitch', 'swing', 'tilt', 'push-in', 'whip', 'fade-zoom']
 
+from .editor_transitions import (
+    MAX_TRANSITION_DURATION, MIN_TRANSITION_OVERLAP, NO_TRANSITION, TransitionName,
+    validate_project_transitions,
+)
+
+__all__ = ['Animation', 'EditorExport', 'Keyframe', 'Project', 'StrictModel',
+           'TextStyle', 'TimelineItem', 'Transform', 'TransitionName']
+
 class TextStyle(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False, extra='forbid')
     bold: bool = False
@@ -49,6 +57,11 @@ class TimelineItem(StrictModel):
     animation_in: Animation = 'none'
     animation_out: Animation = 'none'
     animation_duration: float = Field(.5, ge=.01, le=30)
+    # A transition blends this clip with the one before it on the same track.
+    # Only the INCOMING side is stored: the outgoing half is derived from the
+    # previous item, so the two can never be set to disagreeing values.
+    transition_in: TransitionName = NO_TRANSITION
+    transition_duration: float = Field(0.6, ge=MIN_TRANSITION_OVERLAP, le=MAX_TRANSITION_DURATION)
     fade_in: float = Field(0, ge=0, le=600)
     fade_out: float = Field(0, ge=0, le=600)
     fit: Literal['contain','cover'] = 'contain'
@@ -86,6 +99,15 @@ class Project(StrictModel):
             raise ValueError('Choose a portrait, landscape, or square canvas.')
         if len({item.id for item in self.items}) != len(self.items):
             raise ValueError('Timeline item IDs must be unique.')
+        return self
+
+    @model_validator(mode='after')
+    def transitions_have_overlap(self):
+        # A transition needs two clips sharing real screen time. Rejecting it
+        # here means it is caught when the timeline is saved, and covers the
+        # export route too — an impossible transition can never reach the
+        # renderer and silently render as a hard cut.
+        validate_project_transitions(self.items)
         return self
 
     @property

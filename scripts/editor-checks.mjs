@@ -103,6 +103,105 @@ export const checks = {
    * Feature checks. Add new ones here; see docs/QA-HARNESS.md.
    * -------------------------------------------------------------- */
 
+  "transitions": {
+    describe:
+      "Two overlapping clips: the Transition control appears, the timeline marks the blend window, and the autosaved project keeps the id",
+    async prepare(harness) {
+      await harness.createProject("QA transitions");
+      await harness.openProject();
+      const page = harness.page;
+      // A second clip, imported through the real Media panel.
+      await page
+        .getByRole("navigation", { name: "Editor tools" })
+        .getByRole("button", { name: "Media", exact: true })
+        .click();
+      await page.getByLabel("Import media", { exact: true })
+        .setInputFiles(harness.media.video);
+      await page.waitForFunction(
+        () =>
+          document.querySelectorAll('[data-testid="timeline-item"]').length >= 2,
+        undefined,
+        { timeout: 60000 },
+      );
+      // Importing places each clip on the next FREE track, so the two never
+      // overlap on their own. Drag the second clip left AND up onto the first
+      // clip's track: a transition needs real overlap on the SAME track, and
+      // `freeTrack` guarantees they start on different ones.
+      //
+      // Snapping is toggled off first. It pulls a dragged clip flush against
+      // its neighbour's edges, which is the opposite of the overlap a
+      // transition needs, and it wins over the drag distance.
+      await page
+        .getByRole("button", { name: "Snap to clips and playhead", exact: true })
+        .click();
+      const items = page.locator('[data-testid="timeline-item"]');
+      const second = items.last();
+      const first = items.first();
+      const box = await second.boundingBox();
+      const target = await first.boundingBox();
+      if (!box || !target) throw new Error("timeline items have no box");
+      // The drag must start on the item BODY, which is the element carrying
+      // onPointerDown -> begin(). Pressing on the outer div does nothing.
+      const body = second.locator(".editor-item-body");
+      const from = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      // Land the clip on the first clip's track, ending ~1s short of its left
+      // edge so the two genuinely overlap.
+      const to = {
+        x: target.x + 30,
+        y: target.y + target.height / 2,
+      };
+      await body.hover({ position: { x: box.width / 2, y: box.height / 2 } });
+      await page.mouse.down();
+      for (let step = 1; step <= 30; step += 1) {
+        await page.mouse.move(
+          from.x + ((to.x - from.x) * step) / 30,
+          from.y + ((to.y - from.y) * step) / 30,
+        );
+      }
+      await page.mouse.up();
+      await page
+        .getByRole("button", { name: "Snap to clips and playhead", exact: true })
+        .click();
+      // Prove the overlap exists before asserting on the control, so a future
+      // failure says WHICH step broke rather than just "no Transition label".
+      const overlap = await page.evaluate(() => {
+        const items = document.querySelectorAll('[data-testid="timeline-item"]');
+        const times = [...items].map((node) => ({
+          left: node.getBoundingClientRect().left,
+          right: node.getBoundingClientRect().right,
+        }));
+        for (const a of times)
+          for (const b of times)
+            if (a !== b && a.right > b.left + 4) return a.right - b.left;
+        return 0;
+      });
+      if (overlap <= 0)
+        throw new Error(`clips did not overlap (overlap=${overlap}px)`);
+      await second.click();
+      // Now the control must exist, because the clips overlap.
+      const transition = page.getByLabel("Transition", { exact: true });
+      await transition.waitFor({ state: "visible", timeout: 30000 });
+      await transition.selectOption("crossfade");
+      // The timeline marks the blend window.
+      await page.waitForSelector(".editor-transition-handle", { timeout: 30000 });
+      // The editor autosaves on a debounce, so poll the SAVED project: this
+      // proves the id survived a round trip, not just that a <select> changed.
+      await harness.waitForItems(
+        (_kinds, state) =>
+          (state.project.items || []).some(
+            (item) => item.transition_in === "crossfade",
+          ),
+        { label: "a saved crossfade", timeout: 60000 },
+      );
+      // Bring the new control into view so the capture actually shows the
+      // feature rather than the panel above it.
+      await page
+        .getByRole("heading", { name: "Transition", exact: true })
+        .scrollIntoViewIfNeeded();
+    },
+    steps: () => ["tab:Media"],
+  },
+
   "audio-tracks": {
     describe:
       "Audio tool tab: a music clip and a voiceover clip both land on the timeline",

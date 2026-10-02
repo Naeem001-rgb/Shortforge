@@ -12,7 +12,9 @@ import { assetUrl } from "../api";
 import { IconButton } from "../ui";
 import { clamp, displayAt, durationOf, formatTime } from "./editorModel";
 import type { EditorMedia, EditorProject } from "./editorModel";
-import { captionWords, textAppearance } from "./textPresets";
+import { captionWords } from "./textPresets";
+import { CaptionLine } from "./EditorTemplates";
+import { transitionBlend } from "./transitions";
 
 export function EditorPreview({
   project,
@@ -183,13 +185,31 @@ export function EditorPreview({
                 active =
                   time >= item.start && time < item.start + item.duration;
               const value = displayAt(item, time - item.start);
+              // §4.2. `active` deliberately stays "within the item's own span":
+              // a transition needs both clips on screen for the whole blend
+              // window, which is exactly what makes it visible. Starting the
+              // incoming clip at the blend instead would hide the effect.
+              const blend = transitionBlend(project.items, time);
+              const mine =
+                blend && blend.item.id === item.id
+                  ? blend.frame.incoming
+                  : blend && blend.previous.id === item.id
+                    ? blend.frame.outgoing
+                    : null;
               const style = {
-                opacity: active ? value.opacity : 0,
-                transform: `translate(${value.x}%, ${value.y}%) rotate(${value.rotation}deg) scale(${value.scale})`,
+                opacity: active ? value.opacity * (mine?.opacity ?? 1) : 0,
+                transform: `translate(${value.x + (mine?.x ?? 0)}%, ${value.y + (mine?.y ?? 0)}%) rotate(${value.rotation}deg) scale(${value.scale * (mine?.scale ?? 1)})`,
+                clipPath: mine?.clipPath ?? undefined,
+                maskImage: mine?.mask ?? undefined,
+                filter: `blur(${(mine?.blur ?? 0) * (size.width / project.width)}px) brightness(${mine?.brightness ?? 1})`,
                 zIndex: item.track + 1,
                 pointerEvents: active ? ("auto" as const) : ("none" as const),
               };
               if (item.kind === "text") {
+                // Alignment still comes from captionWords, but the words
+                // themselves render through the shared CaptionLine so the
+                // preview shows exactly what the template cards and the
+                // exported ASS render — one component, three consumers.
                 const caption = captionWords(item, time - item.start);
                 return (
                   <div
@@ -206,30 +226,11 @@ export function EditorPreview({
                     }}
                     onClick={() => onSelect(item.id)}
                   >
-                    <span
-                      style={textAppearance(item, size.width / project.width)}
-                    >
-                      {caption.style.reveal === "typewriter"
-                        ? caption.words
-                            .slice(0, caption.current + 1)
-                            .join("")
-                            .trimEnd()
-                        : caption.style.reveal === "karaoke"
-                          ? caption.words.map((word, index) => (
-                              <span
-                                key={index}
-                                style={{
-                                  color:
-                                    index <= caption.current
-                                      ? caption.style.highlight
-                                      : item.color,
-                                }}
-                              >
-                                {word}
-                              </span>
-                            ))
-                          : caption.text}
-                    </span>
+                    <CaptionLine
+                      item={item}
+                      scale={size.width / project.width}
+                      localTime={time - item.start}
+                    />
                   </div>
                 );
               }

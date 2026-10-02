@@ -192,6 +192,54 @@ export function findTransitionOverlap(
 }
 
 /**
+ * Resolve which pair of clips is blending at timeline time `time`, if any.
+ *
+ * This is the bridge between the timeline and the renderer: given the playhead
+ * it finds the one adjacent overlapping pair that is mid-blend and returns both
+ * clips' resolved visual state. Callers use it to pick which side of the frame
+ * belongs to the clip they are drawing.
+ *
+ * Pure and deterministic — the same (items, time) always returns the same
+ * result, so the preview is assertable in a unit test rather than eyeballed.
+ */
+export function transitionBlend<
+  T extends TransitionHost & {
+    transition_in?: string;
+    transition_duration?: number;
+  },
+>(
+  items: readonly T[],
+  time: number,
+): { item: T; previous: T; frame: TransitionFrame } | null {
+  if (!Number.isFinite(time)) return null;
+  const ordered = [...items].sort(
+    (a, b) => (a.track ?? 0) - (b.track ?? 0) || a.start - b.start,
+  );
+  for (let index = 1; index < ordered.length; index += 1) {
+    const item = ordered[index];
+    const identifier = item.transition_in;
+    if (!identifier || identifier === "none") continue;
+    const previous = ordered[index - 1];
+    const overlap = findTransitionOverlap(previous, item);
+    if (!overlap) continue;
+    // Half-open window: the first frame of the blend belongs to the outgoing
+    // clip, the last to the incoming one, so no frame blends twice.
+    if (time < overlap.start || time >= overlap.start + overlap.duration)
+      continue;
+    const length = Math.min(
+      item.transition_duration ?? overlap.duration,
+      overlap.duration,
+    );
+    return {
+      item,
+      previous,
+      frame: transitionProgress(identifier, time - overlap.start, length),
+    };
+  }
+  return null;
+}
+
+/**
  * Resolve both clips' visual state at local time `t` within a transition of
  * `duration` seconds.
  *
@@ -360,7 +408,10 @@ export function transitionProgress(
     // Additive-looking burn: both clips brighten towards white as they cross.
     case "luma-burn":
       frame.incoming = layer({ opacity: p, brightness: 1 + 0.85 * bell(q) });
-      frame.outgoing = layer({ opacity: 1 - p, brightness: 1 + 0.85 * bell(q) });
+      frame.outgoing = layer({
+        opacity: 1 - p,
+        brightness: 1 + 0.85 * bell(q),
+      });
       break;
 
     // 'none' and any unrecognised id render as a plain cut.

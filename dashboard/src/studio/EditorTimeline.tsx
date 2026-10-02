@@ -17,6 +17,7 @@ import type { PointerEvent } from "react";
 import { IconButton } from "../ui";
 import { clamp, durationOf, formatTime, trimItem } from "./editorModel";
 import type { EditorMedia, EditorProject, TimelineItem } from "./editorModel";
+import { findTransition, findTransitionOverlap } from "./transitions";
 export function EditorTimeline({
   project,
   media,
@@ -101,6 +102,18 @@ export function EditorTimeline({
     content.current?.setPointerCapture(e.pointerId);
     drag.current = { item, mode, x: e.clientX, y: e.clientY, latest: item };
     setDraft(item);
+  };
+  // The blend window for a clip, or null when it cannot transition: no
+  // transition set, first on its track, or not enough overlap with the
+  // previous clip.
+  const blendFor = (item: TimelineItem) => {
+    if (item.transition_in === "none") return null;
+    const siblings = project.items
+      .filter((other) => other.kind !== "audio")
+      .sort((a, b) => a.track - b.track || a.start - b.start);
+    const index = siblings.findIndex((other) => other.id === item.id);
+    if (index <= 0) return null;
+    return findTransitionOverlap(siblings[index - 1], item);
   };
   const move = (e: PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
@@ -406,6 +419,29 @@ export function EditorTimeline({
                           aria-label={`Trim end of ${item.name}`}
                           onPointerDown={(e) => begin(e, item, "right")}
                         />
+                        {/* The blend window, drawn where the two clips share
+                            screen time. Its length is set in the inspector,
+                            which clamps it to this window, so this is a
+                            readout rather than a second drag target competing
+                            with the trim handles. */}
+                        {(() => {
+                          const blend = blendFor(item);
+                          if (!blend) return null;
+                          return (
+                            <span
+                              className="editor-transition-handle"
+                              aria-label={`Transition into ${item.name}`}
+                              title={`${
+                                findTransition(item.transition_in)?.label ??
+                                "Transition"
+                              } · ${formatTime(blend.duration, true)}`}
+                              style={{
+                                left: `${(blend.start / item.duration) * 100}%`,
+                                width: `${(blend.duration / item.duration) * 100}%`,
+                              }}
+                            />
+                          );
+                        })()}
                       </div>
                     );
                   })}
