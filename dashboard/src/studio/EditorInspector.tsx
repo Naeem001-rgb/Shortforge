@@ -7,6 +7,8 @@ import "./fonts.css";
 import {
   AudioLines,
   Diamond,
+  LoaderCircle,
+  ScanText,
   Film,
   SlidersHorizontal,
   Trash2,
@@ -126,6 +128,10 @@ export function EditorInspector({
   onProject,
   onTime,
   onExtractAudio,
+  onExtractCaptions,
+  captionsBusy,
+  captionsAvailable,
+  captionsMessage,
   onDelete,
 }: {
   project: EditorProject;
@@ -136,6 +142,10 @@ export function EditorInspector({
   onProject: (patch: Partial<EditorProject>) => void;
   onTime: (n: number) => void;
   onExtractAudio?: () => void;
+  onExtractCaptions?: () => void;
+  captionsBusy?: boolean;
+  captionsAvailable?: boolean;
+  captionsMessage?: string;
   onDelete?: () => void;
 }) {
   const [tab, setTab] = useState("basic");
@@ -234,6 +244,14 @@ export function EditorInspector({
       ].sort((a, b) => a.time - b.time),
     });
   };
+  const conceal = item.conceal || {
+    mode: "none" as const,
+    x: 5,
+    y: 66,
+    width: 90,
+    height: 18,
+    color: "#101014",
+  };
   const addKey = () =>
     update({
       keyframes: [
@@ -266,6 +284,100 @@ export function EditorInspector({
       <div className="editor-inspector-scroll">
         {item.kind==="video"&&tab==="adjust"&&<EditorClipTools item={item} time={time} onChange={onChange} mode="adjust"/>}
 
+        {item.kind==="video"&&(
+          <section className="editor-inspector-section editor-strip-original" hidden={tab!=="basic"}>
+            <h3>Remove what came with this clip</h3>
+            <p>
+              Take away the original sound or the subtitles burned into the
+              picture, then bring in your own.
+            </p>
+            <button
+              className="button secondary full"
+              disabled={!asset?.has_audio || !onExtractAudio}
+              onClick={onExtractAudio}
+            >
+              <AudioLines size={15} />
+              Extract audio to its own track
+            </button>
+            <button
+              className="button secondary full"
+              disabled={!onExtractCaptions || captionsBusy || !captionsAvailable}
+              onClick={onExtractCaptions}
+            >
+              {captionsBusy ? (
+                <LoaderCircle size={15} className="spin" />
+              ) : (
+                <ScanText size={15} />
+              )}
+              {captionsBusy
+                ? "Reading the picture\u2026"
+                : "Extract on-screen captions"}
+            </button>
+            {!captionsAvailable && captionsMessage && (
+              <p className="editor-inspector-hint">{captionsMessage}</p>
+            )}
+            <label className="editor-field">
+              <span>Remove burned-in subtitles</span>
+              <select
+                aria-label="Cover existing captions"
+                value={conceal.mode}
+                onChange={(event)=>
+                  update({
+                    conceal: {
+                      ...conceal,
+                      mode: event.target.value as typeof conceal.mode,
+                    },
+                  })
+                }
+              >
+                <option value="none">Leave them</option>
+                <option value="cover">Cover with a solid block</option>
+                <option value="blur">Blur that area</option>
+                <option value="mosaic">Pixelate that area</option>
+              </select>
+            </label>
+            {conceal.mode!=="none"&&(
+              <>
+                <div className="editor-field-pair">
+                  {(["x","y","width","height"] as const).map((key)=>(
+                    <label className="editor-field" key={key}>
+                      <span>{key.toUpperCase()} %</span>
+                      <input
+                        aria-label={`Cover ${key}`}
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={conceal[key]}
+                        onChange={(event)=>
+                          update({
+                            conceal: {
+                              ...conceal,
+                              [key]: Math.max(0, Math.min(100, +event.target.value)),
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+                {conceal.mode==="cover"&&(
+                  <label className="editor-field">
+                    <span>Cover color</span>
+                    <input
+                      type="color"
+                      value={conceal.color}
+                      onChange={(event)=>
+                        update({
+                          conceal: { ...conceal, color: event.target.value },
+                        })
+                      }
+                    />
+                  </label>
+                )}
+              </>
+            )}
+          </section>
+        )}
         <section className="editor-inspector-section" hidden={tab!=="basic"}>
           <h3>Timing</h3>
           <div className="editor-field-pair">
@@ -873,15 +985,6 @@ export function EditorInspector({
         )}
         {item.kind !== "text" && (
           <section className="editor-inspector-section" hidden={tab!=="audio"}>
-            {item.kind==="video"&&asset?.has_audio&&(
-              <button
-                className="button secondary full"
-                onClick={onExtractAudio}
-              >
-                <AudioLines size={15} />
-                Extract audio to its own track
-              </button>
-            )}
             {item.kind==="audio"&&(
               <p className="editor-inspector-hint">
                 This is the extracted or imported audio. Delete the clip to remove it completely.

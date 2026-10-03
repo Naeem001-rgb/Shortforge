@@ -161,3 +161,24 @@ progress bar and three speeds rather than a blocking action.
 Validation: **178 backend tests** (12 new, covering grouping, band clamping, route
 refusals and capability reporting) and **26 browser tests** pass, along with the
 dashboard type-check and production build.
+
+### One block for taking the original apart
+
+The three "remove what came with the clip" actions had ended up in three
+different places: Extract audio in the inspector's Audio tab, caption reading in
+the left Captions panel, and the burned-in caption cover at the bottom of the
+Basic tab. That is worse than burying one control, because nothing tells you they
+belong together.
+
+They now live in a single **Remove what came with this clip** block at the top of
+the Basic tab, which is the first thing shown when a clip is selected: Extract
+audio to its own track, Extract on-screen captions, and Remove burned-in
+subtitles with its method and region. The Audio tab keeps genuine audio properties
+(mute, volume, fades, role, ducking) and the cover control no longer appears twice.
+The duplicate OCR button in the left Captions panel was removed rather than left as
+a second identical label to choose between.
+
+Verified by driving all three from that one block on a clip with real audio and
+four burned-in lines: extraction produced a second timeline track, caption reading
+produced four text clips, and the solid cover drew over the subtitle band in the
+preview.

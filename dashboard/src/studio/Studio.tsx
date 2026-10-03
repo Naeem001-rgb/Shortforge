@@ -1505,68 +1505,6 @@ function ProjectEditor({
                 </div>
                 {binTab === "captions" && (
                   <div className="editor-text-tools">
-                    <section className="editor-ocr-extract">
-                      <h3>
-                        <ScanText size={15} />
-                        Subtitles inside this video
-                      </h3>
-                      <p>
-                        Reads the words painted into the picture and drops each
-                        one on the timeline so you can edit or delete it.
-                      </p>
-                      <label className="editor-field">
-                        <span>Scan speed</span>
-                        <select
-                          aria-label="Caption scan speed"
-                          value={ocrSpeed}
-                          disabled={ocrJob.busy}
-                          onChange={(event) =>
-                            setOcrSpeed(
-                              event.target.value as
-                                | "fast"
-                                | "balanced"
-                                | "accurate",
-                            )
-                          }
-                        >
-                          <option value="fast">Fast — fewest reads</option>
-                          <option value="balanced">Balanced</option>
-                          <option value="accurate">
-                            Accurate — slowest
-                          </option>
-                        </select>
-                      </label>
-                      <button
-                        className="button secondary full"
-                        disabled={
-                          ocrJob.busy ||
-                          !ocrCapability?.available ||
-                          !ocrTarget
-                        }
-                        onClick={() =>
-                          void ocrJob.start(
-                            `/editor/${selected}/ocr-captions`,
-                            { asset_id: ocrTarget!.id, speed: ocrSpeed },
-                          )
-                        }
-                      >
-                        {ocrJob.busy ? (
-                          <LoaderCircle size={15} className="spin" />
-                        ) : (
-                          <ScanText size={15} />
-                        )}
-                        {ocrJob.busy
-                          ? "Reading the picture…"
-                          : "Extract on-screen captions"}
-                      </button>
-                      {!ocrCapability?.available && (
-                        <p role="alert">{ocrCapability?.message}</p>
-                      )}
-                      {ocrCapability?.available && !ocrTarget && (
-                        <p>Select a video clip to read its on-screen captions.</p>
-                      )}
-                      <JobProgress job={ocrJob.job} />
-                    </section>
                     <button
                       className="button primary full"
                       onClick={() => srtInput.current?.click()}
@@ -1827,6 +1765,24 @@ function ProjectEditor({
                 onProject={(patch) => commit({ ...project, ...patch })}
                 onTime={seek}
                 onExtractAudio={() => void runAudio("extract")}
+                onExtractCaptions={
+                  ocrTarget
+                    ? () =>
+                        void ocrJob.start(
+                          `/editor/${selected}/ocr-captions`,
+                          { asset_id: ocrTarget.id, speed: ocrSpeed },
+                        )
+                    : undefined
+                }
+                captionsBusy={ocrJob.busy}
+                captionsAvailable={!!ocrCapability?.available && !!ocrTarget}
+                captionsMessage={
+                  !ocrTarget
+                    ? "Select a video clip to read its on-screen captions."
+                    : ocrCapability?.available
+                      ? ""
+                      : ocrCapability?.message
+                }
                 onDelete={
                   selection
                     ? () =>
