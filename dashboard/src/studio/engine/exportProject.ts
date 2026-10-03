@@ -1,5 +1,6 @@
 import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { ArrayBufferTarget as WebmTarget, Muxer as WebmMuxer } from "webm-muxer";
+import { cacheMedia } from "../mediaStorage";
 import { assetUrl } from "../../api";
 import { durationOf } from "../editorModel";
 import type { EditorMedia,EditorProject } from "../editorModel";
@@ -33,6 +34,7 @@ export async function exportProject(project:EditorProject,media:EditorMedia[],op
   const muxer=extension==="mp4"?new Muxer({target:target as ArrayBufferTarget,video:{codec:"avc",width,height,frameRate:fps},audio:{codec:"aac",sampleRate:48000,numberOfChannels:2},fastStart:"in-memory",firstTimestampBehavior:"offset"}):new WebmMuxer({target:target as WebmTarget,video:{codec:"V_VP9",width,height,frameRate:fps},audio:{codec:"A_OPUS",sampleRate:48000,numberOfChannels:2},firstTimestampBehavior:"offset"});
   let encodingError:Error|null=null;
   const encoder=new VideoEncoder({output:(chunk,meta)=>muxer.addVideoChunk(chunk,meta),error:error=>{encodingError=error;}}),audioEncoder=new AudioEncoder({output:(chunk,meta)=>muxer.addAudioChunk(chunk,meta),error:error=>{encodingError=error;}});
+  const localUrls=new Map<string,string>();
   const videos=new Map<string,HTMLVideoElement>(),sources:FrameSources=new Map(),resources=createRenderResources(),canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;const ctx=canvas.getContext("2d")!;
   const report=(progress:number,phase:string,frame=0)=>{const elapsed=(performance.now()-start)/1000;options.onProgress?.({progress,phase,frame,totalFrames,eta:progress>5?Math.max(0,elapsed*(100-progress)/progress):0});};
   try{
@@ -41,11 +43,12 @@ export async function exportProject(project:EditorProject,media:EditorMedia[],op
     // Limit setup concurrency: one decoder per timeline clip only while exporting.
     for(const item of visual){
       options.signal?.throwIfAborted();const asset=media.find(m=>m.id===item.asset_id);if(!asset)throw new Error(`Missing media: ${item.name}. Relink the file before exporting.`);
+      if(!localUrls.has(asset.id)){const file=await cacheMedia(asset,options.signal);localUrls.set(asset.id,file?URL.createObjectURL(file):assetUrl(asset));}
       if(asset.media_type==="image"){
-        const image=new Image();image.crossOrigin="anonymous";image.src=assetUrl(asset);await image.decode();sources.set(item.id,image);
+        const image=new Image();image.crossOrigin="anonymous";image.src=localUrls.get(asset.id)!;await image.decode();sources.set(item.id,image);
       }else{
         const video=document.createElement("video");video.crossOrigin="anonymous";video.muted=true;video.preload="auto";video.playsInline=true;
-        videos.set(item.id,video);const ready=waitFor(video,"loadeddata",options.signal);video.src=assetUrl(asset);await ready;sources.set(item.id,video);
+        videos.set(item.id,video);const ready=waitFor(video,"loadeddata",options.signal);video.src=localUrls.get(asset.id)!;await ready;sources.set(item.id,video);
       }
     }
     // Fonts must have settled before measuring any caption for either path.
@@ -86,6 +89,6 @@ export async function exportProject(project:EditorProject,media:EditorMedia[],op
     await audioEncoder.flush();if(encodingError)throw encodingError;options.signal?.throwIfAborted();report(98,"Finalizing file",totalFrames);muxer.finalize();
     const result:ExportResult={blob:new Blob([target.buffer],{type:extension==="mp4"?"video/mp4":"video/webm"}),extension,width,height,fps,duration:totalFrames/fps,elapsed:(performance.now()-start)/1000};report(100,"Export complete",totalFrames);return result;
   }finally{
-    if(encoder.state!=="closed")encoder.close();if(audioEncoder.state!=="closed")audioEncoder.close();videos.forEach(v=>{v.removeAttribute("src");v.load();});resources.gpu.dispose();
+    if(encoder.state!=="closed")encoder.close();if(audioEncoder.state!=="closed")audioEncoder.close();videos.forEach(v=>{v.removeAttribute("src");v.load();});resources.gpu.dispose();resources.transitions.dispose();localUrls.forEach(url=>{if(url.startsWith("blob:"))URL.revokeObjectURL(url);});
   }
 }

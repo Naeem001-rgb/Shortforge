@@ -1,3 +1,7 @@
+import { compileAnimation } from "./animationEngine";
+import { BundledAudioPanel } from "./BundledAudioPanel";
+import { MediaRecoveryPanel } from "./MediaRecoveryPanel";
+import { readRecovery, saveRecovery } from "./mediaStorage";
 import {
   AudioLines,
   Captions,
@@ -246,6 +250,7 @@ function ProjectEditor({
               signal: controller.signal,
               keepalive: serialized.length < 50000,
             });
+            if(current.name?.trim() && current.name !== (saved.current ? JSON.parse(saved.current).name : ""))await api(`/projects/${selected}`,{method:"PATCH",body:JSON.stringify({title:current.name.trim()})});
             saved.current = serialized;
             try {
               const recovery = JSON.parse(
@@ -287,13 +292,13 @@ function ProjectEditor({
       api<EditorResponse>(`/editor/${selected}`, { signal: controller.signal }),
       api<Clip>(`/clips/${selected}`, { signal: controller.signal }),
     ])
-      .then(([data, c]) => {
+      .then(async ([data, c]) => {
         if (!mounted.current) return;
         let opened = data.project;
         try {
-          const recovery = JSON.parse(
-            localStorage.getItem(`shortforge-recovery:${selected}`) || "null",
-          );
+          const diskRecovery = await readRecovery(selected).catch(()=>undefined);
+          if (!mounted.current || controller.signal.aborted) return;
+          const recovery = JSON.parse(localStorage.getItem(`shortforge-recovery:${selected}`) || "null") || (diskRecovery ? {project:diskRecovery.project,updatedAt:diskRecovery.updated}:null);
           if (
             recovery?.project?.version === 1 &&
             Array.isArray(recovery.project.items) &&
@@ -353,7 +358,7 @@ function ProjectEditor({
   useEffect(() => {
     if (!project || loading || JSON.stringify(project) === saved.current)
       return;
-    const timer = setTimeout(() => void saveProject(project), 900);
+    const timer = setTimeout(() => { void saveRecovery(selected,project).catch(()=>setMessage("Browser recovery storage is full. The project is still being saved to your local library.")); void saveProject(project); }, 900);
     return () => clearTimeout(timer);
   }, [project, loading, saveProject]);
   useEffect(() => {
@@ -1135,12 +1140,14 @@ function ProjectEditor({
       <EditorTopbar
         clips={clips}
         selected={selected}
-        name={project.name ?? clip?.title ?? "Untitled project"}
+        name={project.name || clip?.title || "Untitled project"}
         saveState={saveState}
         canUndo={canUndo}
         canRedo={canRedo}
         onName={(name) => commit({ ...project, name })}
         onSelect={onSelect}
+        onDuplicate={async()=>{try{await saveProject();const copy=await api<Clip>(`/projects/${selected}/duplicate`,{method:"POST",body:JSON.stringify({title:`${project.name||clip?.title||"Untitled project"} copy`})});refreshRef.current();onSelect(copy.id);}catch(e){setError((e as Error).message);}}}
+        onDelete={async()=>{if(!window.confirm("Delete this project and its imported media? This cannot be undone."))return;try{await api(`/projects/${selected}`,{method:"DELETE"});refreshRef.current();onSelect("");}catch(e){setError((e as Error).message);}}}
         onBack={onBack}
         onNew={onImport}
         onUndo={undo}
@@ -1404,6 +1411,8 @@ function ProjectEditor({
                     )}
                     <JobProgress job={downloadJob.job} />
                     <MediaAssetGrid media={visibleMedia} onAdd={addMedia} />
+                    <MediaRecoveryPanel clipId={selected} project={project} media={media} onChange={commit} onMedia={asset=>setMedia(current=>[...current.filter(a=>a.id!==asset.id),asset])} notify={setMessage}/>
+
                   </>
                 )}
                 {binTab === "audio" && (
@@ -1489,6 +1498,8 @@ function ProjectEditor({
                       <JobProgress job={audioJob.job} />
                     </section>
                     <MediaAssetGrid media={visibleMedia} onAdd={addMedia} />
+                    <BundledAudioPanel clipId={selected} project={project} playhead={time} onChange={commit} onMedia={asset=>setMedia(current=>[...current.filter(a=>a.id!==asset.id),asset])} notify={setMessage}/>
+
                   </>
                 )}
                 {binTab === "text" && (
@@ -1540,7 +1551,7 @@ function ProjectEditor({
                     item={selectedItem}
                     onApply={(side, value) =>
                       selectedItem &&
-                      updateItem({ ...selectedItem, [side]: value })
+                      updateItem(compileAnimation(selectedItem,value,side === "animation_in" ? "in" : side === "animation_out" ? "out" : "loop"))
                     }
                   />
                 )}

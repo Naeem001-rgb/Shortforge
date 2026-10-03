@@ -404,19 +404,20 @@ def build_render_command(project: Project, assets: dict, output: Path, resolutio
     filters.append(f'[{visual}]format=yuv420p[video]')
     audio_labels=[]
     for index,item in enumerate(project.items):
-        if item.kind=='text' or item.muted or item.freeze_at is not None or (tracks.get(item.track) and tracks[item.track].muted) or not assets[item.asset_id][2]['has_audio']: continue
+        if item.kind=='text' or item.muted or item.freeze_at is not None or (tracks.get(item.track) and (tracks[item.track].muted or tracks[item.track].hidden)) or not assets[item.asset_id][2]['has_audio']: continue
         speed=item.speed; tempos=[]
         while speed<.5: tempos.append('atempo=0.5'); speed/=.5
         while speed>2: tempos.append('atempo=2'); speed/=2
         tempos.append(f'atempo={number(speed)}')
         volume=frame_expression(item,'volume','t')
+        if tracks.get(item.track): volume=f'({volume})*{number(tracks[item.track].volume)}'
         if item.fade_in: volume=f'({volume})*clip(t/{number(item.fade_in)},0,1)'
         if item.fade_out: volume=f'({volume})*clip(({number(item.duration)}-t)/{number(item.fade_out)},0,1)'
         label=f'a{index}'
         if item.ducking:
             windows=[f'between(t,{number(max(0,voice.start-item.start-.12))},{number(min(item.duration,voice.start+voice.duration-item.start+.2))})'
                      for voice in project.items if voice.audio_role=='voiceover' and voice.asset_id and not voice.muted
-                     and not (tracks.get(voice.track) and tracks[voice.track].muted)
+                     and not (tracks.get(voice.track) and (tracks[voice.track].muted or tracks[voice.track].hidden))
                      and voice.start<item.start+item.duration and voice.start+voice.duration>item.start]
             if windows: volume=f'({volume})*if(gt({"+".join(windows)},0),.25,1)'
         reverse='areverse,' if item.reverse else ''

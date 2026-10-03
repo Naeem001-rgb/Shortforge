@@ -5,6 +5,9 @@ import {
   Check,
   ChevronDown,
   Download,
+  Copy,
+  Trash2,
+  Film,
   FileJson,
   FolderOpen,
   Keyboard,
@@ -39,6 +42,8 @@ export function EditorTopbar({
   onExport,
   onDownload,
   onImport,
+  onDuplicate,
+  onDelete,
   onShortcuts,
   assetCollapsed,
   inspectorCollapsed,
@@ -61,6 +66,8 @@ export function EditorTopbar({
   onExport: () => void;
   onDownload: () => void;
   onImport: () => void;
+  onDuplicate?: () => void;
+  onDelete?: () => void;
   onShortcuts: () => void;
   assetCollapsed: boolean;
   inspectorCollapsed: boolean;
@@ -156,6 +163,9 @@ export function EditorTopbar({
                 ))}
             </select>
           </label>
+          <div className="editor-recent-projects" aria-label="Recent projects">{clips.filter(clip=>clip.workflow_status!=="archived").slice(0,6).map(clip=><button key={clip.id} aria-current={clip.id===selected?"true":undefined} onClick={()=>action(()=>onSelect(clip.id))}>{clip.thumbnail_url?<img src={clip.thumbnail_url} crossOrigin="anonymous" alt=""/>:<span className="recent-project-poster"><Film size={16}/></span>}<span>{clip.title||"Untitled project"}</span></button>)}</div>
+          {onDuplicate&&<button onClick={()=>action(onDuplicate)}><Copy size={16}/>Duplicate project</button>}
+          {onDelete&&<button onClick={()=>action(onDelete)}><Trash2 size={16}/>Delete project</button>}
           <hr />
           <button onClick={() => action(onSave)}>
             <Save size={16} />

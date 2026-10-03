@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { compileAnimation } from "./animationEngine";
+import { useEffect, useRef, useState } from "react";
 import { EditorClipTools } from "./EditorClipTools";
 import { tracksOf } from "./timelineOps";
 import { captionFonts } from "./fonts";
@@ -133,6 +134,8 @@ export function EditorInspector({
   onTime: (n: number) => void;
 }) {
   const [tab, setTab] = useState("basic");
+  const copiedKey = useRef<Keyframe|null>(null);
+  const [hasCopiedKey,setHasCopiedKey] = useState(false);
   useEffect(()=>setTab("basic"),[item?.kind]);
   if (!item)
     return (
@@ -905,12 +908,9 @@ export function EditorInspector({
                 <span>In animation</span>
                 <select
                   aria-label="In animation"
-                  value={item.animation_in}
+                  value={item.animation_labels?.in || item.animation_in}
                   onChange={(e) =>
-                    update({
-                      animation_in: e.target
-                        .value as TimelineItem["animation_in"],
-                    })
+                    onChange(compileAnimation(item,e.target.value as TimelineItem["animation_in"],"in"))
                   }
                 >
                   {animations.map((a) => (
@@ -924,12 +924,9 @@ export function EditorInspector({
                 <span>Out animation</span>
                 <select
                   aria-label="Out animation"
-                  value={item.animation_out}
+                  value={item.animation_labels?.out || item.animation_out}
                   onChange={(e) =>
-                    update({
-                      animation_out: e.target
-                        .value as TimelineItem["animation_out"],
-                    })
+                    onChange(compileAnimation(item,e.target.value as TimelineItem["animation_out"],"out"))
                   }
                 >
                   {animations.map((a) => (
@@ -940,7 +937,7 @@ export function EditorInspector({
                 </select>
               </label>
             </div>
-            <label className="editor-field"><span>Loop animation</span><select aria-label="Loop animation" value={item.animation_loop||"none"} onChange={e=>update({animation_loop:e.target.value as TimelineItem["animation_loop"]})}>{animations.filter(a=>["none","pulse","wobble","shake","float","spin-left","spin-right","fade"].includes(a.value)).map(a=><option key={a.value} value={a.value}>{a.label}</option>)}</select></label>
+            <label className="editor-field"><span>Loop animation</span><select aria-label="Loop animation" value={item.animation_labels?.loop || item.animation_loop||"none"} onChange={e=>onChange(compileAnimation(item,e.target.value as TimelineItem["animation_in"],"loop"))}>{animations.filter(a=>["none","pulse","wobble","shake","float","spin-left","spin-right","fade"].includes(a.value)).map(a=><option key={a.value} value={a.value}>{a.label}</option>)}</select></label>
             <button className="button secondary small full" onClick={()=>update({animation_in:"none",animation_out:"none",keyframes:[{...item.transform,volume:item.volume,time:0,easing:"ease-in-out"},{...item.transform,scale:Math.min(4,item.transform.scale*1.18),x:item.transform.x-3,volume:item.volume,time:item.duration,easing:"linear"}]})}>Apply slow zoom & pan</button>
             <NumberField
               label="Animation duration"
@@ -948,7 +945,7 @@ export function EditorInspector({
               min={0.1}
               max={Math.min(5, item.duration)}
               suffix="s"
-              onChange={(animation_duration) => update({ animation_duration })}
+              onChange={(animation_duration) => {let next={...item,animation_duration};for(const target of ["in","out","loop"] as const){if(item.animation_labels?.[target])next=compileAnimation(next,item.animation_labels[target]!,target,animation_duration);}onChange(next);}}
             />
           </section>
         )}
@@ -1008,6 +1005,7 @@ export function EditorInspector({
               : "Animate transform and volume between points in time."}
           </p>
           {activeKey?.easing==="cubic-bezier"&&<div className="editor-keyframe-curve"><svg viewBox="0 0 100 100" role="img" aria-label="Keyframe easing curve"><path d={`M0 100 C ${(activeKey.bezier||[.25,.1,.25,1])[0]*100} ${100-(activeKey.bezier||[.25,.1,.25,1])[1]*100}, ${(activeKey.bezier||[.25,.1,.25,1])[2]*100} ${100-(activeKey.bezier||[.25,.1,.25,1])[3]*100}, 100 0`} fill="none" stroke="var(--accent)" strokeWidth="2"/></svg><div className="editor-field-pair">{["X1","Y1","X2","Y2"].map((label,n)=><NumberField key={label} label={`Curve ${label}`} value={(activeKey.bezier||[.25,.1,.25,1])[n]} min={n%2===0?0:-2} max={n%2===0?1:3} step={.05} onChange={value=>{const bezier=[...(activeKey.bezier||[.25,.1,.25,1])] as [number,number,number,number];bezier[n]=value;update({keyframes:item.keyframes.map(k=>k===activeKey?{...k,bezier}:k)});}}/>)}</div></div>}
+          <div className="clip-tool-buttons"><button disabled={!activeKey} onClick={()=>{if(activeKey){copiedKey.current=structuredClone(activeKey);setHasCopiedKey(true);}}}>Copy keyframe</button><button disabled={!hasCopiedKey} onClick={()=>{if(copiedKey.current)update({keyframes:[...item.keyframes.filter(k=>Math.abs(k.time-local)>.001),{...structuredClone(copiedKey.current),time:local,preset:undefined}].sort((a,b)=>a.time-b.time)});}}>Paste keyframe</button></div>
           {item.keyframes.map((key, index) => (
             <div
               className={`editor-keyframe-row ${Math.abs(key.time - local) < 0.02 ? "active" : ""}`}

@@ -102,6 +102,7 @@ export type Keyframe = Transform & {
   easing: "linear" | "ease-in" | "ease-out" | "ease-in-out" | "hold" | "spring" | "bounce" | "cubic-bezier";
   bezier?: [number, number, number, number];
   values?: Record<string, number>;
+  preset?: "in" | "out" | "loop";
 };
 export type CaptionWord = { word: string; start: number; end: number };
 export type Adjustments = {
@@ -114,7 +115,7 @@ export const defaultAdjustments: Adjustments = {
   temperature: 0, tint: 0, highlights: 0, shadows: 0,
   vignette: 0, sharpen: 0, grain: 0, blur: 0,
 };
-export type EditorTrack = { id: number; name: string; kind: "video" | "audio" | "text"; locked: boolean; hidden: boolean; muted: boolean };
+export type EditorTrack = { id: number; name: string; kind: "video" | "audio" | "text"; locked: boolean; hidden: boolean; muted: boolean; volume?: number };
 export type EditorMarker = { id: string; time: number; label: string; color?: string };
 export type TimelineItem = {
   id: string;
@@ -155,6 +156,7 @@ export type TimelineItem = {
   crop?: { top: number; right: number; bottom: number; left: number };
   adjustments?: Partial<Adjustments>;
   animation_loop?: Animation;
+  animation_labels?: Partial<Record<"in" | "out" | "loop", Animation>>;
   group_id?: string;
   blend_mode?: "normal" | "multiply" | "screen" | "overlay" | "lighten" | "darken";
   mask?: { shape: "none" | "circle" | "rectangle"; feather: number };
@@ -274,18 +276,18 @@ export function newItem(
     text_background: "transparent",
   };
 }
+const orderedKeys = new WeakMap<Keyframe[],Keyframe[]>();
 export function valueAt(
   item: TimelineItem,
   localTime: number,
 ): Transform & { volume: number; values?: Record<string, number> } {
-  const keys = [...item.keyframes].sort((a, b) => a.time - b.time);
+  let keys=orderedKeys.get(item.keyframes);if(!keys){keys=[...item.keyframes].sort((a,b)=>a.time-b.time);orderedKeys.set(item.keyframes,keys);}
   if (!keys.length) return { ...item.transform, volume: item.volume };
   if (localTime <= keys[0].time) return { ...keys[0] };
   const last = keys[keys.length - 1];
   if (localTime >= last.time) return { ...last };
-  const rightIndex = keys.findIndex((k) => k.time >= localTime),
-    left = keys[rightIndex - 1],
-    right = keys[rightIndex];
+  let low=0,high=keys.length-1;while(low<high){const mid=Math.floor((low+high)/2);if(keys[mid].time<localTime)low=mid+1;else high=mid;}
+  const rightIndex=low,left=keys[rightIndex-1],right=keys[rightIndex];
   const q = easeProgress((localTime-left.time)/(right.time-left.time), left.easing, left.bezier);
   const result = { ...item.transform, volume: item.volume };
   for (const property of [
@@ -326,6 +328,7 @@ export function easeProgress(progress:number, easing:Keyframe["easing"], bezier?
 export const easeOut = (p: number, power = 5) => 1 - Math.pow(1 - p, power);
 export function displayAt(item: TimelineItem, localTime: number) {
   const value = valueAt(item, localTime);
+  for(const property of ["x","y","scale","rotation","opacity","volume"] as const){const explicit=value.values?.[property] ?? value.values?.[`transform.${property}`];if(explicit!==undefined)value[property]=explicit;}
   for (const [preset, progress] of [
     [item.animation_in, localTime / item.animation_duration],
     [item.animation_out, (item.duration - localTime) / item.animation_duration],
@@ -366,8 +369,7 @@ export function displayAt(item: TimelineItem, localTime: number) {
     // Overshoot past 1 near the end of the ease, then back to rest.
     if (preset === "punch")
       value.scale *= 0.5 + 0.5 * e + 0.35 * Math.sin(Math.PI * e ** 0.7);
-    // No blur filter exists in the render graph, so this fakes a depth-of-field
-    // pull: slightly oversized and transparent, settling sharp and opaque.
+    // Legacy recipes retain their transform curve; compilation adds a real blur key.
     if (preset === "blur-in") {
       value.scale *= 1.15 - 0.15 * e;
       value.opacity *= e;

@@ -1,3 +1,4 @@
+import { compileAnimation } from "./animationEngine";
 import type { CSSProperties } from "react";
 import { defaultTextStyle } from "./editorModel";
 import type { Animation, TextStyle, TimelineItem } from "./editorModel";
@@ -954,7 +955,7 @@ export function applyTextPreset(
   item: TimelineItem,
   preset: TextPreset,
 ): TimelineItem {
-  return {
+  const next: TimelineItem = {
     ...item,
     font_size: preset.size,
     caption_style: preset.id,
@@ -972,5 +973,7 @@ export function applyTextPreset(
     animation_in: preset.animation || "none",
     animation_out: "none",
     animation_duration: 0.35,
+    animation_labels: {},
   };
+  return compileAnimation(next,preset.animation||"none","in",.35);
 }

@@ -54,6 +54,7 @@ class Transform(StrictModel):
     opacity: float = Field(1, ge=0, le=1)
 
 class Keyframe(Transform):
+    preset: Literal['in', 'out', 'loop'] | None = None
     time: float = Field(ge=0, le=600)
     volume: float = Field(1, ge=0, le=2)
     easing: Literal['linear','ease-in','ease-out','ease-in-out','hold','spring','bounce','cubic-bezier'] = 'linear'
@@ -146,6 +147,7 @@ class EditorTrack(StrictModel):
     locked: bool = False
     hidden: bool = False
     muted: bool = False
+    volume: float = Field(1, ge=0, le=2)
 
 class EditorMarker(StrictModel):
     id: str = Field(min_length=1, max_length=120)
@@ -166,7 +168,7 @@ class TimelineItem(StrictModel):
     volume: float = Field(1, ge=0, le=2)
     muted: bool = False
     transform: Transform = Field(default_factory=Transform)
-    keyframes: list[Keyframe] = Field(default_factory=list, max_length=120)
+    keyframes: list[Keyframe] = Field(default_factory=list, max_length=5000)
     animation_in: Animation = 'none'
     animation_out: Animation = 'none'
     animation_duration: float = Field(.5, ge=.01, le=30)
@@ -193,6 +195,7 @@ class TimelineItem(StrictModel):
     crop: Crop = Field(default_factory=Crop)
     adjustments: Adjustments = Field(default_factory=Adjustments)
     animation_loop: Animation = 'none'
+    animation_labels: dict[Literal['in','out','loop'], Animation] = Field(default_factory=dict)
     group_id: str = Field('', max_length=120)
     blend_mode: Literal['normal','multiply','screen','overlay','lighten','darken'] = 'normal'
     mask: Mask = Field(default_factory=Mask)

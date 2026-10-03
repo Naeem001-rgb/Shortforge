@@ -1,0 +1,12 @@
+ShortForge Original Starter Audio Pack — 2026-10-02
+
+These three music beds and six effects are original procedural syntheses created for ShortForge. No samples, external compositions, recordings or third-party editor sounds were used.
+
+The source generator (scripts/generate-studio-audio.py) and generated MP3 files are dedicated to the public domain under CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/
+
+To the extent possible under law, the contributors waive copyright and related rights in these original sounds. You may copy, modify, distribute and use them for commercial work without attribution. No warranty is provided.
+
+Music: After hours; Quiet momentum; Small wonders.
+Effects: Soft pop; Gentle ding; Whoosh; Tap; Low impact; Rising chime.
+
+Implementation dependencies are development tools only: NumPy (BSD-3-Clause) and a separately installed FFmpeg encoder. Their code is not included in the audio files.

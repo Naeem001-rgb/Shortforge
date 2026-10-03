@@ -1,12 +1,13 @@
 import { clamp, defaultAdjustments, displayAt } from "../editorModel";
 import type { EditorProject, TimelineItem } from "../editorModel";
-import { captionSource, styleOf } from "../textPresets";
+import { captionSource, keyWordIndexes, styleOf } from "../textPresets";
 import { transitionBlend } from "../transitions";
 import type { TransitionLayer } from "../transitions";
+import { GpuTransitions } from "./gpuTransitions";
 import { GpuProcessor } from "./gpu";
 export type FrameSources=Map<string,CanvasImageSource>;
-export type RenderResources={layer:HTMLCanvasElement;gpu:GpuProcessor};
-export const createRenderResources=():RenderResources=>({layer:document.createElement("canvas"),gpu:new GpuProcessor()});
+export type RenderResources={layer:HTMLCanvasElement;gpu:GpuProcessor;transitions:GpuTransitions;first:HTMLCanvasElement;second:HTMLCanvasElement};
+export const createRenderResources=():RenderResources=>({layer:document.createElement("canvas"),gpu:new GpuProcessor(),transitions:new GpuTransitions(),first:document.createElement("canvas"),second:document.createElement("canvas")});
 export function sourceTime(item:TimelineItem,time:number):number {
   if(item.freeze_at!=null)return item.freeze_at;
   const local=clamp(time-item.start,0,Math.max(0,item.duration-.00001));
@@ -15,10 +16,10 @@ export function sourceTime(item:TimelineItem,time:number):number {
 export function audibleGain(project:EditorProject,item:TimelineItem,time:number):number {
   const track=project.tracks?.find(t=>t.id===item.track);
   if(item.muted||track?.muted||track?.hidden||time<item.start||time>=item.start+item.duration||item.freeze_at!=null)return 0;
-  let gain=clamp(displayAt(item,time-item.start).volume,0,2);
+  let gain=clamp(displayAt(item,time-item.start).volume,0,2)*(track?.volume??1);
   if(item.ducking && (item.audio_role==="music"||item.kind==="audio")){
     let duck=0;
-    for(const voice of project.items.filter(i=>i.id!==item.id&&i.audio_role==="voiceover"&&!i.muted&&!project.tracks?.find(t=>t.id===i.track)?.muted)){
+    for(const voice of project.items.filter(i=>i.id!==item.id&&i.audio_role==="voiceover"&&!i.muted&&!project.tracks?.find(t=>t.id===i.track)?.muted&&!project.tracks?.find(t=>t.id===i.track)?.hidden)){
       const attack=.15,release=.3;
       if(time>=voice.start-attack&&time<=voice.start+voice.duration+release)duck=Math.max(duck,Math.min(1,(time-voice.start+attack)/attack,(voice.start+voice.duration+release-time)/release));
     }
@@ -45,6 +46,11 @@ export function layoutCaption(ctx:CanvasRenderingContext2D,item:TimelineItem,max
 }
 function drawCaption(ctx:CanvasRenderingContext2D,item:TimelineItem,time:number,w:number,h:number){
   const style=styleOf(item),local=time-item.start;
+  if(item.caption_style==="beast-yellow" && item.caption_words?.length){
+    const spoken=item.caption_words.find(word=>local>=word.start && local<word.end);if(!spoken)return;
+    drawCaption(ctx,{...item,caption_style:"single-word-active",text:spoken.word,caption_words:[spoken]},time,w,h);return;
+  }
+  const emphasized=keyWordIndexes(captionSource(item,style).trim().split(/\s+/),style);
   ctx.font=`${style.italic?"italic ":""}${style.bold?800:500} ${item.font_size}px "${item.font_family||"ShortForge Captions"}",sans-serif`;
   ctx.textAlign="left";ctx.textBaseline="middle";
   const layout=layoutCaption(ctx,item,w*.88),space=ctx.measureText(" ").width;
@@ -61,14 +67,17 @@ function drawCaption(ctx:CanvasRenderingContext2D,item:TimelineItem,time:number,
     let x=style.align==="left"?-w*.44:style.align==="right"?w*.44-layout.lineWidths[lineIndex]:-layout.lineWidths[lineIndex]/2;
     const y=(lineIndex-(layout.lines.length-1)/2)*layout.lineHeight;
     for(const word of line){
-      const shown=word.text.slice(0,Math.max(0,reveal-consumed));consumed+=word.text.length+1;
+      let shown=word.text.slice(0,Math.max(0,reveal-consumed));consumed+=word.text.length+1;
       if(!shown){x+=word.width+space;continue;}
-      const isActive=active===word.index,keyword=style.emphasis_words==="all"||(style.emphasis_words==="first"&&word.index===0)||(style.emphasis_words==="last"&&word.index===item.text.trim().split(/\s+/).length-1)||(style.emphasis_words==="keyword"&&style.emphasis_keywords.some(k=>k.toLowerCase()===word.text.replace(/[^\p{L}\p{N}]/gu,"").toLowerCase()));
+      const isActive=active===word.index,keyword=emphasized.has(word.index);
       const highlight=isActive||keyword;
+      if(highlight&&style.emphasis_case==="upper")shown=shown.toUpperCase();
+      if(highlight&&style.emphasis_case==="lower")shown=shown.toLowerCase();
       ctx.save();ctx.translate(x+word.width/2,y);
       const activeWord=item.caption_words?.[word.index];const progress=activeWord?clamp((local-activeWord.start)/Math.max(.04,activeWord.end-activeWord.start),0,1):0;
       if(highlight&&style.emphasis==="pop")ctx.scale(1+.12*Math.sin(progress*Math.PI),1+.12*Math.sin(progress*Math.PI));
       if(highlight&&style.emphasis==="tilt")ctx.rotate(-.045);
+      if(highlight&&style.emphasis==="flash"&&Math.sin(local*30)>0)ctx.globalAlpha*=.65;
       if(highlight&&style.emphasis==="shake")ctx.translate(Math.sin(local*60)*2,Math.cos(local*40)*2);
       if(highlight&&style.chip==="emphasis") {ctx.fillStyle=style.highlight;rounded(ctx,-word.width/2-10,-item.font_size*.59,word.width+20,item.font_size*1.18,9);ctx.fill();}
       ctx.shadowColor=style.glow>0?style.glow_color:`${style.shadow_color}${Math.round(style.shadow_opacity*255).toString(16).padStart(2,"0")}`;ctx.shadowBlur=style.glow||style.shadow_soft;ctx.shadowOffsetY=style.shadow;
@@ -94,12 +103,21 @@ function clipTransition(ctx:CanvasRenderingContext2D,mine:TransitionLayer|undefi
   }else if(mine?.mask){const angle=parseFloat(mine.mask.split("#000 ")[1])/180*Math.PI;ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,Math.hypot(w,h),-Math.PI/2,angle-Math.PI/2);ctx.closePath();ctx.clip();}
 }
 /** The one compositor called by interactive preview AND deterministic export. */
-export function renderFrame(ctx:CanvasRenderingContext2D,project:EditorProject,time:number,sources:FrameSources,resources:RenderResources):void {
+export function renderFrame(ctx:CanvasRenderingContext2D,project:EditorProject,time:number,sources:FrameSources,resources:RenderResources,transparent=false):void {
   const cw=ctx.canvas.width,ch=ctx.canvas.height,w=project.width,h=project.height;
-  ctx.save();ctx.setTransform(cw/w,0,0,ch/h,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over";ctx.filter="none";ctx.fillStyle=project.background;ctx.fillRect(0,0,w,h);
+  ctx.save();ctx.setTransform(cw/w,0,0,ch/h,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation="source-over";ctx.filter="none";ctx.clearRect(0,0,w,h);if(!transparent){ctx.fillStyle=project.background;ctx.fillRect(0,0,w,h);}
   const visible=project.items.filter(i=>i.kind!=="audio"&&time>=i.start&&time<i.start+i.duration&&!project.tracks?.find(t=>t.id===i.track)?.hidden).sort((a,b)=>a.track-b.track||a.start-b.start);
+  const rendered=new Set<string>();
   for(const item of visible){
+    if(rendered.has(item.id))continue;
     const v=displayAt(item,time-item.start),blend=transitionBlend(project.items.filter(i=>i.track===item.track&&i.kind!=="audio"),time);
+    if(blend && resources.transitions.available){
+      for(const layer of [resources.first,resources.second]){if(layer.width!==cw||layer.height!==ch){layer.width=cw;layer.height=ch;}}
+      renderFrame(resources.first.getContext("2d")!,{...project,items:[{...blend.previous,transition_in:"none"}]},time,sources,resources,true);
+      renderFrame(resources.second.getContext("2d")!,{...project,items:[{...blend.item,transition_in:"none"}]},time,sources,resources,true);
+      const image=resources.transitions.render(resources.first,resources.second,blend.item.transition_in,blend.frame.progress);
+      if(image){ctx.drawImage(image,0,0,w,h);rendered.add(blend.previous.id);rendered.add(blend.item.id);continue;}
+    }
     let mine=blend?.item.id===item.id?blend.frame.incoming:blend?.previous.id===item.id?blend.frame.outgoing:undefined;
     // Cross dissolve overlays incoming opacity over an opaque outgoing image.
     if(blend?.previous.id===item.id&&["crossfade","blur","zoom-blur","pixelize","luma-burn"].includes(blend.item.transition_in))mine={...mine!,opacity:1};
@@ -108,17 +126,19 @@ export function renderFrame(ctx:CanvasRenderingContext2D,project:EditorProject,t
       mine={...(mine!),opacity:blend.item.id===item.id?Math.max(0,2*blend.frame.progress-1):Math.max(0,1-2*blend.frame.progress)};
     }
     ctx.save();ctx.translate(w/2+(v.x+(mine?.x||0))*w/100,h/2+(v.y+(mine?.y||0))*h/100);ctx.rotate(v.rotation*Math.PI/180);ctx.scale(v.scale*(mine?.scale||1)*(item.flip_x?-1:1),v.scale*(mine?.scale||1)*(item.flip_y?-1:1));ctx.globalAlpha=clamp(v.opacity*(mine?.opacity??1),0,1);ctx.globalCompositeOperation=item.blend_mode&&item.blend_mode!=="normal"?item.blend_mode:"source-over";
-    clipTransition(ctx,mine,w,h);
-    if(item.kind==="text")drawCaption(ctx,item,time,w,h);
+    if(blend?.item.id===item.id && blend.item.transition_in==="circle-close"){
+      const radius=(1-blend.frame.progress)*Math.hypot(w,h)/2;ctx.beginPath();ctx.rect(-w/2,-h/2,w,h);ctx.arc(0,0,radius,0,Math.PI*2);ctx.clip("evenodd");
+    }else clipTransition(ctx,mine,w,h);
+    if(item.kind==="text")drawCaption(ctx,{...item,font_size:v.values?.font_size ?? v.values?.["text.font_size"] ?? item.font_size},time,w,h);
     else {
       let source=sources.get(item.id)||sources.get(item.asset_id||"");
       if(source){
         const dimensions=source as HTMLVideoElement&HTMLImageElement&HTMLCanvasElement;
         const sw=dimensions.videoWidth||dimensions.naturalWidth||dimensions.width,sh=dimensions.videoHeight||dimensions.naturalHeight||dimensions.height;
         if(sw&&sh){
-          const crop=item.crop||{top:0,right:0,bottom:0,left:0},sx=sw*crop.left/100,sy=sh*crop.top/100,srcw=sw*(1-(crop.left+crop.right)/100),srch=sh*(1-(crop.top+crop.bottom)/100);
+          const crop={top:0,right:0,bottom:0,left:0,...item.crop};for(const edge of ["top","right","bottom","left"] as const)if(v.values?.[`crop.${edge}`]!==undefined)crop[edge]=clamp(v.values[`crop.${edge}`],0,45);const sx=sw*crop.left/100,sy=sh*crop.top/100,srcw=sw*(1-(crop.left+crop.right)/100),srch=sh*(1-(crop.top+crop.bottom)/100);
           const adjustment={...defaultAdjustments,...item.adjustments};for(const [key,n]of Object.entries(v.values||{}))if(key.startsWith("adjustments."))(adjustment as unknown as Record<string,number>)[key.slice(12)]=n;
-          if(Object.keys(item.adjustments||{}).length||item.chroma_key?.enabled||(mine?.pixelSize||0)>0)source=resources.gpu.process(source,sw,sh,adjustment,item.chroma_key,time,mine?.pixelSize);
+          if(Object.keys(item.adjustments||{}).length||Object.keys(v.values||{}).some(key=>key.startsWith("adjustments."))||item.chroma_key?.enabled||(mine?.pixelSize||0)>0)source=resources.gpu.process(source,sw,sh,adjustment,item.chroma_key,time,mine?.pixelSize);
           const factor=item.fit==="cover"?Math.max(w/srcw,h/srch):Math.min(w/srcw,h/srch),dw=srcw*factor,dh=srch*factor;
           if(item.mask?.shape==="circle"){ctx.beginPath();ctx.ellipse(0,0,w*.45,h*.45,0,0,Math.PI*2);ctx.clip();}
           else if(item.mask?.shape==="rectangle"){rounded(ctx,-w*.45,-h*.4,w*.9,h*.8,32);ctx.clip();}

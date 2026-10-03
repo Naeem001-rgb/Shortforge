@@ -215,7 +215,7 @@ export function AnimationTemplates({
           : "Select a video or text clip to add animation."}
       </p>
       <div className="editor-animation-grid">
-        {animations.map((preset) => (
+        {animations.filter(preset => side !== "animation_loop" || ["none","pulse","wobble","shake","float","spin-left","spin-right","fade","bounce","zoom-in","swing"].includes(preset.value)).map((preset) => (
           <button
             key={preset.value}
             className="editor-animation-card"
