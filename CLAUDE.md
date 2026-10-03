@@ -229,13 +229,13 @@ ShortForge (Spec Sheet for AI Coding Agents)
 
   ### 8.2 Tokens
   - **Font:** Inter (variable). Fallback stack: `-apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif`. Use tabular numbers for stats.
-  - **Type scale (px):** 12 (badges only) · 14 (secondary) · **16 (body, default)** · 20 · 28 · 40. Body line-height 1.5. **Nothing smaller than 12px; no body text
-  under 14px.** Weights 400/500/600.
+- **Type scale (px):** 12 (badges only) · 14 (secondary) · **16 (body, default)** · 20 · 28 · 40. Body line-height 1.5. **Nothing smaller than 12px; no body text
+  under 14px.** Weights 400/500/600. This floor is enforced strictly across every stylesheet (`theme/*.css` and `studio/*.css`) — 9/10/11px is a regression, not a density choice.
   - **Spacing:** 4-pt grid (4, 8, 12, 16, 24, 32, 48). Click targets ≥ 40px.
   - **Radius:** 10 (controls) · 16 (cards) · 24 (sheets/modals).
   - **Dark:** bg `#0B0B0D`, surface `#141416`, elevated `#1C1C1F`, border `rgba(255,255,255,0.08)`, text `#F5F5F7`, muted `#A1A1A6`.
   - **Light:** bg `#F5F5F7`, surface `#FFFFFF`, border `rgba(0,0,0,0.08)`, text `#1D1D1F`, muted `#6E6E73`.
-  - **Accent:** one accent only (default `#0A84FF`), used for primary buttons, focus rings, active states. Semantic colors for success/warn/error, used sparingly.
+  - **Accent:** one accent only — a violet ramp, used for primary buttons, focus rings, active states. Dark `#b7a1ff` (button `#7953df`, soft `#332b49`); light `#b5adff` (button `#5347ce`). Defined once as `--accent` in `dashboard/src/theme/editor.css` and `tokens.css`; never hard-code a hex in a component. Semantic colors for success/warn/error, used sparingly.
   - **Motion:** 150–250 ms ease-out; subtle springs on drawers/toggles; respect `prefers-reduced-motion`.
   - **Glass:** translucent sidebar with `backdrop-filter: blur(20px)`; elsewhere prefer 1px borders over heavy shadows.
   - **Icons:** Lucide (SVG, 1.5px stroke, 20px). **No emoji as icons.**

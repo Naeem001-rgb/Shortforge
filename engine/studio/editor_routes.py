@@ -26,6 +26,25 @@ class TranscriptionRequest(StrictModel):
     model: str | None = Field(None,max_length=500)
 
 
+class OcrCaptionsRequest(StrictModel):
+    asset_id: str = Field(min_length=1,max_length=120)
+    speed: str = Field('balanced',pattern='^(fast|balanced|accurate)$')
+
+
+@router.post('/{clip_id}/ocr-captions')
+def ocr_captions(clip_id: str, payload: OcrCaptionsRequest, background: BackgroundTasks):
+    """Read subtitles burned into the picture and return them as timed cues."""
+    from .ocr_captions import ocr_capability, ocr_captions_job
+    db.get_clip(clip_id)
+    capability=ocr_capability()
+    if not capability['available']:
+        raise HTTPException(503,capability['message'])
+    prevent_duplicate_job(clip_id,'editor_ocr_captions')
+    job=db.new_job('editor_ocr_captions',clip_id)
+    background.add_task(ocr_captions_job,job['id'],clip_id,payload.asset_id,payload.speed)
+    return job
+
+
 @router.post('/{clip_id}/transcribe')
 def transcribe(clip_id: str, payload: TranscriptionRequest, background: BackgroundTasks):
     from .transcription import transcription_job, transcription_capability

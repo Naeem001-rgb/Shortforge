@@ -19,6 +19,7 @@ import {
   Scissors,
   SlidersHorizontal,
   Sparkles,
+  ScanText,
   Sticker,
   Subtitles,
   Type,
@@ -36,7 +37,7 @@ import { EditorPreview } from "./EditorPreview";
 import { EditorTimeline } from "./EditorTimeline";
 import { AnimationTemplates, TextTemplates } from "./EditorTemplates";
 import { CustomTemplates } from "./CustomTemplates";
-import { addKeyframe } from "./timelineOps";
+import { addKeyframe, cueItems, removeItems } from "./timelineOps";
 import { ScriptVoicePanel } from "./ScriptVoicePanel";
 import { CaptionPanel } from "./CaptionPanel";
 import { EditorExportPanel } from "./EditorExportPanel";
@@ -175,6 +176,7 @@ function ProjectEditor({
     [loading, setLoading] = useState(true),
     [uploading, setUploading] = useState(false);
   const [saveState, setSaveState] = useState("Saved"),
+    [saveError, setSaveError] = useState(""),
     [historyVersion, setHistoryVersion] = useState(0);
   const [binTab, setBinTab] = useState<Tool>("media"),
     [exportOpen, setExportOpen] = useState(false),
@@ -184,6 +186,11 @@ function ProjectEditor({
     model_ready: boolean;
     message: string;
   } | null>(null);
+  const [ocrCapability, setOcrCapability] = useState<{
+    available: boolean;
+    message: string;
+  } | null>(null);
+  const [ocrSpeed, setOcrSpeed] = useState<"fast" | "balanced" | "accurate">("balanced");
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const { layout, setLayout, style: layoutStyle } = useEditorLayout();
   const sourceAttempted = useRef(false);
@@ -205,7 +212,9 @@ function ProjectEditor({
   const completed = useRef(new Set<string>());
   const exportJob = useJob(undefined, `editor-export:${selected}`),
     audioJob = useJob(undefined, `editor-audio:${selected}`),
-    downloadJob = useJob(undefined, `editor-download:${selected}`);
+    downloadJob = useJob(undefined, `editor-download:${selected}`),
+    ocrJob = useJob(undefined, `editor-ocr:${selected}`);
+  const ocrApplied = useRef<string | null>(null);
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   const commit = useCallback((next: EditorProject, remember = true) => {
@@ -244,13 +253,15 @@ function ProjectEditor({
           const controller = new AbortController();
           saveController.current = controller;
           try {
+            const previousName = saved.current
+              ? (JSON.parse(saved.current).name as string | undefined)
+              : undefined;
             await api<EditorResponse>(`/editor/${selected}`, {
               method: "PUT",
               body: serialized,
               signal: controller.signal,
               keepalive: serialized.length < 50000,
             });
-            if(current.name?.trim() && current.name !== (saved.current ? JSON.parse(saved.current).name : ""))await api(`/projects/${selected}`,{method:"PATCH",body:JSON.stringify({title:current.name.trim()})});
             saved.current = serialized;
             try {
               const recovery = JSON.parse(
@@ -262,16 +273,35 @@ function ProjectEditor({
             } catch {
               /* Recovery storage is optional. */
             }
-            if (mounted.current)
+            // The library title is a separate record from the timeline, so a
+            // failed rename must never look like the edit itself was lost.
+            if (current.name?.trim() && current.name !== previousName) {
+              try {
+                await api(`/projects/${selected}`, {
+                  method: "PATCH",
+                  body: JSON.stringify({ title: current.name.trim() }),
+                });
+              } catch (e) {
+                if (mounted.current)
+                  setError(
+                    `Your edit is saved, but the project title could not be renamed. ${(e as Error).message}`,
+                  );
+              }
+            }
+            if (mounted.current) {
+              setSaveError("");
               setSaveState(
                 JSON.stringify(projectRef.current) === serialized
                   ? "Saved"
                   : "Unsaved changes",
               );
+            }
           } catch (e) {
             if (!mounted.current) return;
+            const reason = (e as Error).message;
             setSaveState("Save failed");
-            setError(`Could not save this edit. ${(e as Error).message}`);
+            setSaveError(reason);
+            setError(`Could not save this edit. ${reason}`);
             break;
           }
         }
@@ -340,9 +370,12 @@ function ProjectEditor({
       });
     api<{
       separation: { available: boolean; model_ready: boolean; message: string };
+      ocr?: { available: boolean; message: string };
     }>("/editor-capabilities", { signal: controller.signal })
       .then((data) => {
-        if (mounted.current) setCapability(data.separation);
+        if (!mounted.current) return;
+        setCapability(data.separation);
+        setOcrCapability(data.ocr || null);
       })
       .catch(() => {});
     return () => {
@@ -788,6 +821,29 @@ function ProjectEditor({
     sessionStorage.setItem(`editor-applied:${job.id}`, "1");
   }, [audioJob.job, project, selected, commit]);
   useEffect(() => {
+    const job = ocrJob.job;
+    if (job?.status !== "completed" || ocrApplied.current === job.id) return;
+    ocrApplied.current = job.id;
+    const cues = (job.result?.cues || []) as {
+      start: number;
+      end: number;
+      text: string;
+    }[];
+    if (!cues.length) {
+      setError(
+        "No on-screen captions were recognised. Try a clip whose subtitles sit in the lower half, or scan again at a slower speed.",
+      );
+      return;
+    }
+    const current = projectRef.current;
+    if (!current) return;
+    const items = cueItems(cues, freeTrack(current, 0, 1, 2));
+    commit({ ...current, items: [...current.items, ...items] });
+    setMessage(
+      `${cues.length} on-screen caption${cues.length === 1 ? "" : "s"} read from the picture. Select one on the timeline to edit or delete it.`,
+    );
+  }, [ocrJob.job, commit]);
+  useEffect(() => {
     const job = exportJob.job;
     if (job?.status !== "completed" || completed.current.has(job.id)) return;
     completed.current.add(job.id);
@@ -1124,10 +1180,21 @@ function ProjectEditor({
     !!selectedItem &&
     selectedItem.kind !== "text" &&
     !!selectedAsset?.has_audio;
+  // On-screen captions are painted into the picture, so this needs real video.
+  const ocrTarget =
+    selectedItem?.kind === "video" && selectedAsset?.media_type === "video"
+      ? selectedAsset
+      : media.find(
+          (asset) => asset.kind === "source" && asset.media_type === "video",
+        );
   const busy = audioJob.busy || uploading;
   const jobError = audioJob.error || downloadJob.error || exportJob.error;
   const hasSource = media.some((asset) => asset.kind === "source");
   const sourceLoading = !hasSource && downloadJob.busy;
+  // The clip has downloadable source footage that has not arrived yet, so
+  // offering "Import media" would send the user down the wrong path.
+  const canRetrySource =
+    !sourceLoading && !!(clip?.video_id || clip?.url) && !hasSource;
   const visibleMedia = media.filter((asset) =>
     binTab === "audio"
       ? asset.media_type === "audio"
@@ -1140,8 +1207,10 @@ function ProjectEditor({
       <EditorTopbar
         clips={clips}
         selected={selected}
-        name={project.name ?? clip?.title ?? "Untitled project"}
+        name={project.name?.trim() || clip?.title || "Untitled project"}
         saveState={saveState}
+        saveError={saveError}
+        onRetrySave={() => void saveProject()}
         canUndo={canUndo}
         canRedo={canRedo}
         onName={(name) => commit({ ...project, name })}
@@ -1328,93 +1397,6 @@ function ProjectEditor({
                 </IconButton>
               </header>
               <div className="editor-bin-scroll">
-                <div hidden={binTab !== "audio"}>
-                  <ScriptVoicePanel
-                    clipId={selected}
-                    project={project}
-                    media={media}
-                    playhead={time}
-                    playing={playing}
-                    onChange={commit}
-                    onMedia={(asset) =>
-                      setMedia((assets) => [
-                        ...assets.filter((item) => item.id !== asset.id),
-                        asset,
-                      ])
-                    }
-                    onPlayback={setPlaying}
-                    onSeek={seek}
-                    notify={setMessage}
-                  />
-                </div>
-                <div hidden={binTab !== "captions"}>
-                  <CaptionPanel
-                    clipId={selected}
-                    project={project}
-                    media={media}
-                    selectedIds={selection ? [selection] : []}
-                    playhead={time}
-                    onChange={commit}
-                    onSelect={setSelection}
-                    onSeek={seek}
-                    notify={setMessage}
-                  />
-                </div>
-                {binTab === "media" && (
-                  <>
-                    <button
-                      className="button primary full editor-import-button"
-                      disabled={uploading}
-                      onClick={() => importInput.current?.click()}
-                    >
-                      {uploading ? (
-                        <LoaderCircle size={16} className="spin" />
-                      ) : (
-                        <Plus size={17} />
-                      )}
-                      {uploading ? "Importing…" : "Import media"}
-                    </button>
-                    {!visibleMedia.length && (
-                      <div className="editor-source-empty">
-                        <div className="editor-media-drop-symbol">
-                          <FolderOpen size={25} strokeWidth={1.4} />
-                        </div>
-                        <h3>
-                          {sourceLoading
-                            ? "Getting your footage ready"
-                            : "Your media belongs here"}
-                        </h3>
-                        <p>
-                          {sourceLoading
-                            ? "You can keep editing while the source downloads."
-                            : "Drop video, photos or audio into the editor, or choose files from your device."}
-                        </p>
-                        <span className="editor-media-formats">
-                          MP4 · MOV · JPG · PNG · MP3
-                        </span>
-                        {!sourceLoading &&
-                          (clip?.video_id || clip?.url) &&
-                          !hasSource && (
-                            <button
-                              className="button secondary full"
-                              onClick={() =>
-                                void downloadJob.start(
-                                  `/clips/${selected}/download`,
-                                )
-                              }
-                            >
-                              <Download size={15} />
-                              Retry source download
-                            </button>
-                          )}
-                      </div>
-                    )}
-                    <JobProgress job={downloadJob.job} />
-                    <MediaAssetGrid media={visibleMedia} onAdd={addMedia} />
-                    <MediaRecoveryPanel clipId={selected} project={project} media={media} onChange={commit} onMedia={asset=>setMedia(current=>[...current.filter(a=>a.id!==asset.id),asset])} notify={setMessage}/>
-
-                  </>
-                )}
                 {binTab === "audio" && (
                   <>
                     <div className="editor-import-audio">
@@ -1436,11 +1418,11 @@ function ProjectEditor({
                       </button>
                     </div>
                     <section className="editor-audio-actions">
-                      <h3>Clip audio</h3>
+                      <h3>This clip's sound</h3>
                       <p>
                         {audioAvailable
                           ? selectedItem?.name
-                          : "Select a clip with audio to detach or mute its soundtrack."}
+                          : "Select a clip with sound, then extract it or mute it."}
                       </p>
                       <button
                         className="button secondary full"
@@ -1448,7 +1430,7 @@ function ProjectEditor({
                         onClick={() => void runAudio("extract")}
                       >
                         <AudioLines size={15} />
-                        Detach audio
+                        Extract audio
                       </button>
                       <button
                         className="button secondary full"
@@ -1502,23 +1484,89 @@ function ProjectEditor({
 
                   </>
                 )}
-                {binTab === "text" && (
-                  <div className="editor-text-tools">
-                    <button className="button primary full" onClick={addText}>
-                      <Type size={16} />
-                      Add text
-                    </button>
-                    <TextTemplates
-                      onApply={applyTemplate}
-                      hasCaptions={project.items.some(
-                        (item) => item.kind === "text",
-                      )}
-                      selectedText={selectedItem?.kind === "text"}
-                    />
-                  </div>
-                )}
+                <div hidden={binTab !== "audio"}>
+                  <ScriptVoicePanel
+                    clipId={selected}
+                    project={project}
+                    media={media}
+                    playhead={time}
+                    playing={playing}
+                    onChange={commit}
+                    onMedia={(asset) =>
+                      setMedia((assets) => [
+                        ...assets.filter((item) => item.id !== asset.id),
+                        asset,
+                      ])
+                    }
+                    onPlayback={setPlaying}
+                    onSeek={seek}
+                    notify={setMessage}
+                  />
+                </div>
                 {binTab === "captions" && (
                   <div className="editor-text-tools">
+                    <section className="editor-ocr-extract">
+                      <h3>
+                        <ScanText size={15} />
+                        Subtitles inside this video
+                      </h3>
+                      <p>
+                        Reads the words painted into the picture and drops each
+                        one on the timeline so you can edit or delete it.
+                      </p>
+                      <label className="editor-field">
+                        <span>Scan speed</span>
+                        <select
+                          aria-label="Caption scan speed"
+                          value={ocrSpeed}
+                          disabled={ocrJob.busy}
+                          onChange={(event) =>
+                            setOcrSpeed(
+                              event.target.value as
+                                | "fast"
+                                | "balanced"
+                                | "accurate",
+                            )
+                          }
+                        >
+                          <option value="fast">Fast — fewest reads</option>
+                          <option value="balanced">Balanced</option>
+                          <option value="accurate">
+                            Accurate — slowest
+                          </option>
+                        </select>
+                      </label>
+                      <button
+                        className="button secondary full"
+                        disabled={
+                          ocrJob.busy ||
+                          !ocrCapability?.available ||
+                          !ocrTarget
+                        }
+                        onClick={() =>
+                          void ocrJob.start(
+                            `/editor/${selected}/ocr-captions`,
+                            { asset_id: ocrTarget!.id, speed: ocrSpeed },
+                          )
+                        }
+                      >
+                        {ocrJob.busy ? (
+                          <LoaderCircle size={15} className="spin" />
+                        ) : (
+                          <ScanText size={15} />
+                        )}
+                        {ocrJob.busy
+                          ? "Reading the picture…"
+                          : "Extract on-screen captions"}
+                      </button>
+                      {!ocrCapability?.available && (
+                        <p role="alert">{ocrCapability?.message}</p>
+                      )}
+                      {ocrCapability?.available && !ocrTarget && (
+                        <p>Select a video clip to read its on-screen captions.</p>
+                      )}
+                      <JobProgress job={ocrJob.job} />
+                    </section>
                     <button
                       className="button primary full"
                       onClick={() => srtInput.current?.click()}
@@ -1530,6 +1578,88 @@ function ProjectEditor({
                     <button className="button secondary full" onClick={addText}>
                       <Plus size={16} />
                       Add a caption
+                    </button>
+                    <TextTemplates
+                      onApply={applyTemplate}
+                      hasCaptions={project.items.some(
+                        (item) => item.kind === "text",
+                      )}
+                      selectedText={selectedItem?.kind === "text"}
+                    />
+                  </div>
+                )}
+                <div hidden={binTab !== "captions"}>
+                  <CaptionPanel
+                    clipId={selected}
+                    project={project}
+                    media={media}
+                    selectedIds={selection ? [selection] : []}
+                    playhead={time}
+                    onChange={commit}
+                    onSelect={setSelection}
+                    onSeek={seek}
+                    notify={setMessage}
+                  />
+                </div>
+                {binTab === "media" && (
+                  <>
+                    <button
+                      className="button primary full editor-import-button"
+                      disabled={uploading}
+                      onClick={() => importInput.current?.click()}
+                    >
+                      {uploading ? (
+                        <LoaderCircle size={16} className="spin" />
+                      ) : (
+                        <Plus size={17} />
+                      )}
+                      {uploading ? "Importing…" : "Import media"}
+                    </button>
+                    {!visibleMedia.length && (
+                      <div className="editor-source-empty">
+                        <div className="editor-media-drop-symbol">
+                          <FolderOpen size={25} strokeWidth={1.4} />
+                        </div>
+                        <h3>
+                          {sourceLoading
+                            ? "Getting your footage ready"
+                            : "Your media belongs here"}
+                        </h3>
+                        <p>
+                          {sourceLoading
+                            ? "You can keep editing while the source downloads."
+                            : "Drop video, photos or audio into the editor, or choose files from your device."}
+                        </p>
+                        <span className="editor-media-formats">
+                          MP4 · MOV · JPG · PNG · MP3
+                        </span>
+                        {!sourceLoading &&
+                          canRetrySource && (
+                            <button
+                              className="button secondary full"
+                              onClick={() =>
+                                void downloadJob.start(
+                                  `/clips/${selected}/download`,
+                                )
+                              }
+                            >
+                              <Download size={15} />
+                              Retry source download
+                            </button>
+                          )}
+                      </div>
+                    )}
+                    <JobProgress job={downloadJob.job} />
+                    <MediaAssetGrid media={visibleMedia} onAdd={addMedia} />
+                    <MediaRecoveryPanel clipId={selected} project={project} media={media} onChange={commit} onMedia={asset=>setMedia(current=>[...current.filter(a=>a.id!==asset.id),asset])} notify={setMessage}/>
+
+                  </>
+                )}
+                {binTab === "text" && (
+                  <div className="editor-text-tools">
+                    <button className="button primary full" onClick={addText}>
+                      <Type size={16} />
+                      Add text
                     </button>
                     <TextTemplates
                       onApply={applyTemplate}
@@ -1640,15 +1770,29 @@ function ProjectEditor({
                 <h2>
                   {sourceLoading
                     ? "Your footage is on its way"
-                    : "A blank canvas. Your story."}
+                    : canRetrySource
+                      ? "Your footage didn't arrive"
+                      : "A blank canvas. Your story."}
                 </h2>
                 <p>
                   {sourceLoading
                     ? "The source is downloading. It will appear here when ready."
-                    : "Drop your media here to start editing."}
+                    : canRetrySource
+                      ? "The source download did not finish. Try again, or import a file from your device."
+                      : "Drop your media here to start editing."}
                 </p>
                 {sourceLoading ? (
                   <LoaderCircle size={21} className="spin" />
+                ) : canRetrySource ? (
+                  <button
+                    className="button secondary"
+                    onClick={() =>
+                      void downloadJob.start(`/clips/${selected}/download`)
+                    }
+                  >
+                    <Download size={16} />
+                    Retry source download
+                  </button>
                 ) : (
                   <button
                     className="button secondary"
@@ -1682,6 +1826,15 @@ function ProjectEditor({
                 onChange={updateItem}
                 onProject={(patch) => commit({ ...project, ...patch })}
                 onTime={seek}
+                onExtractAudio={() => void runAudio("extract")}
+                onDelete={
+                  selection
+                    ? () =>
+                        commit(
+                          removeItems(project, [selection], false),
+                        )
+                    : undefined
+                }
               />
             </>
           )}

@@ -71,7 +71,7 @@
 
 .sidebar .nav-label {
   margin: 0 10px 7px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 450;
   letter-spacing: 0;
   color: var(--muted);
@@ -115,7 +115,7 @@
   border-radius: 4px;
   background: var(--surface-raised, var(--surface));
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -142,14 +142,14 @@
 }
 
 .sidebar .profile-row > span:nth-child(2) {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 550;
   line-height: 1.5;
 }
 
 .sidebar .profile-row small {
   margin-top: 1px;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 400;
 }
 
@@ -160,7 +160,7 @@
   border-radius: 6px;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -205,7 +205,7 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-raised, var(--surface));
-  font-size: 11px;
+  font-size: 12px;
   transition:
     background 160ms ease-out,
     color 160ms ease-out;
@@ -226,14 +226,14 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  font-size: 10px;
+  font-size: 12px;
   padding: 0;
 }
 
 .topbar .engine-state {
   display: inline-flex;
   gap: 6px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .topbar .engine-state > span {
@@ -278,7 +278,7 @@
   width: 27px;
   height: 27px;
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 12px;
   border: 1px solid var(--border);
   background: var(--surface-raised, var(--surface));
   color: var(--muted);
@@ -297,7 +297,7 @@
   margin: 0 24px;
   padding: 15px 0 18px;
   border-top: 0;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -344,7 +344,7 @@
   }
 
   .sidebar .nav-label {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .sidebar-create {
@@ -357,7 +357,7 @@
   }
 
   .sidebar .profile-row small {
-    font-size: 10px;
+    font-size: 12px;
   }
 
   .app-shell .sidebar.open {

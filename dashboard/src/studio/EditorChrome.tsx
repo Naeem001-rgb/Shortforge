@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import {
+  AlertCircle,
   ArrowLeft,
   Check,
   ChevronDown,
   Download,
   Copy,
+  RotateCcw,
   Trash2,
   Film,
   FileJson,
@@ -30,6 +32,8 @@ export function EditorTopbar({
   selected,
   name,
   saveState,
+  saveError,
+  onRetrySave,
   canUndo,
   canRedo,
   onName,
@@ -54,6 +58,8 @@ export function EditorTopbar({
   selected: string;
   name: string;
   saveState: string;
+  saveError?: string;
+  onRetrySave?: () => void;
   canUndo: boolean;
   canRedo: boolean;
   onName: (name: string) => void;
@@ -120,17 +126,32 @@ export function EditorTopbar({
             if (!event.target.value.trim()) onName("Untitled project");
           }}
         />
-        <span
-          className={`editor-save-state ${saveState === "Save failed" ? "error" : ""}`}
-          role="status"
-        >
-          {saveState === "Saving…" ? (
-            <LoaderCircle size={11} className="spin" />
-          ) : (
-            <Check size={11} />
-          )}{" "}
-          {saveState}
-        </span>
+        {saveState === "Save failed" ? (
+          <button
+            type="button"
+            className="editor-save-state error"
+            aria-live="polite"
+            onClick={onRetrySave}
+            title={
+              saveError
+                ? `${saveError} — click to try saving again`
+                : "Click to try saving again"
+            }
+          >
+            <AlertCircle size={11} />
+            Save failed
+            <RotateCcw size={11} className="editor-save-retry" />
+          </button>
+        ) : (
+          <span className="editor-save-state" role="status">
+            {saveState === "Saving…" ? (
+              <LoaderCircle size={11} className="spin" />
+            ) : (
+              <Check size={11} />
+            )}{" "}
+            {saveState}
+          </span>
+        )}
       </div>
       <details className="editor-project-menu" ref={menu}>
         <summary aria-label="Project menu">

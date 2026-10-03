@@ -431,7 +431,7 @@ test("full-tab editor saves edits, imports, editable animation and a playable MP
   }
 });
 
-test("detaching source audio creates a separate track and mutes only its video", async ({
+test("extracting source audio creates a separate track and mutes only its video", async ({
   page,
   request,
 }) => {
@@ -441,7 +441,7 @@ test("detaching source audio creates a separate track and mutes only its video",
     await page.getByTestId("timeline-item").click();
     await page.getByRole("button", { name: "Audio", exact: true }).click();
     await page
-      .getByRole("button", { name: "Detach audio", exact: true })
+      .getByRole("button", { name: "Extract audio", exact: true })
       .click();
     await expect(page.locator(".timeline-clip.audio")).toHaveCount(1, {
       timeout: 30000,
@@ -486,6 +486,45 @@ test("detaching source audio creates a separate track and mutes only its video",
     expect((await request.get(`/api/assets/${audio.asset_id}`)).ok()).toBe(
       true,
     );
+  } finally {
+    await removeProject(request, clip.id);
+  }
+});
+
+test("a failed save explains itself and can be retried without losing the edit", async ({
+  page,
+  request,
+}) => {
+  const clip = await uploadProject(request, "Save failure browser test");
+  let broken = true;
+  await page.route(`**/api/editor/${clip.id}`, async (route) => {
+    if (route.request().method() !== "PUT" || !broken) return route.continue();
+    await route.fulfill({
+      status: 500,
+      json: { detail: "Engine unavailable" },
+    });
+  });
+  try {
+    await openProject(page, clip.id);
+    await page.getByTestId("timeline-item").click();
+    await page.getByLabel("Scale", { exact: true }).fill("120");
+
+    // The badge must carry the reason and offer a way out, not just go red.
+    const badge = page.getByRole("button", { name: /Save failed/ });
+    await expect(badge).toBeVisible({ timeout: 15000 });
+    await expect(badge).toHaveAttribute("title", /Engine unavailable/);
+
+    broken = false;
+    await badge.click();
+    await expect(badge).toBeHidden({ timeout: 15000 });
+    await expect
+      .poll(
+        async () =>
+          (await editorState(request, clip.id)).project.items[0].transform
+            .scale,
+        { timeout: 15000 },
+      )
+      .toBe(1.2);
   } finally {
     await removeProject(request, clip.id);
   }

@@ -108,3 +108,56 @@ Clicking the dashboard icon opened `http://localhost:5173` as a bare link, so wh
 The button now probes the engine health endpoint and the dashboard before opening anything. If both answer it opens the app; if either is down it opens nothing and shows one plain instruction to run `start.sh` (or `start.bat` on Windows) and leave that window open. Host permissions for port 5173 were added, and the extension is version 0.1.3.
 
 Verified with the real built extension loaded in Chrome: with both processes up the click opened the dashboard showing "Engine connected" and the library. With the dashboard deliberately stopped, the same click opened no tab and displayed the instruction. A new test loads the built popup and asserts both outcomes; it fails against the previous behaviour, which opened the dead tab. The 20 extension unit tests and the existing content-script browser fixture still pass.
+
+## October 3, 2026 — Reading subtitles that are painted into the video, and unsticking the audio tools
+
+Studio could extract a clip's audio, but the control sat roughly 560 pixels down a
+scrolling panel, behind the voice recorder, the script box and the whole narration
+generator. Nobody looking for it would find it. The same was true of "Generate
+captions" and "Cover existing captions". A real browser probe confirmed it: the
+button existed, was enabled, and Playwright reported it "visible" while its box sat
+at y=1183 in a 950-pixel viewport. A feature nobody can find is a missing feature.
+
+Three changes fix that. The Audio panel now opens with **Import voiceover** and
+**Import music**, followed by **This clip's sound** (Extract audio, Mute original
+audio); the narration generator moved below them. The Captions panel now opens with
+its own-file actions first. Selecting a clip and opening the inspector's **Audio**
+tab now offers **Extract audio to its own track** as the first control, and the
+inspector header carries a delete button, so selecting a track and removing it is one
+click. "Detach audio" was renamed **Extract audio** to match how people describe the
+job.
+
+### Reading burned-in subtitles
+
+Those captions are pixels. Nothing in the project knows what they say, so the only
+honest way to get them onto the timeline is to read them off the picture. New
+`engine/studio/ocr_captions.py` samples the lower band of the clip with a single
+ffmpeg process — cropping and resizing in the filter chain rather than decoding whole
+frames — and runs local CPU OCR over each sample. Repeated readings become timed
+cues, and `POST /api/editor/{id}/ocr-captions` returns them as a background job with
+progress. Each cue becomes an ordinary text clip, so it can be edited, restyled or
+deleted like any caption the user made themselves. Runs entirely on the machine; no
+frame is uploaded anywhere.
+
+OCR runs through RapidOCR with the PP-OCRv6 models (Apache-2.0, ~214 MB installed,
+CPU only, no system packages). It is pinned in `engine/requirements-ocr.txt` and
+added explicitly through `engine/studio/setup_ocr.py`; `GET /api/editor-capabilities`
+reports honestly when it is absent and the Captions panel says so instead of failing
+at the click. The English recognition model matters: the older Chinese-tuned model
+returned `YOURORANGEISNOT` with the spaces removed.
+
+Two defects surfaced while testing the grouping and were fixed rather than papered
+over. The representative text for a run was chosen by string length, so casing flickered
+between cues; it now picks the reading the run agrees on most. And capping a cue at
+six seconds silently discarded the rest of a long caption, dropping caption time; runs
+are now chunked so consecutive cues meet exactly where the previous one ended.
+
+Verified on a rendered clip carrying four burned-in lines: all four were recovered
+with correct timings at 0.95–0.99 confidence, dropped onto the timeline as four text
+clips, and one was then selected and deleted from the inspector. At 0.75 s per frame
+a 58-second Short takes about 90 seconds, so the scan is a background job with a
+progress bar and three speeds rather than a blocking action.
+
+Validation: **178 backend tests** (12 new, covering grouping, band clamping, route
+refusals and capability reporting) and **26 browser tests** pass, along with the
+dashboard type-check and production build.

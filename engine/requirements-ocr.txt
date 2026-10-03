@@ -1,0 +1,7 @@
+# On-screen caption reading. CPU only, no system packages, no network at runtime.
+# rapidocr pulls the PP-OCRv6 detection and recognition models on first use and
+# caches them under the engine's data directory.
+rapidocr>=3,<4
+onnxruntime>=1.20,<2
+opencv-python>=4.10,<6
+numpy>=2,<3

@@ -42,7 +42,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--muted);
 }
@@ -63,7 +63,7 @@
 }
 .library-overview dd > span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 400;
   letter-spacing: 0;
   line-height: 1.4;
@@ -91,10 +91,16 @@
   gap: 6px;
 }
 .library-page .tab-list > button > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--elevated);
-  font-size: 10px;
-  height: 16px;
-  min-width: 17px;
+  font-size: 12px;
+  line-height: 1;
+  height: 20px;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
   color: var(--muted);
 }
 .library-page .tab-list > button.active {
@@ -147,11 +153,11 @@
   gap: 7px;
 }
 .library-page .search-input input {
-  font-size: 11px;
+  font-size: 12px;
   min-height: 33px;
 }
 .library-page .select-all {
-  font-size: 11px;
+  font-size: 12px;
   gap: 6px;
   padding: 0;
 }
@@ -168,7 +174,7 @@
 .library-page .filter-selects > select {
   min-width: 132px;
   min-height: 35px;
-  font-size: 11px;
+  font-size: 12px;
   border-radius: 6px;
   padding-left: 9px;
   padding-right: 28px;
@@ -210,7 +216,7 @@
 }
 .library-start-actions > .button {
   min-height: 35px;
-  font-size: 11px;
+  font-size: 12px;
   padding: 8px 12px;
   border-radius: 7px;
 }
@@ -219,7 +225,7 @@
   align-items: center;
   gap: 5px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   margin-top: 20px;
   line-height: 1.5;
 }
@@ -229,7 +235,7 @@
   gap: 14px;
   align-items: center;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -339,7 +345,7 @@
   background: #ffffff;
 }
 .library-page .source-pill {
-  font-size: 8px;
+  font-size: 12px;
   letter-spacing: 0.01em;
   line-height: 1.4;
   padding: 3px 5px;
@@ -357,7 +363,7 @@
 }
 .library-page .clip-meta .badge {
   align-self: flex-start;
-  font-size: 9px;
+  font-size: 12px;
   min-height: 17px;
   line-height: 1.2;
   padding: 3px 5px;
@@ -383,7 +389,7 @@
   overflow-wrap: anywhere;
 }
 .library-page .clip-meta > p {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.5;
 }
 .library-page .clip-card-footer {
@@ -400,7 +406,7 @@
   margin: 0;
   gap: 7px;
   flex-wrap: nowrap;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1;
   min-width: 0;
 }
@@ -424,7 +430,7 @@
   color: var(--text);
   background: var(--elevated);
   box-shadow: 0 1px 2px #15132908;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 540;
 }
 .library-page .clip-open:hover {
@@ -435,7 +441,7 @@
   border-radius: 7px;
 }
 .library-page th {
-  font-size: 10px;
+  font-size: 12px;
   padding: 12px 14px;
 }
 .library-page td {
@@ -493,7 +499,7 @@
     gap: 8px;
   }
   .library-overview dd > span {
-    font-size: 9px;
+    font-size: 12px;
   }
 }
 @media (max-width: 650px) {
@@ -510,12 +516,12 @@
   }
   .library-heading p {
     max-width: 27ch;
-    font-size: 11px;
+    font-size: 12px;
   }
   .library-heading > .button {
     flex-shrink: 0;
     min-height: 34px;
-    font-size: 11px;
+    font-size: 12px;
     padding-inline: 10px;
   }
   .library-heading > .button > svg {
@@ -529,7 +535,7 @@
     padding: 12px;
   }
   .library-overview dt {
-    font-size: 10px;
+    font-size: 12px;
     gap: 4px;
   }
   .library-overview dt > svg {
@@ -552,12 +558,12 @@
     gap: 16px;
   }
   .library-page .tab-list > button {
-    font-size: 11px;
+    font-size: 12px;
     gap: 4px;
     min-height: 52px;
   }
   .library-page .tab-list > button > span {
-    font-size: 9px;
+    font-size: 12px;
     height: 15px;
     min-width: 15px;
   }
@@ -584,7 +590,7 @@
     width: calc(50% - 4px);
     min-width: 0;
     flex: 1;
-    font-size: 10px;
+    font-size: 12px;
     min-height: 34px;
   }
   .library-page .bulk-bar {
@@ -596,7 +602,7 @@
     flex-basis: calc(100% - 40px);
   }
   .library-page .bulk-bar > .button {
-    font-size: 10px;
+    font-size: 12px;
     padding: 7px 8px;
     min-height: 34px;
   }
@@ -639,18 +645,18 @@
     min-height: auto;
   }
   .library-page .clip-meta > p {
-    font-size: 11px;
+    font-size: 12px;
   }
   .library-page .clip-meta .badge {
-    font-size: 10px;
+    font-size: 12px;
   }
   .library-page .clip-stats {
-    font-size: 11px;
+    font-size: 12px;
     gap: 12px;
   }
   .library-page .clip-open {
     min-height: 34px;
-    font-size: 11px;
+    font-size: 12px;
     padding-inline: 13px;
   }
   .library-start {
@@ -660,7 +666,7 @@
     font-size: 20px;
   }
   .library-start > p {
-    font-size: 11px;
+    font-size: 12px;
   }
   .library-start-actions {
     flex-wrap: wrap;
@@ -668,7 +674,7 @@
   }
   .library-workspace-footer {
     gap: 8px;
-    font-size: 9px;
+    font-size: 12px;
   }
   .library-no-results {
     padding: 25px 17px;

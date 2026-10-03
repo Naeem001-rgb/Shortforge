@@ -5,6 +5,7 @@ import { tracksOf } from "./timelineOps";
 import { captionFonts } from "./fonts";
 import "./fonts.css";
 import {
+  AudioLines,
   Diamond,
   Film,
   SlidersHorizontal,
@@ -124,6 +125,8 @@ export function EditorInspector({
   onChange,
   onProject,
   onTime,
+  onExtractAudio,
+  onDelete,
 }: {
   project: EditorProject;
   item?: TimelineItem;
@@ -132,6 +135,8 @@ export function EditorInspector({
   onChange: (item: TimelineItem) => void;
   onProject: (patch: Partial<EditorProject>) => void;
   onTime: (n: number) => void;
+  onExtractAudio?: () => void;
+  onDelete?: () => void;
 }) {
   const [tab, setTab] = useState("basic");
   const copiedKey = useRef<Keyframe|null>(null);
@@ -249,6 +254,11 @@ export function EditorInspector({
         <span className="editor-selected-name" title={item.name}>
           {item.name}
         </span>
+        {onDelete && (
+          <IconButton label="Delete selected clip" onClick={onDelete}>
+            <Trash2 size={15} />
+          </IconButton>
+        )}
       </div>
       <div className="inspector-tabs" role="tablist" aria-label="Clip properties">
         {[["basic",item.kind==="text"?"Text":"Basic"],...(item.kind!=="text"?[["audio","Audio"]]:[]),["animation","Animation"],...(item.kind==="video"?[["adjust","Adjust"]]:[])].map(([id,label])=><button key={id} role="tab" aria-selected={tab===id} onClick={()=>setTab(id)}>{label}</button>)}
@@ -863,6 +873,20 @@ export function EditorInspector({
         )}
         {item.kind !== "text" && (
           <section className="editor-inspector-section" hidden={tab!=="audio"}>
+            {item.kind==="video"&&asset?.has_audio&&(
+              <button
+                className="button secondary full"
+                onClick={onExtractAudio}
+              >
+                <AudioLines size={15} />
+                Extract audio to its own track
+              </button>
+            )}
+            {item.kind==="audio"&&(
+              <p className="editor-inspector-hint">
+                This is the extracted or imported audio. Delete the clip to remove it completely.
+              </p>
+            )}
             <h3>
               Audio
               <IconButton

@@ -1,9 +1,9 @@
 .inspector-tabs { display:flex; padding:0 12px; border-bottom:1px solid var(--border); gap:12px; min-height:43px; align-items:stretch; }
 .inspector-tabs button { background:none; border:0; border-bottom:2px solid transparent; color:var(--muted); padding:0 2px; font-size:12px; }
 .inspector-tabs button[aria-selected=true] {color:var(--text);border-color:var(--accent);}
-.inspector-reset {border:0;background:none;color:var(--muted);font-size:11px;display:flex;gap:4px;align-items:center;}
+.inspector-reset {border:0;background:none;color:var(--muted);font-size:12px;display:flex;gap:4px;align-items:center;}
 .adjustment-control {display:grid;grid-template-columns:1fr auto 24px;gap:6px;align-items:center;margin:15px 0;}
-.adjustment-control label {font-size:12px;}.adjustment-control output{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;}
+.adjustment-control label {font-size:12px;}.adjustment-control output{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;}
 .adjustment-control button {color:var(--muted);border:0;background:none;display:grid;place-items:center;}
 .adjustment-control input {grid-column:1/-1;width:100%;accent-color:var(--accent);height:12px;}
 .clip-tool-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:15px;}

@@ -89,6 +89,19 @@ export function captionItems(words: {word:string;start:number;end:number}[], off
   }
   return result;
 }
+export function cueItems(cues: {start:number;end:number;text:string}[], track=2):TimelineItem[]{
+  // Burned-in captions arrive as whole timed lines, so each becomes one text
+  // clip. Casing is left alone because it is what was actually on screen.
+  return cues
+    .filter(c=>c.text?.trim() && c.end>c.start && c.start<600)
+    .map(c=>({ ...newItem("text",undefined,c.start,track),
+      text:c.text.trim(), name:c.text.trim().slice(0,60),
+      duration:Math.min(c.end-c.start,600-c.start),
+      caption_style:"bold-pop", font_size:82,
+      transform:{x:0,y:25,scale:1,rotation:0,opacity:1},
+      text_style:{bold:true,italic:false,uppercase:false,align:"center",stroke:7,stroke_color:"#000000",shadow:3,letter_spacing:0,reveal:"none",highlight:"#f9e54c"},
+    }));
+}
 export function projectSrt(project:EditorProject):string {
   const stamp=(seconds:number)=>{ const ms=Math.round(seconds*1000);return `${String(Math.floor(ms/3600000)).padStart(2,"0")}:${String(Math.floor(ms/60000)%60).padStart(2,"0")}:${String(Math.floor(ms/1000)%60).padStart(2,"0")},${String(ms%1000).padStart(3,"0")}`;};
   return project.items.filter(i=>i.kind==="text").sort((a,b)=>a.start-b.start).map((i,n)=>`${n+1}\n${stamp(i.start)} --> ${stamp(i.start+i.duration)}\n${i.text}\n`).join("\n");

@@ -188,7 +188,7 @@
 }
 .editor-brand-name > span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 450;
   letter-spacing: 0;
   margin-left: 6px;
@@ -224,11 +224,37 @@
   align-items: center;
   gap: 4px;
   color: #a3acb7;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.2;
+}
+button.editor-save-state {
+  padding: 3px 6px;
+  min-height: 24px;
+  font: inherit;
+  font-size: 12px;
+  color: #a3acb7;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.editor-save-state:hover,
+button.editor-save-state:focus-visible {
+  border-color: var(--border);
+  background: #ffffff0f;
 }
 .editor-save-state.error {
   color: var(--danger);
+}
+button.editor-save-state.error {
+  border-color: #6b3a41;
+}
+button.editor-save-state.error:hover,
+button.editor-save-state.error:focus-visible {
+  background: #462f3544;
+}
+.editor-save-retry {
+  opacity: 0.75;
 }
 .editor-topbar-history,
 .editor-layout-buttons {
@@ -300,7 +326,7 @@
 .editor-project-menu button > span {
   margin-left: auto;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .editor-project-menu select {
   min-width: 0;
@@ -361,7 +387,7 @@
   min-height: 54px;
   padding: 7px 0;
   color: #adb4c0;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 500;
 }
 .editor-tool-rail button:hover {
@@ -404,7 +430,7 @@
 }
 .editor-panel-heading > span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   white-space: nowrap;
 }
 .editor-selected-name {
@@ -588,7 +614,7 @@
   gap: 3px;
 }
 .editor-timecode {
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: var(--accent);
@@ -601,7 +627,7 @@
   min-width: 0;
   min-height: 28px;
   height: 28px;
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -625,7 +651,7 @@
 }
 .editor-preview-error {
   color: var(--danger);
-  font-size: 11px;
+  font-size: 12px;
   padding: 7px 12px;
   background: #241e24;
 }
@@ -645,15 +671,15 @@
   grid-column: 1/-1;
   margin: 18px 0 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .editor-bin-list-heading h3 {
   font-weight: 500;
-  font-size: 11px;
+  font-size: 12px;
   margin: 0;
 }
 .editor-bin-list-heading > span {
-  font-size: 10px;
+  font-size: 12px;
   background: #2c2f38;
   padding: 1px 5px;
   border-radius: 4px;
@@ -694,7 +720,7 @@
   background: #101115d9;
   border-radius: 3px;
   color: white;
-  font-size: 9px;
+  font-size: 12px;
 }
 .editor-asset-type {
   left: 5px;
@@ -726,13 +752,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
 }
 .editor-asset-add {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   margin-top: 2px;
 }
 .editor-asset-preview.audio {
@@ -784,7 +810,7 @@
   max-width: 27ch;
 }
 .editor-media-formats {
-  font-size: 9px;
+  font-size: 12px;
   color: #969eac;
   letter-spacing: 0.025em;
 }
@@ -857,11 +883,11 @@
 }
 .editor-inspector-section h3 > span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .editor-inspector-section p {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
   margin: 10px 0 0;
 }
@@ -871,7 +897,7 @@
   gap: 6px;
   min-width: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   margin: 0 0 12px;
 }
 .editor-field:last-child {
@@ -900,7 +926,28 @@
   line-height: 1.55;
 }
 .timeline-studio .editor-field input[type="color"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-height: 34px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.timeline-studio .editor-field input[type="color"]::-webkit-color-swatch-wrapper {
   padding: 3px;
+}
+.timeline-studio .editor-field input[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: 5px;
+}
+.editor-inspector-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--muted);
 }
 .timeline-studio .editor-field input[type="range"] {
   accent-color: #a98ce9;
@@ -937,14 +984,14 @@
 }
 .editor-number > span {
   padding-right: 8px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
 }
 .editor-checkbox {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: #c0c6d1;
   min-height: 30px;
 }
@@ -985,7 +1032,7 @@
   background: transparent;
   border: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   padding: 3px 0;
 }
 .editor-keyframe-row.active > button:first-child {
@@ -999,7 +1046,7 @@
   border-radius: 5px;
   color: var(--text);
   padding: 5px 2px;
-  font-size: 10px;
+  font-size: 12px;
 }
 .editor-text-format {
   display: flex;
@@ -1023,7 +1070,7 @@
   min-height: 32px;
   padding: 3px;
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 12px;
   flex: 1;
   background: #252831;
   border: 1px solid var(--border);
@@ -1049,7 +1096,7 @@
   font-weight: 400;
 }
 .editor-template-section > p {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.6;
   margin: 12px 0;
@@ -1072,7 +1119,7 @@
   padding: 5px 0;
   background: transparent;
   color: var(--text);
-  font-size: 11px;
+  font-size: 12px;
 }
 .editor-template-filters {
   display: flex;
@@ -1087,7 +1134,7 @@
   border: 0;
   background: #262932;
   color: #b7bdc9;
-  font-size: 10px;
+  font-size: 12px;
 }
 .editor-template-filters button[aria-pressed="true"] {
   background: #3c304f;
@@ -1159,7 +1206,7 @@
   justify-content: space-between;
   gap: 4px;
   padding: 7px 1px 0;
-  font-size: 10px;
+  font-size: 12px;
   min-height: 25px;
 }
 .editor-template-caption svg {
@@ -1173,7 +1220,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 12px;
   padding: 7px 1px 0;
 }
 .editor-animation-art > span {
@@ -1436,16 +1483,16 @@
 .editor-project-template-art small {
   position: absolute;
   bottom: 8px;
-  font-size: 9px;
+  font-size: 12px;
   color: #fff;
 }
 .editor-project-template > strong {
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 7px;
   font-weight: 550;
 }
 .editor-project-template > span:last-child {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.45;
   margin-top: 4px;
@@ -1491,7 +1538,7 @@
   margin: 0 7px;
 }
 .timeline-selection-hint {
-  font-size: 10px;
+  font-size: 12px;
   color: #969fae;
 }
 .timeline-magnetic {
@@ -1499,7 +1546,7 @@
   padding: 6px 9px;
   min-height: 30px;
   border-radius: 5px;
-  font-size: 10px !important;
+  font-size: 12px !important;
   background: transparent;
   color: var(--muted) !important;
 }
@@ -1540,7 +1587,7 @@
   background: #1d2027;
   color: #b2bac7;
   padding: 6px 12px;
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 550;
   letter-spacing: 0.05em;
   border-right: 1px solid #373b45;
@@ -1568,7 +1615,7 @@
   height: 22px;
   pointer-events: none;
   color: #a7b0bf;
-  font-size: 9px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .timeline-marker {
@@ -1601,7 +1648,7 @@
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 10px;
+  font-size: 12px;
   color: #d1d7e0;
   min-width: 0;
 }
@@ -1711,7 +1758,7 @@
   border-radius: 3px;
   background: #10141ac7;
   color: #f5f6fa;
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.2;
   pointer-events: none;
 }
@@ -1732,7 +1779,7 @@
   position: absolute;
   left: 10px;
   bottom: 5px;
-  font-size: 10px;
+  font-size: 12px;
   opacity: 0.8;
   white-space: nowrap;
 }
@@ -1810,7 +1857,7 @@
   position: absolute;
   left: 18px;
   top: 23px;
-  font-size: 10px;
+  font-size: 12px;
   color: #8591a3;
   pointer-events: none;
 }
@@ -1832,7 +1879,7 @@
   border: 0;
   border-right: 1px solid #343844;
   color: #a6b0c0;
-  font-size: 10px;
+  font-size: 12px;
 }
 .timeline-add-row > button:hover {
   color: var(--accent);
@@ -1861,7 +1908,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 9px;
+  font-size: 12px;
   color: #9aa5b6;
   border-top: 1px solid #2d323c;
   background: #1b1e25;
@@ -1883,7 +1930,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .timeline-marker-editor input {
   background: #211f29;
@@ -1896,7 +1943,7 @@
   background: #433454;
   border-radius: 5px;
   padding: 6px 10px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .editor-status-toast {
   position: absolute;
@@ -1951,7 +1998,7 @@
 }
 .editor-export-panel header p {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .editor-export-panel > .button + .button {
@@ -1966,7 +2013,7 @@
   align-items: center;
   gap: 10px;
   padding: 7px 0;
-  font-size: 11px;
+  font-size: 12px;
 }
 .editor-shortcuts-panel dd {
   margin: 0;
@@ -1976,14 +2023,14 @@
   font-family: inherit;
 }
 .timeline-studio .job-progress {
-  font-size: 11px;
+  font-size: 12px;
   background: #252932;
   padding: 10px;
   border-radius: 7px;
   margin: 12px 0;
 }
 .timeline-studio .job-progress strong {
-  font-size: 11px;
+  font-size: 12px;
 }
 .timeline-studio .job-progress progress {
   accent-color: #b391ed;
@@ -2026,7 +2073,7 @@
   gap: 10px;
   margin-top: 38px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .editor-open-recent select {
   background: #23262f;
@@ -2193,7 +2240,7 @@
   }
   .editor-timecode,
   .timeline-studio .editor-timecode input[type="number"] {
-    font-size: 10px;
+    font-size: 12px;
   }
   .editor-transport .icon-button {
     width: 29px;
@@ -2204,7 +2251,7 @@
     max-width: 18ch;
   }
   .editor-stage-empty p {
-    font-size: 11px;
+    font-size: 12px;
     margin-bottom: 13px;
   }
   .editor-empty-frame {
@@ -2248,7 +2295,7 @@
 }
 .preview-heading-actions > span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   margin-right: 6px;
   white-space: nowrap;
 }
@@ -2262,7 +2309,7 @@
   inset: 0;
   pointer-events: none;
   color: #fff;
-  font-size: 7px;
+  font-size: 12px;
   z-index: 8;
 }
 .preview-safe-top {
@@ -2362,7 +2409,7 @@
   border-radius: 4px;
   color: #b8bec9;
   padding: 3px 6px;
-  font-size: 9px;
+  font-size: 12px;
 }
 .preview-format-label > span {
   margin: 0 3px;
@@ -2370,7 +2417,7 @@
 }
 @media (max-width: 620px) {
   .preview-heading-actions > span {
-    font-size: 8px;
+    font-size: 12px;
   }
   .preview-heading-actions .icon-button {
     width: 26px;
@@ -2418,7 +2465,7 @@
 .editor-export-warning {
   color: #f5c9a7;
   background: #473628;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
   padding: 10px;
   border-radius: 6px;
@@ -2426,7 +2473,7 @@
 }
 .editor-export-advanced {
   margin: 4px 0 18px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .editor-export-advanced summary {
@@ -2443,7 +2490,7 @@
 }
 .editor-export-progress {
   margin-top: 15px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .editor-export-progress > div {
@@ -2478,7 +2525,7 @@
   align-items: center;
   gap: 6px;
   color: #abdccc;
-  font-size: 10px;
+  font-size: 12px;
 }
 .editor-export-complete .editor-text-action {
   display: flex;
@@ -2502,7 +2549,7 @@
   border: 0;
   background: transparent;
   color: #bcc3d0;
-  font-size: 10px;
+  font-size: 12px;
 }
 .editor-export-extras button:hover:not(:disabled) {
   color: white;
@@ -2514,7 +2561,7 @@
 }
 .editor-export-history summary {
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
   color: #c7cbd6;
 }
 .editor-export-history summary > span {
@@ -2526,13 +2573,13 @@
   align-items: center;
   gap: 7px;
   min-height: 33px;
-  font-size: 11px;
+  font-size: 12px;
   color: #c3b5e4;
 }
 .editor-export-history > a > span:last-child {
   margin-left: auto;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 .preview-handle,
 .preview-rotate {
@@ -2544,7 +2591,7 @@
   }
   .editor-tool-rail button {
     width: 58px;
-    font-size: 10px;
+    font-size: 12px;
   }
 }
 .timeline-studio [hidden] {
@@ -2565,15 +2612,15 @@
 }
 .editor-custom-template-actions > .button {
   flex: 1;
-  font-size: 10px;
+  font-size: 12px;
   padding-inline: 8px;
 }
 .editor-custom-templates > .editor-panel-note {
-  font-size: 10px;
+  font-size: 12px;
   margin: 12px 0 0;
 }
 .editor-custom-templates h3 {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 550;
   margin: 18px 0 8px;
   display: flex;
@@ -2604,7 +2651,7 @@
 }
 .editor-saved-template-apply > strong {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2612,7 +2659,27 @@
 }
 .editor-saved-template-apply > span {
   display: block;
-  font-size: 9px;
+  font-size: 12px;
   color: var(--muted);
   margin-top: 3px;
+}
+.editor-ocr-extract {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.editor-ocr-extract h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.editor-ocr-extract p {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.editor-ocr-extract .editor-field {
+  margin-bottom: 10px;
 }
