@@ -5,6 +5,56 @@ ShortForge (Spec Sheet for AI Coding Agents)
 
   ---
 
+  ## 0. Current state (read this first — the spec below has drifted)
+
+  This file is the original brief. **Parts of it no longer match the code.** Where they disagree, the
+  code is the truth and this section wins. Check here before assuming any feature exists or is enforced.
+
+  **What Studio is today.** Not the script-rewriting helper the brief imagined. It is a full
+  CapCut-style editor: tool rail (left) · 9:16 preview (centre) · clip inspector (right) · multitrack
+  timeline. It is bundled **inside the MV3 extension** with local assets and a strict CSP, and it opens
+  as a full browser tab. It has its own renderer and its own **browser-side WebCodecs export**; the
+  FFmpeg path survives only as an explicit "compatibility" export. `yt-dlp` is still used to fetch a
+  source clip.
+
+  **Export reality.** `engine/studio/editor_routes.py` and `dashboard/src/studio/engine/` are the
+  renderer. Text-only and audio-only timelines export fine — the background is a generated colour, so
+  no video source is assumed. MP4 (H.264/AAC) with a WebM fallback, 1080×1920.
+
+  **The License Gate is NOT enforced.** §3.1 describes locking downloads and the editor for
+  `unknown` clips. That was deliberately removed on 2 October (`248bcbb`). `dashboard/src/api.ts`
+  has `editable = (_clip) => true`, and `engine/core/db.py`'s `require_editable()` is now only an
+  existence check. `POST /api/clips/{id}/download` never consults rights. `docs/editor/DECISIONS.md`
+  says a later brief superseded the lock. **Rights are recorded metadata only — treat §3.1 as history,
+  not as a rule to implement.** Do not "restore" the gate as a side effect of another task.
+
+  **Burned-in subtitles cannot be deleted.** They are pixels in the frame. The only implemented options
+  are `cover`, `blur` and `mosaic` (`Conceal` in `engine/studio/editor_models.py`), which *hide* the
+  pixels. The brief's third option — *crop-zoom out of the band* — was specified and never built. Real
+  removal needs cropping (not implemented) or inpainting (not implemented). Never describe cover or
+  blur as deletion.
+
+  **Reading on-screen captions (new, shipped).** `engine/studio/ocr_captions.py` samples the lower
+  band of a clip with one ffmpeg process and reads it with local CPU OCR (RapidOCR + PP-OCRv6,
+  Apache-2.0, ~214 MB, pinned in `engine/requirements-ocr.txt`, installed via
+  `engine/studio/setup_ocr.py`). Repeated readings become timed cues; each cue becomes an ordinary
+  text clip. Background job, three speeds, ~0.75 s/frame. `GET /api/editor-capabilities` reports
+  `ocr`. **Use the English recognition model** — the older Chinese-tuned one drops spaces
+  (`YOURORANGEISNOT`). Frames never leave the machine.
+
+  **Panel-order rule learned the hard way.** A control that is present but ~560 px down a scrolling
+  panel is a *missing* control. The Audio and Captions panels now open with their own-file actions
+  first, and all three per-clip "remove the original" actions sit together at the top of the inspector's
+  Basic tab. Playwright's `isVisible()` returns true for elements scrolled out of view — assert on
+  `boundingBox()` against the viewport instead.
+
+  **Tests.** `178` backend tests (`engine/core/tests engine/studio engine/ai`, ~5 min) and `26` browser
+  tests (`cd dashboard && npx playwright test`, ~3 min). Both must be green before pushing. `npm run
+  lint` is `tsc --noEmit`; `npm run build` is `tsc -b && vite build`. All three are required — `vite dev`
+  skips type checking, so a green browser run does **not** prove the build works.
+
+  ---
+
   ## 1. Project in one paragraph
 
   **ShortForge** is a personal toolkit for one user (a student) who runs a YouTube Shorts channel. It has three parts that work together:
@@ -12,8 +62,8 @@ ShortForge (Spec Sheet for AI Coding Agents)
   1. **Scout** — a Chrome extension that scrolls YouTube Shorts in the user's own browser and collects Shorts that (a) are already performing well and (b) credit
   another creator in their description.
   2. **Dashboard** — a sleek, Apple-style web app (light + dark mode) where collected Shorts are listed and managed.
-  3. **Studio** — inside the dashboard: download (when allowed), transcribe, rewrite the script, generate a voiceover, apply one-click captions, produce SEO titles and
-  a description, and export a finished vertical video ready to upload.
+  3. **Studio** — a full CapCut-style video editor bundled inside the extension: multitrack timeline, trims, splits, keyframes, animations, transitions,
+  caption styles, your own voiceover and subtitles, and a finished vertical MP4 ready to upload.
 
   **Everything must run on a normal student laptop with no GPU, using free tools wherever possible.**
 
@@ -39,6 +89,11 @@ ShortForge (Spec Sheet for AI Coding Agents)
   ## 3. Non-negotiable rules
 
   ### 3.1 License Gate (the most important rule)
+
+  > **Superseded 2 October — see §0.** The locking described below is **not implemented**. Rights are
+  > recorded metadata only. Keep recording them honestly, but do not gate downloads, editing or
+  > export on them, and do not re-introduce the lock without being asked.
+
   Naming the original creator in a description ("credit") is **not** permission to reuse their video. YouTube's reused-content and copyright rules can demonetize or
   terminate a channel regardless of credit. So every collected Short gets a **license status**, and the app enforces it:
 
@@ -168,17 +223,24 @@ ShortForge (Spec Sheet for AI Coding Agents)
   Three-pane layout: tools (left) · phone-shaped 9:16 preview (center) · properties (right).
 
   - **Trim** start/end. **Crop/zoom** to 9:16.
-  - **Caption removal** (honest, best-effort): detect where burned-in captions sit by sampling ~8 frames with a lightweight CPU OCR and taking the union box; the user
-  can drag to adjust. Then apply one of: *blur band*, *solid cover*, or *crop-zoom out of the band*. Label it clearly as "approximate — new captions are placed on top."
-  Do not promise perfect AI inpainting.
+  - **Caption removal** (honest, best-effort). Captions burned into a video are pixels, so they cannot be
+  deleted — only hidden. Ship exactly `cover`, `blur` and `mosaic` over a user-adjustable band, and label
+  them as hiding the area. Do not implement or imply *crop-zoom out of the band* or AI inpainting; both
+  are unbuilt and out of scope until the user asks.
+  - **Reading on-screen captions:** `engine/studio/ocr_captions.py` + `POST /api/editor/{id}/ocr-captions`.
+  Samples the lower band with one ffmpeg process, runs local CPU OCR, and turns repeated readings into
+  timed cues that land on the timeline as ordinary editable text clips. Opt-in dependency; the UI must
+  degrade honestly when it is missing.
   - **Captions, one click:** generate word-timed captions from the transcript (or from the new voiceover) and apply a preset instantly. Ship **10 presets** with generic
   names: *Bold Pop*, *Karaoke Highlight*, *Clean Minimal*, *Neon Glow*, *Typewriter*, *Boxed Label*, *Outline Comic*, *Gradient Pop*, *Lower Third*, *Classic Subtitle*.
   Each preset is a JSON file (font, size, weight, fill, stroke, shadow, highlight color, box, position, animation) so more can be added easily. Bundle only fonts with
   open licenses (e.g., Montserrat, Poppins, Anton, Bebas Neue, Inter).
   - User can tweak: font size, position, colors, words-per-line, and highlight color.
-  - **Audio:** keep original, replace with voiceover (F8), or mix; volume sliders.
-  - **Export:** ffmpeg renders captions (ASS subtitles) into a 1080×1920 MP4 (H.264/AAC) at `data/exports/`. Progress bar + "Download MP4" button. Must work on CPU in
-  reasonable time for a 60-second Short.
+  - **Audio:** keep original, replace with voiceover (F8), or mix; volume sliders. **Extract audio** pulls a
+  clip's sound onto its own track so it can be muted or deleted outright.
+  - **Export:** the default path renders in the browser with WebCodecs and uploads the result; ffmpeg
+  remains only as an explicit "compatibility" export. 1080×1920, H.264/AAC with a WebM fallback.
+  Progress bar + "Download MP4" button. Must work on CPU in reasonable time for a 60-second Short.
 
   ### F6 — Script rewrite
   - Input: transcript. Output: rewritten script that keeps the **same tone of voice, same facts and context, same language**, with word count within **±5%** of the
@@ -205,18 +267,29 @@ ShortForge (Spec Sheet for AI Coding Agents)
 
   ### F9 (Phase 2, stretch) — Original Short mode
   Topic → original script → voiceover → free stock footage (Pexels/Pixabay APIs with the user's free keys) → captions → export. This is the safest long-term path for
-  the channel.
+  the channel. **Not started.** No stock-footage integration exists in the repo. The backend can already
+  write a fresh original script (`POST /api/rewrite` with `mode: "original"`, which uses topic metadata
+  only and never fetches the creator's footage) but **nothing in the UI calls it** — no panel or button
+  reaches that endpoint. A blank project (`?studio=new` or "New project") already creates a clip with
+  `license_status = "owned"` and zero assets, so building from scratch is possible today.
 
   ---
 
   ## 7. Data model (SQLite) and API (summary — full detail in `shared/contract/`)
 
   **Tables:** `clips` (id, video_id, url, channel_name, channel_handle, title, description, likes, views, published_at, credit_target, credit_snippet, license_status,
-  permission_note, thumbnail_url, workflow_status, created_at) · `jobs` (id, type, clip_id, status, progress, error) · `scripts` (clip_id, original_text,
-  rewritten_text, words_original, words_rewritten) · `assets` (id, clip_id, kind, path) · `settings` (key, value).
+  permission_note, thumbnail_url, workflow_status, created_at) · `jobs` (id, type, clip_id, status, progress, error, result) · `editor_projects` (clip_id, project,
+  saved_at) · `scripts` (clip_id, original_text, rewritten_text, words_original, words_rewritten) · `assets` (id, clip_id, kind, path) · `settings` (key, value).
 
-  **Routes:** `GET /api/health` · `POST /api/clips` (bulk from extension) · `GET /api/clips` · `PATCH /api/clips/{id}` · `POST /api/clips/{id}/download` · `POST /api/
-  clips/{id}/transcribe` · `GET /api/jobs/{id}/events` (SSE) · `POST /api/rewrite` · `POST /api/seo` · `POST /api/tts` · `POST /api/export` · `GET|PUT /api/settings`.
+  **Editor routes:** `GET /api/editor/{clip_id}` · `PUT /api/editor/{clip_id}` · `POST /api/editor/{id}/media` · `POST /api/editor/{id}/transcribe` ·
+  `POST /api/editor/{id}/ocr-captions` · `POST /api/editor/{id}/separate-audio` · `POST /api/editor/{id}/extract-audio` · `POST /api/editor/{id}/export` ·
+  `GET /api/editor-capabilities`.
+
+  **Core routes:** `GET /api/health` · `POST /api/clips` (bulk from extension) · `GET /api/clips` · `PATCH /api/clips/{id}` · `POST /api/clips/{id}/download` · `GET /api/jobs/{id}` ·
+  `POST /api/projects` · `GET|PUT /api/settings` · `POST /api/rewrite` · `POST /api/seo` · `POST /api/tts`.
+
+  > `POST /api/export` still exists but is **legacy**: it requires a downloaded source asset and the
+  > dashboard no longer calls it. Use `POST /api/editor/{id}/export` or the browser exporter.
 
   ---
 
@@ -297,5 +370,13 @@ ShortForge (Spec Sheet for AI Coding Agents)
 
   ## 12. Out of scope
 
-  Auto-uploading to YouTube · bulk-downloading `unknown`-license clips · evasion of bot or copyright detection · removing watermarks or logos from clips that fail the
-  License Gate · liking/commenting/subscribing automation · mobile apps · cloud hosting.
+  Auto-uploading to YouTube · evasion of bot or copyright detection · liking/commenting/subscribing automation · mobile apps · cloud hosting ·
+  AI inpainting of burned-in captions.
+
+  ## 13. Open decisions the user has not settled
+
+  - **Crop-zoom out of the caption band.** The only honest way to *remove* burned-in subtitle pixels
+  rather than hide them. Offered on 3 October; the user has not answered yet. Do not build it unprompted.
+  - **Stock footage (F9)** — still unbuilt, and the user has not asked for it again.
+  - **Type floor vs. density.** §8.2's 12px floor is now enforced across every stylesheet, which cost
+  some timeline density. Accepted by the user on 3 October; do not silently reintroduce 9–11px.
