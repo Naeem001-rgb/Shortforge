@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import type { Clip } from "../src/api";
 
-const root = path.resolve(import.meta.dirname, "../..");
-const review = path.join(root, ".impeccable/review/card-spacing");
+const review = path.join(os.tmpdir(), "shortforge-resume-qa-library-layout");
 
 // Intercepted layout fixtures never write to the user's library. An optional
 // local snapshot supplies real thumbnails for the design review only.

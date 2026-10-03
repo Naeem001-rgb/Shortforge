@@ -117,12 +117,9 @@ export async function uploadProject(
 }
 
 export async function openProject(page: Page, id: string) {
-  await page.goto("/");
-  await page
-    .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("button", { name: "Studio", exact: true })
-    .click();
-  await page.getByLabel("Studio project").selectOption(id);
+  await page.goto(`/?studio=${id}`);
+  await expect(page.locator("main.studio-tab")).toBeVisible();
+  await expect(page.getByTestId("timeline-item")).toHaveCount(1);
 }
 
 export async function editorState(request: APIRequestContext, id: string) {

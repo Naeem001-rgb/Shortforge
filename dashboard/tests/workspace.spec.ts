@@ -1,10 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
+import os from "node:os";
 import { removeProject } from "./editor-fixtures";
-const root = path.resolve(import.meta.dirname, "../..");
+const root = path.join(os.tmpdir(), "shortforge-resume-qa-workspace");
 test("library, theme, navigation, settings and responsive layout", async ({
   page,
+  context,
+  request,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -91,11 +94,31 @@ test("library, theme, navigation, settings and responsive layout", async ({
     page.getByRole("navigation", { name: "Main navigation" }),
   ).toBeHidden();
   await page.getByRole("button", { name: "Open navigation" }).click();
+  const created = context.waitForEvent("page");
   await page
     .getByRole("navigation", { name: "Main navigation" })
     .getByRole("button", { name: "Studio", exact: true })
     .click();
-  await expect(page.getByLabel("Studio project")).toBeVisible();
+  const editor = await created;
+  await expect(editor).toHaveURL(/\?studio=[a-f0-9-]{36}$/);
+  const id = new URL(editor.url()).searchParams.get("studio")!;
+  try {
+    await expect(
+      editor.getByRole("textbox", { name: "Project name" }),
+    ).toBeVisible();
+    await expect(editor.locator("main.studio-tab")).toBeVisible();
+    expect(
+      await editor.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await expect(
+      page.getByRole("heading", { name: "Your library." }),
+    ).toBeVisible();
+  } finally {
+    await editor.close();
+    await removeProject(request, id);
+  }
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -152,7 +175,7 @@ test("select all and permanently delete the chosen videos", async ({
     // Select all only touches the rows on screen, so it drops just that one.
     await selectAll.click();
     await expect(page.getByText("2 selected")).toBeVisible();
-    await page.getByLabel("Search videos").fill("");
+    await page.getByLabel("Search videos").fill("Selectable");
     await expect(own).toHaveCount(3);
     await expect(page.getByLabel("Select Selectable one")).not.toBeChecked();
     await expect(page.getByLabel("Select Selectable two")).toBeChecked();

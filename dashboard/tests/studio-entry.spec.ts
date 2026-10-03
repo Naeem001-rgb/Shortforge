@@ -42,7 +42,10 @@ test("grid, table, and details Edit open a full Studio tab with honest source me
         .getByRole("button", { name: `Edit ${clip.title} in a new tab` })
         .click(),
     );
-    await page.getByRole("button", { name: "Details", exact: true }).click();
+    await page
+      .getByRole("row", { name: new RegExp(clip.title) })
+      .getByRole("button", { name: "Details", exact: true })
+      .click();
     await checkTab(() =>
       page.getByRole("button", { name: "Edit in Studio", exact: true }).click(),
     );
