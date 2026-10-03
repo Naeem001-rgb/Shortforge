@@ -157,6 +157,8 @@ export type TimelineItem = {
   adjustments?: Partial<Adjustments>;
   animation_loop?: Animation;
   animation_labels?: Partial<Record<"in" | "out" | "loop", Animation>>;
+  /** Original authored motion, retained so a compiled recipe can be replaced. */
+  animation_base_keyframes?: Keyframe[];
   group_id?: string;
   blend_mode?: "normal" | "multiply" | "screen" | "overlay" | "lighten" | "darken";
   mask?: { shape: "none" | "circle" | "rectangle"; feather: number };
@@ -438,6 +440,12 @@ export function trimItem(
     source_in: item.kind === "text" ? 0 : item.reverse ? item.source_in + (item.duration-end)*item.speed : item.source_in + front * item.speed,
     duration,
     keyframes,
+    ...(item.animation_base_keyframes ? {
+      animation_base_keyframes: trimItem({
+        ...item, keyframes: item.animation_base_keyframes,
+        animation_base_keyframes: undefined,
+      }, front, end).keyframes,
+    } : {}),
     ...(item.caption_words ? {caption_words:item.caption_words.filter(w => w.end>front && w.start<end).map(w=>({...w,start:Math.max(0,w.start-front),end:Math.min(duration,w.end-front)}))} : {}),
   };
 }

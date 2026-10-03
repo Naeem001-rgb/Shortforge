@@ -196,6 +196,7 @@ class TimelineItem(StrictModel):
     adjustments: Adjustments = Field(default_factory=Adjustments)
     animation_loop: Animation = 'none'
     animation_labels: dict[Literal['in','out','loop'], Animation] = Field(default_factory=dict)
+    animation_base_keyframes: list[Keyframe] | None = Field(None, max_length=5000)
     group_id: str = Field('', max_length=120)
     blend_mode: Literal['normal','multiply','screen','overlay','lighten','darken'] = 'normal'
     mask: Mask = Field(default_factory=Mask)
@@ -216,6 +217,10 @@ class TimelineItem(StrictModel):
         self.keyframes = sorted({frame.time: frame for frame in self.keyframes}.values(), key=lambda f: f.time)
         if any(frame.time > self.duration + .001 for frame in self.keyframes):
             raise ValueError('Keyframes must fall within their item duration.')
+        if self.animation_base_keyframes is not None:
+            self.animation_base_keyframes = sorted({frame.time: frame for frame in self.animation_base_keyframes}.values(), key=lambda f: f.time)
+            if any(frame.time > self.duration + .001 for frame in self.animation_base_keyframes):
+                raise ValueError('Original animation keys must fall within their item duration.')
         if any(word.end > self.duration + .001 for word in self.caption_words):
             raise ValueError('Caption word times must fall within their item duration.')
         if any(a.start > b.start for a, b in zip(self.caption_words, self.caption_words[1:])):
