@@ -21,6 +21,10 @@ import {
 } from "./editor-fixtures";
 
 test.beforeAll(fixtures);
+test.beforeEach(async ({ page }) => {
+  // Exports and reload assertions must use one consistent development build.
+  await page.routeWebSocket(/127\.0\.0\.1:5174/, () => {});
+});
 test.afterAll(async ({ request }) => removeAllProjects(request));
 const timeline = (page: Page) =>
   page.getByRole("region", { name: "Timeline", exact: true });
@@ -37,15 +41,17 @@ const deleteSelection = (page: Page) =>
     exact: true,
   });
 
-// Compatibility MP4 remains explicit. Shared-renderer export and runtime codec
-// fallback are independently exercised by studio-rebuild.spec.ts.
-async function exportMp4(page: Page, request: APIRequestContext) {
+// Styled captions need the shared renderer. The basic transform/audio case
+// separately retains a real compatibility MP4 regression.
+async function exportVideo(
+  page: Page,
+  request: APIRequestContext,
+  method: "browser" | "compatibility" = "compatibility",
+) {
   await page.getByRole("button", { name: "Export", exact: true }).click();
   await page.getByLabel("Export resolution").selectOption("720");
   await page.getByText("Export method", { exact: true }).click();
-  await page
-    .getByLabel("Export method", { exact: true })
-    .selectOption("compatibility");
+  await page.getByLabel("Export method", { exact: true }).selectOption(method);
   await page.getByRole("button", { name: "Export video", exact: true }).click();
   const exports = page.locator(".editor-export-history");
   await expect(exports).toBeVisible({ timeout: 120000 });
@@ -53,7 +59,9 @@ async function exportMp4(page: Page, request: APIRequestContext) {
   const url = await exports.getByRole("link").first().getAttribute("href");
   const response = await request.get(url!);
   expect(response.ok()).toBe(true);
-  expect(response.headers()["content-type"]).toContain("video/mp4");
+  expect(response.headers()["content-type"]).toMatch(
+    method === "compatibility" ? /^video\/mp4/ : /^video\/(mp4|webm)/,
+  );
   const bytes = await response.body();
   expect(bytes.length).toBeGreaterThan(10000);
   return inspectExport(bytes);
@@ -133,7 +141,7 @@ test("subtitle styles and compiled motion persist and export in full-tab Studio"
       path: path.join(fixtureDir, "caption-presets-desktop.png"),
       animations: "disabled",
     });
-    const metadata = await exportMp4(page, request);
+    const metadata = await exportVideo(page, request, "browser");
     expect(metadata).toMatchObject({
       width: 720,
       height: 1280,
@@ -309,8 +317,10 @@ test("full-tab editor saves edits, imports, editable animation and a playable MP
     forbiddenRequests: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("request", (req) => {
+    // Voice catalog discovery is allowed; ordinary edits must not generate
+    // speech or transform the user's script without an explicit action.
     if (
-      /\/api\/(tts|rewrite|voices|clips\/[^/]+\/extract-script)(?:\?|$|\/)/.test(
+      /\/api\/(tts|rewrite|clips\/[^/]+\/extract-script)(?:\?|$|\/)/.test(
         req.url(),
       )
     )
@@ -392,7 +402,7 @@ test("full-tab editor saves edits, imports, editable animation and a playable MP
       2, 2,
     ]);
     expect(videos[1].source_in).toBe(2);
-    const metadata = await exportMp4(page, request);
+    const metadata = await exportVideo(page, request);
     expect(metadata).toMatchObject({
       width: 720,
       height: 1280,
