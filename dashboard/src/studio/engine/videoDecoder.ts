@@ -52,13 +52,17 @@ function demux(buffer: ArrayBuffer) {
   if (!avcC) {
     throw new Error("The MP4 is missing its H.264 decoder configuration.");
   }
+  const { start, hdr_size: headerSize } = avcC;
+  if (typeof start !== "number" || typeof headerSize !== "number") {
+    throw new Error("This MP4 does not record where its H.264 configuration starts.");
+  }
   const config: VideoDecoderConfig = {
     codec: track.codec,
     codedWidth: track.video.width,
     codedHeight: track.video.height,
     displayAspectWidth: track.track_width || track.video.width,
     displayAspectHeight: track.track_height || track.video.height,
-    description: buffer.slice(avcC.start + avcC.hdr_size, avcC.start + avcC.size),
+    description: buffer.slice(start + headerSize, start + avcC.size),
     optimizeForLatency: true,
   };
   const rawSamples = file.getTrackSamplesInfo(track.id);

@@ -463,9 +463,19 @@ test("detaching source audio creates a separate track and mutes only its video",
     const response = await request.get(`/api/assets/${audio.asset_id}`);
     expect(response.ok()).toBe(true);
     expect((await response.body()).length).toBeGreaterThan(10000);
-    await expect(
-      page.locator(".timeline-clip.audio .timeline-waveform line").first(),
-    ).toBeVisible();
+    // The peaks are vertical strokes, so a stroke-only line has no bounding
+    // box of its own. Assert the drawn geometry from the real peak values.
+    const waveform = page.locator(".timeline-clip.audio .timeline-waveform");
+    await expect(waveform).toBeVisible();
+    const peaks = await waveform.locator("line").evaluateAll((lines) =>
+      lines.map((line) =>
+        Math.abs(
+          Number(line.getAttribute("y2")) - Number(line.getAttribute("y1")),
+        ),
+      ),
+    );
+    expect(peaks.length).toBeGreaterThan(32);
+    expect(Math.max(...peaks)).toBeGreaterThan(1);
     await page.locator(".timeline-clip.audio").click();
     await deleteSelection(page).click();
     await expect
