@@ -6,6 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 import subprocess
 import tempfile
+from threading import Event
 from types import SimpleNamespace
 import sys
 
@@ -413,6 +414,7 @@ def test_bulk_delete_keeps_going_when_one_clip_is_already_gone(client):
 
 def test_download_is_idempotent_for_inflight_and_cached_sources(client, monkeypatch):
     clip = import_one(client)
+    source_bytes = playable_video()
     monkeypatch.setattr(media, "tool_available", lambda name: True)
     monkeypatch.setattr(media, "find_ffmpeg", lambda: "/fake/ffmpeg")
     started = []
@@ -424,7 +426,7 @@ def test_download_is_idempotent_for_inflight_and_cached_sources(client, monkeypa
     assert len({job["id"] for job in requests}) == 1
     assert len(started) == 1
     path = db.DATA_DIR / "source.mp4"
-    path.write_bytes(playable_video())
+    path.write_bytes(source_bytes)
     asset = db.add_asset(clip["id"], "source", path)
     db.update_job(started[0], status="completed", progress=100, result={"asset": asset})
     monkeypatch.setattr(media, "tool_available", lambda name: False)
@@ -505,6 +507,7 @@ def test_downloader_failure_retry_and_reload_keep_source_metadata(client, monkey
     """Exercise the real job, normalization and seeding with a controlled transport."""
     clip = import_one(client)
     attempts = []
+    download_started, finish_download = Event(), Event()
 
     class Downloader:
         def __init__(self, options):
@@ -523,6 +526,8 @@ def test_downloader_failure_retry_and_reload_keep_source_metadata(client, monkey
             if len(attempts) == 1:
                 self.path.with_suffix(".part").write_bytes(b"interrupted")
                 raise RuntimeError("Network interrupted. Please retry.")
+            download_started.set()
+            assert finish_download.wait(10), "The test must release the controlled download"
             self.path.write_bytes(playable_video())
             for hook in self.options["progress_hooks"]:
                 hook({"status": "finished"})
@@ -537,14 +542,30 @@ def test_downloader_failure_retry_and_reload_keep_source_metadata(client, monkey
     first = client.post(endpoint).json()
     assert client.get(f"/api/jobs/{first['id']}").json()["status"] == "failed"
     assert not attempts[0].parent.exists(), "Failed transport must clean partial media"
-    second = client.post(endpoint).json()
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pending = pool.submit(client.post, endpoint)
+        try:
+            assert download_started.wait(10)
+            editing = f"/api/editor/{clip['id']}"
+            draft = {"source_seeded": False, "items": [{"id": "draft-title", "kind": "text", "track": 1,
+                      "duration": 2, "text": "A title typed during the download"}], "script": "Keep this script"}
+            saved = client.put(editing, json=draft)
+            assert saved.status_code == 200, saved.text
+            assert saved.json()["project"]["source_seeded"] is False
+            assert client.get(editing).json()["project"]["source_seeded"] is False
+        finally:
+            finish_download.set()
+        second = pending.result().json()
     completed = client.get(f"/api/jobs/{second['id']}").json()
     assert second["id"] != first["id"]
     assert completed["status"] == "completed", completed
     state = client.get(f"/api/editor/{clip['id']}").json()
-    assert len(state["project"]["items"]) == len(state["media"]) == 1
+    assert len(state["media"]) == 1
+    assert len(state["project"]["items"]) == 2
     project = state["project"]
-    project["items"][0]["name"] = "Saved source edit"
+    assert project["items"][0]["text"] == draft["items"][0]["text"]
+    assert project["script"] == draft["script"]
+    project["items"][1]["name"] = "Saved source edit"
     assert client.put(f"/api/editor/{clip['id']}", json=project).status_code == 200
     assert client.post(endpoint).json()["id"] == second["id"]
     assert len(attempts) == 2

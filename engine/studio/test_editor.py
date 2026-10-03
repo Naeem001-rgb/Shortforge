@@ -1,5 +1,6 @@
 """Exercise real decoders/rendered pixels and audio, plus project boundaries."""
 import array
+from concurrent.futures import ThreadPoolExecutor
 import io
 import json
 import math
@@ -94,10 +95,97 @@ class EditorTests(unittest.TestCase):
         self.assertTrue(seeded['project']['source_seeded'])
         self.assertEqual(db.get_clip(self.unknown)['license_status'],'unknown')
         # An old client omitting the marker can still deliberately clear all.
-        self.client.put(f'/api/editor/{self.unknown}',json=Project().model_dump())
+        cleared=Project().model_dump(exclude={'source_seeded'})
+        self.client.put(f'/api/editor/{self.unknown}',json=cleared)
         self.assertEqual(self.client.get(f'/api/editor/{self.unknown}').json()['project']['items'],[])
         self.assertEqual(self.client.get(f'/api/editor/{self.unknown}').json()['saved_at'],
                          self.client.get(f'/api/editor/{self.unknown}').json()['saved_at'])
+
+    def test_title_edits_wait_for_source_then_seed_once_across_tabs(self):
+        endpoint=f'/api/editor/{self.unknown}'
+        title=TimelineItem(id='draft-title',kind='text',duration=2,text='Typed while downloading',track=1)
+        draft=Project(items=[title],script='Preserve my script',name='Working title')
+        response=self.client.put(endpoint,json=draft.model_dump())
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertFalse(response.json()['project']['source_seeded'])
+        self.assertEqual(self.client.get(endpoint).json()['project'],draft.model_dump())
+        asset=self.add_media(self.unknown,self.red,'source')
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            states=list(pool.map(lambda _:self.client.get(endpoint).json(),range(8)))
+        for state in states:
+            project=state['project']
+            self.assertTrue(project['source_seeded'])
+            self.assertEqual(project['items'][0],title.model_dump())
+            self.assertEqual(len(project['items']),2)
+            self.assertEqual(project['items'][1]['asset_id'],asset['id'])
+            self.assertEqual((project['name'],project['script']),('Working title','Preserve my script'))
+        self.assertEqual(len({state['saved_at'] for state in states}),1)
+
+    def test_source_seed_survives_stale_autosave_but_respects_deletion(self):
+        endpoint=f'/api/editor/{self.unknown}'
+        draft=Project(items=[TimelineItem(id='title',kind='text',duration=2,text='Draft',track=1)])
+        self.client.put(endpoint,json=draft.model_dump())
+        asset=self.add_media(self.unknown,self.red,'source')
+        seeded=self.client.get(endpoint).json()['project']
+        draft.items[0].text='Newer text from the tab still waiting for its source'
+        saved=self.client.put(endpoint,json=draft.model_dump())
+        self.assertEqual(saved.status_code,200,saved.text)
+        current=saved.json()['project']
+        self.assertEqual(current['items'][0]['text'],draft.items[0].text)
+        self.assertEqual(current['items'][1],seeded['items'][1])
+        self.assertTrue(current['source_seeded'])
+        current['items']=[current['items'][0]]
+        deleted=self.client.put(endpoint,json=current)
+        self.assertEqual(deleted.status_code,200,deleted.text)
+        self.assertEqual(self.client.get(endpoint).json()['project'],current)
+        # A later unseeded autosave must not resurrect a deliberately deleted seed.
+        self.client.put(endpoint,json=draft.model_dump())
+        reloaded=self.client.get(endpoint).json()['project']
+        self.assertTrue(reloaded['source_seeded'])
+        self.assertEqual(len(reloaded['items']),1)
+        self.assertFalse(any(item['asset_id']==asset['id'] for item in reloaded['items']))
+
+    def test_full_timeline_stays_loadable_when_source_cannot_fit(self):
+        document={'items':[{'id':str(index),'kind':'text','duration':1} for index in range(5000)]}
+        with db.connect() as connection:
+            connection.execute('INSERT INTO editor_projects VALUES (?,?,?)',(self.clip,json.dumps(document),db.now()))
+        response=self.client.get(f'/api/editor/{self.clip}')
+        self.assertEqual(response.status_code,200,response.text[:1000])
+        state=response.json()
+        self.assertEqual(len(state['project']['items']),5000)
+        self.assertFalse(state['project']['source_seeded'])
+        self.assertTrue(any(asset['id']==self.source['id'] for asset in state['media']))
+        self.assertEqual(len(Project.model_validate(state['project']).items),5000)
+
+    def test_concurrent_seed_and_text_autosaves_preserve_both(self):
+        endpoint=f'/api/editor/{self.clip}'
+        draft=Project(items=[TimelineItem(id='title',kind='text',duration=2,text='Latest title',track=1)])
+        def request(index):
+            return (self.client.put(endpoint,json=draft.model_dump()) if index%2 else self.client.get(endpoint))
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            responses=list(pool.map(request,range(12)))
+        self.assertTrue(all(response.status_code==200 for response in responses))
+        loaded=self.client.get(endpoint).json()['project']
+        self.assertTrue(loaded['source_seeded'])
+        self.assertEqual(len(loaded['items']),2)
+        self.assertEqual(loaded['items'][0],draft.items[0].model_dump())
+        self.assertEqual(loaded['items'][1]['asset_id'],self.source['id'])
+
+    def test_legacy_source_edit_migrates_without_duplicate_even_if_file_missing(self):
+        endpoint=f'/api/editor/{self.clip}'
+        project=self.project(self.item(id='my-trimmed-source',source_in=1,duration=1))
+        with db.connect() as connection:
+            connection.execute('INSERT INTO editor_projects VALUES (?,?,?)',
+                               (self.clip,project.model_dump_json(exclude={'source_seeded'}),db.now()))
+        db.resolve_data_path(self.source['path']).unlink()
+        loaded=self.client.get(endpoint).json()['project']
+        self.assertTrue(loaded['source_seeded'])
+        self.assertEqual(loaded['items'],[project.items[0].model_dump()])
+        # Clearing a legacy edit also keeps its source acquisition complete.
+        empty=Project().model_dump(exclude={'source_seeded'})
+        self.assertEqual(self.client.put(endpoint,json=empty).status_code,200)
+        self.add_media(self.clip,self.red,'source')
+        self.assertEqual(self.client.get(endpoint).json()['project']['items'],[])
 
     def test_additive_document_contract_and_modern_caption_style(self):
         from .editor_models import TextStyle
@@ -110,7 +198,6 @@ class EditorTests(unittest.TestCase):
                         markers=[{'id':'m','time':1,'label':'beat'}],script='Narration',name='New')
         response=self.client.put(f'/api/editor/{self.clip}',json=project.model_dump())
         self.assertEqual(response.status_code,200,response.text)
-        project.source_seeded=True
         self.assertEqual(response.json()['project'],project.model_dump())
         self.assertEqual(Project.model_validate({'items':[]}).tracks,[])
         self.assertEqual(len(Project(items=[item.model_copy(update={'id':str(n)}) for n in range(5000)]).items),5000)

@@ -53,16 +53,48 @@ def editor_response(clip_id, project=None, saved_at=None):
             project=Project.model_validate_json(row['project']) if row else Project()
             saved_at=row['saved_at'] if row else None
             source=next((asset for asset in reversed(media) if asset['kind']=='source' and asset['media_type']=='video'),None)
-            if source and not project.items and not project.source_seeded:
-                project.items=[TimelineItem(id='source-'+source['id'],kind='video',asset_id=source['id'],name=clip['title'] or source['name'],duration=min(600,source['duration']))]
-                project.source_seeded=True
-                saved_at=db.now()
-                connection.execute('INSERT INTO editor_projects (clip_id,project,saved_at) VALUES (?,?,?) ON CONFLICT(clip_id) DO UPDATE SET project=excluded.project,saved_at=excluded.saved_at',
-                                   (clip_id,project.model_dump_json(),saved_at))
-            elif project.items and not project.source_seeded:
-                project.source_seeded=True
-                connection.execute('UPDATE editor_projects SET project=? WHERE clip_id=?',(project.model_dump_json(),clip_id))
+            if not project.source_seeded:
+                source_ids=source_asset_ids(connection,clip_id)
+                if source_items(project,source_ids):
+                    # Migrate a document that already used its source, including
+                    # a missing file awaiting relink, without duplicating it.
+                    project.source_seeded=True
+                elif source:
+                    # Titles and other edits made during download are unrelated
+                    # to whether the initial source has reached the timeline.
+                    item=TimelineItem(id='source-'+source['id'],kind='video',asset_id=source['id'],name=clip['title'] or source['name'],duration=min(600,source['duration']))
+                    project.source_seeded=append_source_items(project,[item])
+                if project.source_seeded:
+                    saved_at=db.now()
+                    connection.execute('INSERT INTO editor_projects (clip_id,project,saved_at) VALUES (?,?,?) ON CONFLICT(clip_id) DO UPDATE SET project=excluded.project,saved_at=excluded.saved_at',
+                                       (clip_id,project.model_dump_json(),saved_at))
     return {'project':project.model_dump(),'media':media,'saved_at':saved_at,'compatibility_issues':compatibility_issues(project)}
+
+
+def source_asset_ids(connection,clip_id):
+    return {row['id'] for row in connection.execute("SELECT id FROM assets WHERE clip_id=? AND kind='source'",(clip_id,))}
+
+
+def source_items(project,source_ids):
+    return [item for item in project.items if item.kind=='video' and item.asset_id in source_ids]
+
+
+def append_source_items(project,items):
+    existing_ids={item.id for item in project.items}
+    additions=[]
+    for item in items:
+        if item.id in existing_ids:
+            item=item.model_copy(update={'id':'source-'+str(uuid4())})
+        existing_ids.add(item.id)
+        additions.append(item)
+    try:
+        # Keep the document within its normal limits even when a source arrives
+        # after a large imported project or during another timeline operation.
+        combined=Project.model_validate({**project.model_dump(),'items':[*project.items,*additions]})
+    except ValueError:
+        return False
+    project.items=combined.items
+    return True
 
 
 @router.get('/{clip_id}')
@@ -76,13 +108,26 @@ def save_project(clip_id: str, project: Project):
     try: validate_project_media(clip_id,project)
     except (ValueError,OSError,subprocess.SubprocessError) as exc:
         raise HTTPException(400,str(exc) if isinstance(exc,ValueError) else 'The project media could not be inspected.') from None
-    saved_at=db.now()
     with db.connect() as connection:
-        # Preserve the durable acquisition marker even for older clients that
-        # omit additive fields while intentionally clearing their timeline.
+        # Read and update the durable marker in the same transaction as seeding.
+        # It must never be reset by concurrent tabs or an older client.
+        connection.execute('BEGIN IMMEDIATE')
         row=connection.execute('SELECT project FROM editor_projects WHERE clip_id=?',(clip_id,)).fetchone()
-        if project.items or (row and (json.loads(row['project']).get('source_seeded') or json.loads(row['project']).get('items'))):
+        stored=Project.model_validate_json(row['project']) if row else Project()
+        source_ids=source_asset_ids(connection,clip_id)
+        previous_source=source_items(stored,source_ids)
+        current_source=source_items(project,source_ids)
+        if ('source_seeded' in project.model_fields_set and not project.source_seeded
+                and not current_source and previous_source):
+            # This snapshot predates the first seed. Preserve a source appended
+            # by a concurrent GET, along with the snapshot's newer text edits.
+            # A client that has seen the source sends true when deleting it;
+            # legacy clients omitting the field can still deliberately clear.
+            if not append_source_items(project,previous_source):
+                raise HTTPException(409,'The source is ready in Media, but could not be added to this timeline. Adjust the timeline and retry.')
+        if stored.source_seeded or previous_source or current_source:
             project.source_seeded=True
+        saved_at=db.now()
         connection.execute('INSERT INTO editor_projects (clip_id,project,saved_at) VALUES (?,?,?) ON CONFLICT(clip_id) DO UPDATE SET project=excluded.project,saved_at=excluded.saved_at',(clip_id,project.model_dump_json(),saved_at))
         connection.execute("UPDATE clips SET workflow_status='editing' WHERE id=? AND workflow_status!='archived'",(clip_id,))
     return editor_response(clip_id,project,saved_at)
