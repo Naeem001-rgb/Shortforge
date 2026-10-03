@@ -2,7 +2,10 @@
 
 import json
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from pathlib import Path
+import subprocess
+import tempfile
 from types import SimpleNamespace
 import sys
 
@@ -10,12 +13,22 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 import pytest
 
-from engine.core import db, media, routes
+from engine.core import db, media, routes, runtime
 from engine.core.app import app
 
 
 VIDEO_ID = "tleaVXWF3YI"
 VIDEO = b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom"
+
+
+@lru_cache(maxsize=1)
+def playable_video():
+    with tempfile.TemporaryDirectory() as directory:
+        path = Path(directory) / "fixture.mp4"
+        subprocess.run([media.find_ffmpeg(), "-v", "error", "-f", "lavfi", "-i",
+                        "color=c=purple:s=32x32:r=10:d=0.2", "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p", str(path)], check=True, capture_output=True)
+        return path.read_bytes()
 
 
 @pytest.fixture
@@ -40,7 +53,7 @@ def permit(client, clip):
 
 
 def upload_one(client):
-    response = client.post("/api/upload", files={"file": ("my-clip.mp4", VIDEO, "video/mp4")}, data={"title": "My footage"})
+    response = client.post("/api/upload", files={"file": ("my-clip.mp4", playable_video(), "video/mp4")}, data={"title": "My footage"})
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -152,11 +165,11 @@ def test_uploaded_video_is_owned_and_can_be_served_with_ranges(client):
     assert not Path(asset["path"]).is_absolute()
     response = client.get(asset["url"], headers={"Range": "bytes=0-3"})
     assert response.status_code == 206
-    assert response.content == VIDEO[:4]
+    assert response.content == playable_video()[:4]
 
 
 def test_upload_rejects_executable_and_false_video(client):
-    for name, data in (("script.html", b"<html>"), ("video.mp4", b"<html>"), ("video.mp4", b"")):
+    for name, data in (("script.html", b"<html>"), ("video.mp4", b"<html>"), ("video.mp4", b""), ("truncated.mp4", VIDEO)):
         response = client.post("/api/upload", files={"file": (name, data, "video/mp4")})
         assert response.status_code == 422
     assert client.get("/api/clips").json()["clips"] == []
@@ -411,7 +424,7 @@ def test_download_is_idempotent_for_inflight_and_cached_sources(client, monkeypa
     assert len({job["id"] for job in requests}) == 1
     assert len(started) == 1
     path = db.DATA_DIR / "source.mp4"
-    path.write_bytes(VIDEO)
+    path.write_bytes(playable_video())
     asset = db.add_asset(clip["id"], "source", path)
     db.update_job(started[0], status="completed", progress=100, result={"asset": asset})
     monkeypatch.setattr(media, "tool_available", lambda name: False)
@@ -437,6 +450,120 @@ def test_failed_acquisition_retries_without_replacing_existing_edit(client, monk
     assert db.get_job(old["id"])["error"] == "Retry me"
     with db.connect() as connection:
         assert "my-title" in connection.execute("SELECT project FROM editor_projects WHERE clip_id=?", (clip["id"],)).fetchone()[0]
+
+
+def test_corrupt_cached_source_allows_fresh_acquisition(client, monkeypatch):
+    clip = import_one(client)
+    path = db.DATA_DIR / "truncated.mp4"
+    path.write_bytes(VIDEO)
+    asset = db.add_asset(clip["id"], "source", path)
+    old = db.new_job("download", clip["id"])
+    db.update_job(old["id"], status="completed", progress=100, result={"asset": asset})
+    monkeypatch.setattr(media, "tool_available", lambda name: True)
+    monkeypatch.setattr(media, "find_ffmpeg", lambda: "/fake/ffmpeg")
+    started = []
+    monkeypatch.setattr(media, "download_job", lambda job_id, clip_id: started.append(job_id))
+    response = client.post(f"/api/clips/{clip['id']}/download")
+    assert response.status_code == 200
+    assert response.json()["status"] == "queued"
+    assert started == [response.json()["id"]]
+    assert response.json()["id"] != old["id"]
+    assert path.is_file(), "Retry must not delete a source referenced by an existing edit"
+
+
+def test_health_identifies_loaded_engine_and_source_updates(client, monkeypatch):
+    monkeypatch.setattr(runtime, "source_revision", lambda: runtime.LOADED_REVISION)
+    current = client.get("/api/health").json()
+    assert current["status"] == "ok" and "tools" in current and "version" in current
+    assert current["runtime"]["studio_protocol"] == 2
+    assert current["runtime"]["started_at"]
+    assert current["runtime"]["restart_required"] is False
+    monkeypatch.setattr(runtime, "source_revision", lambda: "updated-source")
+    updated = client.get("/api/health").json()["runtime"]
+    assert updated["restart_required"] is True
+    assert updated["loaded_revision"] == current["runtime"]["loaded_revision"]
+    assert updated["disk_revision"] == "updated-source"
+
+
+def test_real_decoder_rejects_bad_upload_then_retry_seeds_once(client):
+    failed = client.post("/api/upload", files={"file": ("truncated.mp4", VIDEO)})
+    assert failed.status_code == 422
+    assert client.get("/api/clips").json()["clips"] == []
+    clip = upload_one(client)
+    first = client.get(f"/api/editor/{clip['id']}")
+    assert first.status_code == 200, first.text
+    project = first.json()["project"]
+    assert len(project["items"]) == 1
+    assert project["items"][0]["duration"] > 0
+    project["items"][0]["name"] = "Preserved edit after recovery"
+    assert client.put(f"/api/editor/{clip['id']}", json=project).status_code == 200
+    assert client.get(f"/api/editor/{clip['id']}").json()["project"] == project
+    assert len(list((db.DATA_DIR / "uploads").glob("*"))) == 1
+
+
+def test_downloader_failure_retry_and_reload_keep_source_metadata(client, monkeypatch):
+    """Exercise the real job, normalization and seeding with a controlled transport."""
+    clip = import_one(client)
+    attempts = []
+
+    class Downloader:
+        def __init__(self, options):
+            self.options = options
+            self.path = Path(options["outtmpl"].replace("%(ext)s", "mp4"))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def extract_info(self, url, download):
+            assert url == clip["url"] and download is True
+            attempts.append(self.path)
+            if len(attempts) == 1:
+                self.path.with_suffix(".part").write_bytes(b"interrupted")
+                raise RuntimeError("Network interrupted. Please retry.")
+            self.path.write_bytes(playable_video())
+            for hook in self.options["progress_hooks"]:
+                hook({"status": "finished"})
+            return {"ext": "mp4"}
+
+        def prepare_filename(self, info):
+            return str(self.path)
+
+    monkeypatch.setitem(sys.modules, "yt_dlp", SimpleNamespace(YoutubeDL=Downloader))
+    monkeypatch.setattr(media, "tool_available", lambda name: True)
+    endpoint = f"/api/clips/{clip['id']}/download"
+    first = client.post(endpoint).json()
+    assert client.get(f"/api/jobs/{first['id']}").json()["status"] == "failed"
+    assert not attempts[0].parent.exists(), "Failed transport must clean partial media"
+    second = client.post(endpoint).json()
+    completed = client.get(f"/api/jobs/{second['id']}").json()
+    assert second["id"] != first["id"]
+    assert completed["status"] == "completed", completed
+    state = client.get(f"/api/editor/{clip['id']}").json()
+    assert len(state["project"]["items"]) == len(state["media"]) == 1
+    project = state["project"]
+    project["items"][0]["name"] = "Saved source edit"
+    assert client.put(f"/api/editor/{clip['id']}", json=project).status_code == 200
+    assert client.post(endpoint).json()["id"] == second["id"]
+    assert len(attempts) == 2
+    assert client.get(f"/api/editor/{clip['id']}").json()["project"] == project
+    detail = client.get(f"/api/clips/{clip['id']}").json()
+    assert detail["license_status"] == "unknown" and detail["permission_note"] == ""
+
+
+def test_engine_restart_turns_abandoned_download_into_retryable_failure(client, monkeypatch):
+    clip = import_one(client)
+    old = db.new_job("download", clip["id"])
+    db.update_job(old["id"], status="running", progress=35)
+    with TestClient(app, base_url="http://localhost") as restarted:
+        failed = restarted.get(f"/api/jobs/{old['id']}").json()
+        assert failed["status"] == "failed" and "restarted" in failed["error"]
+        monkeypatch.setattr(media, "tool_available", lambda name: True)
+        monkeypatch.setattr(media, "download_job", lambda *args: None)
+        retried = restarted.post(f"/api/clips/{clip['id']}/download").json()
+        assert retried["status"] == "queued" and retried["id"] != old["id"]
 
 
 def test_blank_project_and_duplicate_have_independent_owned_media(client):

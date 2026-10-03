@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 import httpx
 from starlette.concurrency import run_in_threadpool
 
-from . import db, media, script_extraction
+from . import db, media, runtime, script_extraction
 from .models import ClipBatch, ClipDeleteInput, ClipPatch, ExtractScriptInput, ProjectInput, SettingsPatch, TranscribeInput, TranscriptInput
 
 
@@ -95,7 +95,7 @@ def enrich_clips(clip_ids: list[str], *, strict: bool = False):
 
 @router.get("/health")
 def health():
-    return {"status": "ok", "version": "0.1.0", "tools": {
+    return {"status": "ok", "version": "0.1.0", "runtime": runtime.status(), "tools": {
         "ffmpeg": bool(media.find_ffmpeg()), "yt_dlp": media.tool_available("yt_dlp"),
         "whisper": media.tool_available("faster_whisper"),
         "piper": bool(shutil.which("piper")) or media.tool_available("piper"),
@@ -338,6 +338,7 @@ async def upload(file: UploadFile = File(...), title: str = Form("")):
         raise HTTPException(422, "Use a video title under 1,000 characters.")
     clip_id = str(uuid4())
     path = db.DATA_DIR / "uploads" / f"{clip_id}{suffix}"
+    original_path = path
     path.parent.mkdir(parents=True, exist_ok=True)
     total = 0
     try:
@@ -351,13 +352,28 @@ async def upload(file: UploadFile = File(...), title: str = Form("")):
                 destination.write(chunk)
         if total == 0:
             raise HTTPException(422, "The video file is empty.")
+        from engine.studio.editor_media import normalize_browser_video, probe_media
+        try:
+            # A valid container header alone does not mean the file can play.
+            # Validate before registering a Library item, just as Studio does.
+            metadata = await run_in_threadpool(probe_media, path)
+            if metadata["media_type"] != "video":
+                raise ValueError("This file contains no video. Import audio from inside Studio instead.")
+            path = await run_in_threadpool(normalize_browser_video, path)
+        except (ValueError, OSError, subprocess.SubprocessError) as exc:
+            raise HTTPException(422, str(exc) if isinstance(exc, ValueError) else "This video could not be read. Try another MP4, MOV, or WebM file.") from None
+        asset = {"id": str(uuid4()), "clip_id": clip_id, "kind": "source",
+                 "path": str(db.resolve_data_path(path).relative_to(db.DATA_DIR)), "created_at": db.now()}
         with db.connect() as conn:
             conn.execute("INSERT INTO clips(id,url,channel_name,title,license_status,workflow_status,discovery_mode,created_at) VALUES (?,?,?,?,?,?,?,?)", (
                 clip_id, "", "Your footage", title.strip() or Path(file.filename or "My video").stem[:1000], "owned", "downloaded", "upload", db.now(),
             ))
-        db.add_asset(clip_id, "source", path)
+            conn.execute("INSERT INTO assets (id,clip_id,kind,path,created_at) VALUES (:id,:clip_id,:kind,:path,:created_at)", asset)
+        if original_path != path:
+            original_path.unlink(missing_ok=True)
         return clip_detail(clip_id)
     except BaseException:
+        original_path.unlink(missing_ok=True)
         path.unlink(missing_ok=True)
         raise
     finally:
@@ -394,6 +410,15 @@ def download(clip_id: str, background_tasks: BackgroundTasks):
             return job
         source = conn.execute("SELECT * FROM assets WHERE clip_id=? AND kind='source' ORDER BY created_at DESC LIMIT 1", (clip_id,)).fetchone()
         asset = db.asset_dict(source) if source and db.resolve_data_path(source["path"]).is_file() else None
+        if asset:
+            from engine.studio.editor_media import probe_media
+            try:
+                if probe_media(db.resolve_data_path(asset["path"]))["media_type"] != "video":
+                    asset = None
+            except (ValueError, OSError, subprocess.SubprocessError):
+                # Old imports and interrupted writes can leave an unusable file.
+                # Preserve it for relinking, but let Retry fetch a fresh source.
+                asset = None
         if asset:
             rows = conn.execute("SELECT * FROM jobs WHERE clip_id=? AND type='download' AND status='completed'", (clip_id,)).fetchall()
             for row in rows:
