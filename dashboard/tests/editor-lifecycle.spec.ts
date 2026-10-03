@@ -2,12 +2,17 @@ import { test, expect } from "@playwright/test";
 import {
   editorState,
   fixtures,
+  openProject,
   removeAllProjects,
   removeProject,
   uploadProject,
 } from "./editor-fixtures";
 
 test.beforeAll(fixtures);
+test.beforeEach(async ({ page }) => {
+  // Keep an in-flight lifecycle scenario stable if a development build changes.
+  await page.routeWebSocket(/127\.0\.0\.1:5174/, () => {});
+});
 
 // Runs even when a test above times out, so a killed test cannot leak its
 // projects into the shared engine and break the specs that run after it.
@@ -15,38 +20,36 @@ test.afterAll(async ({ request }) => {
   await removeAllProjects(request);
 });
 
-test("a late project response cannot overwrite or save into the next timeline", async ({
+test("a late save response cannot overwrite or save into the next timeline", async ({
   page,
   request,
 }) => {
   const first = await uploadProject(request, "Timeline project A");
   const second = await uploadProject(request, "Timeline project B");
-  const firstState = await editorState(request, first.id);
   let requested = false;
+  let returned = false;
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
   await page.route(`**/api/editor/${first.id}`, async (route) => {
-    if (route.request().method() !== "GET") return route.continue();
+    if (route.request().method() !== "PUT") return route.continue();
+    const response = await route.fetch();
     requested = true;
     await gate;
-    await route.fulfill({ json: firstState }).catch(() => {});
+    await route.fulfill({ response }).catch(() => {});
+    returned = true;
   });
   try {
-    await page.goto("/");
-    await page
-      .getByRole("navigation", { name: "Main navigation" })
-      .getByRole("button", { name: "Studio", exact: true })
-      .click();
-    await page.getByLabel("Studio project").selectOption(first.id);
+    await openProject(page, first.id);
+    await page.getByLabel("Scale", { exact: true }).fill("110");
     await expect.poll(() => requested).toBe(true);
+    await page.getByLabel("Project menu", { exact: true }).click();
     await page.getByLabel("Studio project").selectOption(second.id);
     await expect(page.getByTestId("timeline-item")).toHaveCount(1);
     await expect(page.getByTestId("timeline-item")).toContainText(
       "Timeline project B",
     );
-    release();
     await page.getByTestId("timeline-item").click();
     await page.getByLabel("Scale", { exact: true }).fill("125");
     await expect
@@ -56,17 +59,20 @@ test("a late project response cannot overwrite or save into the next timeline", 
             .scale,
       )
       .toBe(1.25);
+    release();
+    await expect.poll(() => returned).toBe(true);
+    await expect(page.getByTestId("timeline-item")).toContainText(
+      "Timeline project B",
+    );
+    await expect(page.getByLabel("Scale", { exact: true })).toHaveValue("125");
     expect(
       (await editorState(request, first.id)).project.items[0].transform.scale,
-    ).toBe(1);
-    await page
-      .getByRole("navigation", { name: "Main navigation" })
-      .getByRole("button", { name: "Library", exact: true })
-      .click();
-    await page
-      .getByRole("navigation", { name: "Main navigation" })
-      .getByRole("button", { name: "Studio", exact: true })
-      .click();
+    ).toBe(1.1);
+    await page.getByLabel("Project menu", { exact: true }).click();
+    await page.getByLabel("Studio project").selectOption(first.id);
+    await expect(page.getByLabel("Scale", { exact: true })).toHaveValue("110");
+    await page.getByLabel("Project menu", { exact: true }).click();
+    await page.getByLabel("Studio project").selectOption(second.id);
     await page.getByTestId("timeline-item").click();
     await expect(page.getByLabel("Scale", { exact: true })).toHaveValue("125");
     await page.reload();
