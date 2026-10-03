@@ -198,7 +198,11 @@ export function EditorInspector({
     return findTransitionOverlap(siblings[index - 1], item);
   })();
   const update = (patch: Partial<TimelineItem>) =>
-    onChange({ ...item, ...patch });
+    onChange({ ...item, ...patch, ...(patch.keyframes ? {
+      animation_labels: {}, animation_base_keyframes: undefined,
+      animation_in: "none", animation_out: "none", animation_loop: "none",
+      keyframes: patch.keyframes.map((key) => ({ ...key, preset: undefined })),
+    } : {}) });
   const writeValue = (
     property: "x" | "y" | "scale" | "rotation" | "opacity" | "volume",
     n: number,
@@ -994,6 +998,7 @@ export function EditorInspector({
           <h3>
             Keyframes<span>{item.keyframes.length}</span>
           </h3>
+          {item.keyframes.some((key) => key.preset) && <button className="button secondary small full" onClick={() => update({ keyframes: item.keyframes })}>Convert animation to manual keys</button>}
           <button className="button secondary small full" onClick={addKey}>
             <Diamond size={14} />
             {activeKey ? "Update keyframe" : "Add keyframe"} at{" "}

@@ -27,5 +27,5 @@ export async function cacheMedia(asset:EditorMedia,signal?:AbortSignal):Promise<
   }catch(error){if(signal?.aborted)throw error;return null;}
 }
 export async function clearMediaCache():Promise<void>{
-  if(!navigator.storage?.getDirectory)return;const root=await navigator.storage.getDirectory();try{await root.removeEntry("shortforge-media",{recursive:true});}catch{/* Already clear. */}
+  if(!navigator.storage?.getDirectory)return;const root=await navigator.storage.getDirectory();try{await root.removeEntry("shortforge-media",{recursive:true});}catch(error){if(!(error instanceof DOMException && error.name === "NotFoundError"))throw error;}
 }

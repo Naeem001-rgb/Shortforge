@@ -753,6 +753,8 @@ function ProjectEditor({
         source_in: source.source_in,
         duration: source.duration,
         speed: source.speed,
+        reverse: source.reverse,
+        audio_role: "original" as const,
         volume: source.volume,
         fade_in: source.fade_in,
         fade_out: source.fade_out,
@@ -809,18 +811,15 @@ function ProjectEditor({
         if (!mounted.current) return;
         setMedia(data.media);
         const current = projectRef.current;
-        if (
-          current &&
-          !current.items.some((item) => item.kind === "video") &&
-          !current.source_seeded
-        ) {
+        if (current && !current.source_seeded) {
           const asset = data.media.find((a) => a.kind === "source");
           if (asset) {
-            const item = newItem("video", asset);
+            const existing = current.items.find((item) => item.kind === "video" && item.asset_id === asset.id);
+            const item = existing || data.project.items.find((candidate) => candidate.kind === "video" && candidate.asset_id === asset.id) || newItem("video", asset);
             commit({
               ...current,
               source_seeded: true,
-              items: [...current.items, item],
+              items: existing ? current.items : [...current.items, item],
             });
             setSelection(item.id);
           }
@@ -830,6 +829,7 @@ function ProjectEditor({
         refreshRef.current();
       })
       .catch((e) => {
+        completed.current.delete(job.id);
         if (mounted.current) setError(e.message);
       });
   }, [downloadJob.job, selected, commit, project, loading]);
@@ -1140,7 +1140,7 @@ function ProjectEditor({
       <EditorTopbar
         clips={clips}
         selected={selected}
-        name={project.name || clip?.title || "Untitled project"}
+        name={project.name ?? clip?.title ?? "Untitled project"}
         saveState={saveState}
         canUndo={canUndo}
         canRedo={canRedo}
