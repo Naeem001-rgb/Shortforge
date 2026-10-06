@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 // Captured YouTube element/attribute structure, including the menu shown in the
 // user's screenshots. Synthetic fixtures supplement a separate live-browser test.
 export async function checkDescriptionMenus(browser) {
-  async function scenario({ moreLabel = 'More actions', menuDelay = 350, legacy = false, alreadyOpen = false, missingDescription = false, missingMenu = false, inertDirect = false } = {}) {
+  async function scenario({ moreLabel = 'More actions', menuDelay = 350, panelDelay = 0, latePolling = false, legacy = false, alreadyOpen = false, missingDescription = false, missingMenu = false, inertDirect = false } = {}) {
     const page = await browser.newPage();
     try {
       await page.route('https://www.youtube.com/**', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><body>
@@ -35,7 +35,11 @@ export async function checkDescriptionMenus(browser) {
         } };
       });
       await page.goto('https://www.youtube.com/shorts/test0000003');
-      await page.evaluate(({ menuDelay, legacy, alreadyOpen, missingDescription, missingMenu }) => {
+      await page.evaluate(({ menuDelay, panelDelay, latePolling, legacy, alreadyOpen, missingDescription, missingMenu }) => {
+        if (latePolling) {
+          const originalTimeout = window.setTimeout.bind(window);
+          window.setTimeout = (callback, ms, ...args) => originalTimeout(callback, ms === 100 ? 2100 : ms, ...args);
+        }
         const panel = document.getElementById('panel');
         const showPanel = () => { panel.style.display = 'block'; panel.setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED'); };
         document.addEventListener('click', event => {
@@ -53,11 +57,14 @@ export async function checkDescriptionMenus(browser) {
               ? `<ytd-menu-service-item-renderer data-action="${label}"><tp-yt-paper-item>${label}</tp-yt-paper-item></ytd-menu-service-item-renderer>`
               : `<yt-list-item-view-model><button id="${label}" role="menuitem">${label}</button></yt-list-item-view-model>`).join('');
             document.body.append(menu);
-            if (!missingDescription) menu.querySelector(legacy ? '[data-action="Description"]' : 'button').onclick = () => { showPanel(); menu.remove(); };
+            if (!missingDescription) menu.querySelector(legacy ? '[data-action="Description"]' : 'button').onclick = () => {
+              if (panelDelay) setTimeout(showPanel, panelDelay); else showPanel();
+              menu.remove();
+            };
           }, menuDelay);
         };
         if (alreadyOpen) showPanel();
-      }, { menuDelay, legacy, alreadyOpen, missingDescription, missingMenu });
+      }, { menuDelay, panelDelay, latePolling, legacy, alreadyOpen, missingDescription, missingMenu });
       await page.addScriptTag({ path: resolve('dist/content.js') });
       const health = await page.evaluate(() => new Promise(resolve => fixture.listeners[0]({ type: 'selftest' }, {}, resolve)));
       assert.equal(health.checks.find(check => check.name.startsWith('Readable view count')).found, alreadyOpen);
@@ -84,6 +91,7 @@ export async function checkDescriptionMenus(browser) {
   await scenario();
   await scenario({ moreLabel: 'More' }); // This button is outside any #menu wrapper.
   await scenario({ legacy: true, menuDelay: 500 });
+  await scenario({ latePolling: true, panelDelay: 350 });
   await scenario({ alreadyOpen: true });
   await scenario({ inertDirect: true });
   await scenario({ missingDescription: true });

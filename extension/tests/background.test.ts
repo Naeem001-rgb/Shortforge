@@ -5,18 +5,34 @@ import vm from 'node:vm';
 import type { Candidate, ScoutState } from '../src/types';
 import { initialState } from '../src/types';
 
-async function harness(existingIds: string[] = [], initial?: ScoutState) {
+async function harness(existingIds: string[] = [], initial?: ScoutState, autoDiscardable = true) {
   let handler: Function;
   let stored: Record<string, unknown> = initial ? { scout: initial } : {};
   let online = true;
   const known = new Set(existingIds);
   const sends: object[] = [];
+  const tabUpdates: { id: number; autoDiscardable?: boolean; active?: boolean }[] = [];
+  const tabs = new Map<number, boolean>([[7, autoDiscardable], [8, true]]);
+  const tabEvents: Record<string, Function> = {};
   const code = await build({ entryPoints: ['src/background.ts'], bundle: true, write: false, format: 'iife', platform: 'browser' });
   const chrome = {
     runtime: { onMessage: { addListener: (fn: Function) => { handler = fn; } }, onInstalled: { addListener() {} }, onStartup: { addListener() {} } },
     storage: { local: { get: async () => structuredClone(stored), set: async (value: object) => { stored = structuredClone(value); } } },
     action: { setBadgeBackgroundColor: async () => {}, setBadgeText: async () => {} },
-    tabs: { get: async (id: number) => ({ id, url: 'https://www.youtube.com/shorts/tleaVXWF3YI' }), sendMessage: async (_id: number, message: object) => { sends.push(message); }, onRemoved: { addListener() {} }, onUpdated: { addListener() {} } },
+    tabs: {
+      get: async (id: number) => {
+        if (!tabs.has(id)) throw new Error('No tab');
+        return { id, url: 'https://www.youtube.com/shorts/tleaVXWF3YI', active: false, autoDiscardable: tabs.get(id) };
+      },
+      update: async (id: number, properties: { autoDiscardable?: boolean; active?: boolean }) => {
+        if (!tabs.has(id)) throw new Error('No tab');
+        tabUpdates.push({ id, ...properties });
+        if (properties.autoDiscardable !== undefined) tabs.set(id, properties.autoDiscardable);
+      },
+      sendMessage: async (_id: number, message: object) => { sends.push(message); },
+      onRemoved: { addListener: (fn: Function) => { tabEvents.removed = fn; } },
+      onUpdated: { addListener: (fn: Function) => { tabEvents.updated = fn; } },
+    },
     alarms: { create() {}, onAlarm: { addListener() {} } },
   };
   vm.runInNewContext(code.outputFiles[0].text, { chrome, console, AbortSignal, setTimeout, Date, fetch: async (url: string, options: RequestInit) => {
@@ -26,7 +42,12 @@ async function harness(existingIds: string[] = [], initial?: ScoutState) {
     return { ok: true, json: async () => ({ clips: [...known].map(video_id => ({ video_id })), added }) };
   } });
   const message = (payload: object, tab = false) => new Promise<any>(resolve => handler(payload, tab ? { tab: { id: 7 } } : {}, resolve));
-  return { message, state: () => stored.scout as ScoutState, online: (value: boolean) => { online = value; }, known, sends };
+  const tabEvent = async (name: string, ...args: unknown[]) => {
+    if (name === 'removed') tabs.delete(args[0] as number);
+    tabEvents[name](...args);
+    await message({ type: 'state' });
+  };
+  return { message, state: () => stored.scout as ScoutState, online: (value: boolean) => { online = value; }, known, sends, tabUpdates, tabs, tabEvent };
 }
 const settings = { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated' };
 const clip = (index: number, extra: Partial<Candidate> = {}): Candidate => ({ video_id: `test${String(index).padStart(7, '0')}`, url: 'https://www.youtube.com/shorts/tleaVXWF3YI', title: 'A narrated story', description: '', likes: 8000, views: 20000, credit_target: '', credit_snippet: '', channel_handle: '', channel_name: '', thumbnail_url: '', ...extra });
@@ -43,6 +64,8 @@ test('new collection dedupes engine records and stops exactly at target', async 
   assert.equal(h.state().saved, 2);
   assert.equal(h.state().status, 'complete');
   assert.equal(h.state().pending.length, 0);
+  assert.deepEqual(h.tabUpdates, [{ id: 7, autoDiscardable: false }, { id: 7, autoDiscardable: true }]);
+  assert.equal(h.state().tabProtection, null);
 });
 test('failed uploads persist and pause; retry saves once without losing the clip', async () => {
   const h = await harness();
@@ -52,6 +75,7 @@ test('failed uploads persist and pause; retry saves once without losing the clip
   assert.equal(h.state().status, 'paused');
   assert.equal(h.state().pending.length, 1);
   assert.equal(h.state().saved, 0);
+  assert.equal(h.tabs.get(7), true, 'An engine failure releases the running tab protection');
   h.online(true);
   await h.message({ type: 'retry' });
   assert.equal(h.state().pending.length, 0);
@@ -149,4 +173,52 @@ test('last scan and recent activity expose missing views, low counts, and duplic
   await h.message({ type: 'pause' });
   assert.match(h.state().lastScan!.reason, /Already in your Library/);
   assert.equal(h.state().matched, 0);
+});
+
+test('background scouting protects only its tab and restores on pause, resume and stop', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings });
+  assert.equal(h.state().status, 'running');
+  assert.equal(h.tabs.get(7), false);
+  assert.equal(h.tabs.get(8), true);
+  await h.message({ type: 'pause' });
+  assert.equal(h.tabs.get(7), true);
+  await h.message({ type: 'resume', tabId: 7, settings });
+  assert.equal(h.tabs.get(7), false);
+  await h.message({ type: 'stop' });
+  assert.equal(h.tabs.get(7), true);
+  assert.ok(h.tabUpdates.every(update => !('active' in update)), 'Never steal focus');
+});
+
+test('a previously protected tab stays protected after Scout finishes', async () => {
+  const h = await harness([], undefined, false);
+  await h.message({ type: 'start', tabId: 7, settings: { ...settings, target: 1 } });
+  await h.message({ type: 'scan', clip: clip(1) }, true);
+  assert.equal(h.state().status, 'complete');
+  assert.equal(h.tabs.get(7), false);
+  assert.equal(h.state().tabProtection, null);
+});
+
+test('protection survives worker reload and is restored before scouting a different tab', async () => {
+  const h = await harness([], { ...initialState(), status: 'running', tabId: 7,
+    tabProtection: { tabId: 7, autoDiscardable: true } }, false);
+  await h.message({ type: 'start', tabId: 8, settings });
+  assert.equal(h.tabs.get(7), true);
+  assert.equal(h.tabs.get(8), false);
+  await h.message({ type: 'stop' });
+  assert.equal(h.tabs.get(8), true);
+});
+
+test('navigation and closed-tab recovery release tab protection', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings });
+  await h.tabEvent('updated', 8, { url: 'https://example.com/' });
+  assert.equal(h.state().status, 'running');
+  await h.tabEvent('updated', 7, { url: 'https://example.com/' });
+  assert.equal(h.state().status, 'paused');
+  assert.equal(h.tabs.get(7), true);
+  await h.message({ type: 'resume', tabId: 7, settings });
+  await h.tabEvent('removed', 7);
+  assert.equal(h.state().status, 'paused');
+  assert.equal(h.state().tabProtection, null);
 });

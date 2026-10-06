@@ -2,8 +2,11 @@ import {
   Archive,
   ArrowRight,
   ArrowUpRight,
+  Clapperboard,
+  Clock3,
   Compass,
   CircleCheck,
+  CloudOff,
   Download,
   Film,
   Grid2X2,
@@ -21,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import type { Clip } from "../api";
 import { api, count, editable, post, useJob } from "../api";
 import {
@@ -32,9 +36,51 @@ import {
   Notice,
 } from "../ui";
 import "../theme/library.css";
+
+const sourceLabel = (clip: Clip) =>
+  clip.discovery_mode === "project"
+    ? "Project"
+    : clip.discovery_mode === "upload"
+      ? "Your footage"
+      : "YouTube";
+
+function ClipArtwork({ clip, eager = false }: { clip: Clip; eager?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [clip.thumbnail_url]);
+  return (
+    <span className="media-artwork">
+      <span className="thumbnail-fallback" aria-hidden="true">
+        {clip.discovery_mode === "project" ? (
+          <Clapperboard size={30} strokeWidth={1.25} />
+        ) : (
+          <Film size={30} strokeWidth={1.25} />
+        )}
+        <span>{sourceLabel(clip)}</span>
+      </span>
+      {clip.thumbnail_url && !failed && (
+        <img
+          src={clip.thumbnail_url}
+          alt=""
+          loading={eager ? "eager" : "lazy"}
+          decoding="async"
+          onError={() => setFailed(true)}
+        />
+      )}
+    </span>
+  );
+}
+
+function savedDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Saved locally"
+    : date.toLocaleDateString("en", { month: "short", day: "numeric" });
+}
+
 export function LibraryPage({
   clips,
   loading,
+  unavailable = false,
   refresh,
   onImport,
   onOpen,
@@ -42,6 +88,7 @@ export function LibraryPage({
 }: {
   clips: Clip[];
   loading: boolean;
+  unavailable?: boolean;
   refresh: () => void;
   onImport: () => void;
   onOpen: (id: string) => void;
@@ -51,7 +98,14 @@ export function LibraryPage({
   const [filter, setFilter] = useState("all");
   const [license, setLicense] = useState("all");
   const [sort, setSort] = useState("recent");
-  const [view, setView] = useState("grid");
+  const [view, setView] = useState(() =>
+    localStorage.getItem("shortforge-library-view") === "table"
+      ? "table"
+      : "grid",
+  );
+  useEffect(() => {
+    localStorage.setItem("shortforge-library-view", view);
+  }, [view]);
   const [detail, setDetail] = useState<Clip | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirming, setConfirming] = useState(false);
@@ -175,84 +229,128 @@ export function LibraryPage({
   const exportedCount = active.filter(
     (c) => c.workflow_status === "exported",
   ).length;
+  const inspirationCount = active.filter(
+    (c) => c.license_status === "unknown",
+  ).length;
   const emptyLibrary = clips.length === 0;
+  const countsUnavailable = loading || (unavailable && emptyLibrary);
   const resetFilters = () => {
     setQuery("");
     setFilter("all");
     setLicense("all");
   };
+  const tabs = [
+    { id: "all", label: "All videos", n: active.length },
+    { id: "ready", label: "Ready to edit", n: readyCount },
+    { id: "exported", label: "Exported", n: exportedCount },
+    { id: "archived", label: "Archived", n: clips.length - active.length },
+  ];
+  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const next =
+      event.key === "ArrowRight"
+        ? (index + 1) % tabs.length
+        : event.key === "ArrowLeft"
+          ? (index + tabs.length - 1) % tabs.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? tabs.length - 1
+              : null;
+    if (next === null) return;
+    event.preventDefault();
+    setFilter(tabs[next].id);
+    document.getElementById(`library-tab-${tabs[next].id}`)?.focus();
+  };
   return (
     <section className="library-page" aria-label="Video library">
       <div className="page-heading library-heading">
         <div>
-          <h1>
-            Your library<span className="heading-dot">.</span>
-          </h1>
+          <h1>Your library</h1>
           <p>Your footage, inspiration, and finished Shorts in one place.</p>
         </div>
-        <button className="button primary" onClick={onImport}>
-          <Plus size={18} /> Add a video
-        </button>
+        <div className="library-heading-actions">
+          <button className="button secondary" onClick={() => onOpen("")}>
+            <Clapperboard size={16} /> Open Studio <ArrowUpRight size={14} />
+          </button>
+          <button className="button primary" onClick={onImport}>
+            <Plus size={17} /> Add a video
+          </button>
+        </div>
       </div>
-      <dl className="library-overview" aria-label="Library overview">
-        <div>
-          <dt>
-            <Film size={14} /> All videos
-          </dt>
-          <dd>
-            {active.length}
-            <span>In your library</span>
-          </dd>
-        </div>
-        <div>
-          <dt>
-            <CircleCheck size={14} /> Ready to edit
-          </dt>
-          <dd>
-            {readyCount}
-            <span>Open a project in Studio</span>
-          </dd>
-        </div>
-        <div>
-          <dt>
-            <Download size={14} /> Exported
-          </dt>
-          <dd>
-            {exportedCount}
-            <span>Finished in Studio</span>
-          </dd>
-        </div>
-      </dl>
+      <div
+        className="library-overview"
+        role="group"
+        aria-label="Library overview"
+      >
+        {[
+          {
+            id: "all",
+            label: "All videos",
+            n: active.length,
+            note: "In your library",
+            icon: Film,
+          },
+          {
+            id: "ready",
+            label: "Ready to edit",
+            n: readyCount,
+            note: "Open a project in Studio",
+            icon: Clapperboard,
+          },
+          {
+            id: "exported",
+            label: "Exported",
+            n: exportedCount,
+            note: "Finished in Studio",
+            icon: CircleCheck,
+          },
+          {
+            id: "inspiration",
+            label: "Inspiration",
+            n: inspirationCount,
+            note: "Saved for reference",
+            icon: Compass,
+          },
+        ].map(({ id, label, n, note, icon: Icon }) => (
+          <button
+            key={id}
+            className={`overview-card ${id === "all" ? "overview-featured" : ""}`}
+            aria-label={`Show ${label.toLowerCase()}, ${countsUnavailable ? "count unavailable" : `${n} videos`}`}
+            onClick={() => {
+              setQuery("");
+              setFilter(id === "inspiration" ? "all" : id);
+              setLicense(id === "inspiration" ? "unknown" : "all");
+            }}
+          >
+            <span className="overview-label">
+              {label}
+              <ArrowUpRight size={15} aria-hidden="true" />
+            </span>
+            <strong>{countsUnavailable ? "—" : n}</strong>
+            <span className="overview-note">
+              <Icon size={13} aria-hidden="true" />
+              {note}
+            </span>
+          </button>
+        ))}
+      </div>
       <div className="library-workspace">
         <div className="library-toolbar">
           <div className="tab-list" role="tablist" aria-label="Library filter">
-            {[
-              { id: "all", label: "All videos", n: active.length },
-              {
-                id: "ready",
-                label: "Ready to edit",
-                n: readyCount,
-              },
-              {
-                id: "exported",
-                label: "Exported",
-                n: exportedCount,
-              },
-              {
-                id: "archived",
-                label: "Archived",
-                n: clips.length - active.length,
-              },
-            ].map((t) => (
+            {tabs.map((t, index) => (
               <button
+                id={`library-tab-${t.id}`}
                 role="tab"
                 aria-selected={filter === t.id}
+                aria-controls="library-results"
+                tabIndex={filter === t.id ? 0 : -1}
                 className={filter === t.id ? "active" : ""}
                 key={t.id}
                 onClick={() => setFilter(t.id)}
+                onKeyDown={(event) => onTabKey(event, index)}
               >
                 {t.label}
-                <span>{t.n}</span>
+                <span>{countsUnavailable ? "—" : t.n}</span>
               </button>
             ))}
           </div>
@@ -345,182 +443,207 @@ export function LibraryPage({
             </IconButton>
           </div>
         )}
-        {loading ? (
-          <div className="skeleton-grid" aria-label="Loading library">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <div className="skeleton" key={n} />
-            ))}
-          </div>
-        ) : visible.length === 0 ? (
-          emptyLibrary ? (
-            <div className="library-start">
-              <Film size={32} strokeWidth={1.3} aria-hidden="true" />
-              <h2>Your next story starts here.</h2>
-              <p>
-                Import your footage or save a Short for inspiration. Everything
-                you collect will appear here.
-              </p>
-              <div className="library-start-actions">
-                <button className="button primary" onClick={onImport}>
-                  <Plus size={16} /> Import footage
-                </button>
-                <button className="button secondary" onClick={onScout}>
-                  <Compass size={16} /> Explore Scout
-                </button>
-              </div>
-              <span className="library-local-note">
-                <ShieldCheck size={13} /> Saved on your device
-              </span>
+        <div
+          id="library-results"
+          role="tabpanel"
+          aria-labelledby={`library-tab-${filter}`}
+        >
+          {loading ? (
+            <div className="skeleton-grid" aria-label="Loading library">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <div className="skeleton" key={n} />
+              ))}
             </div>
-          ) : (
+          ) : unavailable && emptyLibrary ? (
             <div className="library-no-results">
-              <Search size={28} strokeWidth={1.4} />
-              <h2>No videos in this view.</h2>
-              <p>Try a different search or filter to find your Short.</p>
-              <button className="button secondary" onClick={resetFilters}>
-                Clear filters <ArrowRight size={16} />
+              <CloudOff size={30} strokeWidth={1.4} aria-hidden="true" />
+              <h2>Your library is unavailable.</h2>
+              <p>Reconnect the local engine to load your saved videos.</p>
+              <button className="button secondary" onClick={refresh}>
+                Try again <ArrowRight size={16} />
               </button>
             </div>
-          )
-        ) : view === "grid" ? (
-          <div className="clip-grid">
-            {visible.map((clip) => (
-              <article className="clip-card" key={clip.id}>
-                <div className="clip-thumbnail">
-                  <button
-                    className="thumbnail-button"
-                    onClick={() => setDetail(clip)}
-                    aria-label={`Details for ${clip.title}`}
-                  >
-                    {clip.thumbnail_url ? (
-                      <img
-                        src={clip.thumbnail_url}
-                        alt=""
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <Film size={40} strokeWidth={1} />
-                    )}
-                    <span className="thumbnail-play">
-                      <Play size={22} fill="currentColor" />
-                    </span>
+          ) : visible.length === 0 ? (
+            emptyLibrary ? (
+              <div className="library-start">
+                <div className="empty-library-icon" aria-hidden="true">
+                  <Clapperboard size={32} strokeWidth={1.3} />
+                </div>
+                <h2>Your next story starts here.</h2>
+                <p>
+                  Import your footage or save a Short for inspiration.
+                  Everything you collect will appear here.
+                </p>
+                <div className="library-start-actions">
+                  <button className="button primary" onClick={onImport}>
+                    <Upload size={16} /> Import footage
                   </button>
-                  <input
-                    className="clip-checkbox"
-                    type="checkbox"
-                    aria-label={`Select ${clip.title}`}
-                    checked={selected.includes(clip.id)}
-                    onChange={() => toggle(clip.id)}
-                  />
-                  <IconButton
-                    className="clip-more"
-                    label={`More about ${clip.title}`}
-                    onClick={() => setDetail(clip)}
-                  >
-                    <MoreHorizontal size={16} />
-                  </IconButton>
-                  <span className="source-pill">
-                    {clip.discovery_mode === "upload" ? "Footage" : "YouTube"}
-                  </span>
+                  <button className="button secondary" onClick={onScout}>
+                    <Compass size={16} /> Explore Scout
+                  </button>
                 </div>
-                <div className="clip-meta">
-                  <Badge clip={clip} />
-                  <h3>
-                    <button onClick={() => setDetail(clip)}>
-                      {clip.title}
-                    </button>
-                  </h3>
-                  <p>{clip.channel_name || "Your workspace"}</p>
-                  <div className="clip-card-footer">
-                    <div className="clip-stats">
-                      <span title={`${count(clip.views)} views`}>
-                        <Play size={11} />
-                        {count(clip.views)}
-                      </span>
-                      <span title={`${count(clip.likes)} likes`}>
-                        <Heart size={11} />
-                        {count(clip.likes)}
-                      </span>
-                    </div>
+                <span className="library-local-note">
+                  <ShieldCheck size={13} /> Saved on your device
+                </span>
+              </div>
+            ) : (
+              <div className="library-no-results">
+                <Search size={28} strokeWidth={1.4} />
+                <h2>No videos in this view.</h2>
+                <p>Try a different search or filter to find your Short.</p>
+                <button className="button secondary" onClick={resetFilters}>
+                  Clear filters <ArrowRight size={16} />
+                </button>
+              </div>
+            )
+          ) : view === "grid" ? (
+            <div className="clip-grid">
+              {visible.map((clip, index) => (
+                <article className="clip-card" key={clip.id}>
+                  <div className="clip-thumbnail">
                     <button
-                      className="clip-open"
-                      aria-label={`Edit ${clip.title} in a new tab`}
-                      title="Edit in Studio · new tab"
-                      onClick={() => onOpen(clip.id)}
+                      className="thumbnail-button"
+                      onClick={() => setDetail(clip)}
+                      aria-label={`Details for ${clip.title}`}
                     >
-                      Edit
-                      <ArrowUpRight size={13} />
+                      <ClipArtwork clip={clip} eager={index < 5} />
+                      <span className="thumbnail-play">
+                        <Play size={22} fill="currentColor" />
+                      </span>
                     </button>
+                    <input
+                      className="clip-checkbox"
+                      type="checkbox"
+                      aria-label={`Select ${clip.title}`}
+                      checked={selected.includes(clip.id)}
+                      onChange={() => toggle(clip.id)}
+                    />
+                    <IconButton
+                      className="clip-more"
+                      label={`More about ${clip.title}`}
+                      onClick={() => setDetail(clip)}
+                    >
+                      <MoreHorizontal size={16} />
+                    </IconButton>
+                    <span className="source-pill">{sourceLabel(clip)}</span>
                   </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Select</th>
-                  <th>Video</th>
-                  <th>Views</th>
-                  <th>Likes</th>
-                  <th>Permission</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${c.title}`}
-                        checked={selected.includes(c.id)}
-                        onChange={() => toggle(c.id)}
-                      />
-                    </td>
-                    <td>
-                      <strong>{c.title}</strong>
-                      <small>{c.channel_name || "Your footage"}</small>
-                    </td>
-                    <td>{count(c.views)}</td>
-                    <td>{count(c.likes)}</td>
-                    <td>
-                      <Badge clip={c} />
-                    </td>
-                    <td>
-                      <button
-                        className="button primary small"
-                        aria-label={`Edit ${c.title} in a new tab`}
-                        onClick={() => onOpen(c.id)}
-                      >
-                        Edit <ArrowUpRight size={14} />
+                  <div className="clip-meta">
+                    <Badge clip={clip} />
+                    <h3>
+                      <button onClick={() => setDetail(clip)}>
+                        {clip.title}
                       </button>
+                    </h3>
+                    <p>{clip.channel_name || "Your workspace"}</p>
+                    <div className="clip-card-footer">
+                      <div className="clip-stats">
+                        {clip.views == null && clip.likes == null ? (
+                          <span title={`Added ${savedDate(clip.created_at)}`}>
+                            <Clock3 size={12} />
+                            {savedDate(clip.created_at)}
+                          </span>
+                        ) : (
+                          <>
+                            <span title={`${count(clip.views)} views`}>
+                              <Play size={11} />
+                              {count(clip.views)}
+                            </span>
+                            <span title={`${count(clip.likes)} likes`}>
+                              <Heart size={11} />
+                              {count(clip.likes)}
+                            </span>
+                          </>
+                        )}
+                      </div>
                       <button
-                        className="button secondary small"
-                        onClick={() => setDetail(c)}
+                        className="clip-open"
+                        aria-label={`Edit ${clip.title} in a new tab`}
+                        title="Edit in Studio · new tab"
+                        onClick={() => onOpen(clip.id)}
                       >
-                        Details
+                        Edit
+                        <ArrowUpRight size={13} />
                       </button>
-                    </td>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Select</th>
+                    <th>Video</th>
+                    <th>Views</th>
+                    <th>Likes</th>
+                    <th>Permission</th>
+                    <th>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {visible.map((c) => (
+                    <tr key={c.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${c.title}`}
+                          checked={selected.includes(c.id)}
+                          onChange={() => toggle(c.id)}
+                        />
+                      </td>
+                      <td>
+                        <div className="table-video">
+                          <span className="table-thumbnail">
+                            <ClipArtwork clip={c} />
+                          </span>
+                          <span>
+                            <strong>{c.title}</strong>
+                            <small>{c.channel_name || "Your footage"}</small>
+                          </span>
+                        </div>
+                      </td>
+                      <td>{count(c.views)}</td>
+                      <td>{count(c.likes)}</td>
+                      <td>
+                        <Badge clip={c} />
+                      </td>
+                      <td>
+                        <button
+                          className="button primary small"
+                          aria-label={`Edit ${c.title} in a new tab`}
+                          onClick={() => onOpen(c.id)}
+                        >
+                          Edit <ArrowUpRight size={14} />
+                        </button>
+                        <button
+                          className="button secondary small"
+                          onClick={() => setDetail(c)}
+                        >
+                          Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
         <div className="library-workspace-footer">
           <span>
-            {visible.length} {visible.length === 1 ? "video" : "videos"}
-            {filter === "archived" ? " archived" : " in your library"}
+            {unavailable
+              ? emptyLibrary
+                ? "Waiting for your library"
+                : "Showing last loaded videos"
+              : `${visible.length} ${visible.length === 1 ? "video" : "videos"}${filter === "archived" ? " archived" : " in your library"}`}
           </span>
-          <span>
-            <ShieldCheck size={13} /> Saved locally
-          </span>
+          {!unavailable && (
+            <span>
+              <ShieldCheck size={13} /> Saved locally
+            </span>
+          )}
         </div>
       </div>
       {confirming && (

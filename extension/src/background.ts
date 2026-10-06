@@ -15,7 +15,25 @@ async function load() {
   return state;
 }
 function log(text: string) { state.logs = [{ at: Date.now(), text }, ...state.logs].slice(0, 8); }
+async function syncTabProtection() {
+  // Protect only the scouting tab, without activating it or changing other tabs.
+  // Persist the old setting so a suspended MV3 worker can restore it later.
+  const previous = state.tabProtection;
+  if (previous && (state.status !== 'running' || previous.tabId !== state.tabId)) {
+    try { await chrome.tabs.update(previous.tabId, { autoDiscardable: previous.autoDiscardable }); }
+    catch { /* The tab may already be closed. */ }
+    state.tabProtection = null;
+  }
+  if (state.status === 'running' && state.tabId !== null && !state.tabProtection) {
+    try {
+      const tab = await chrome.tabs.get(state.tabId);
+      await chrome.tabs.update(state.tabId, { autoDiscardable: false });
+      state.tabProtection = { tabId: state.tabId, autoDiscardable: tab.autoDiscardable !== false };
+    } catch { /* Normal tab-close/navigation recovery still handles lost tabs. */ }
+  }
+}
 async function save() {
+  await syncTabProtection();
   await chrome.storage.local.set({ scout: state });
   await chrome.action.setBadgeBackgroundColor({ color: state.status === 'paused' ? '#946600' : '#006EDC' });
   await chrome.action.setBadgeText({ text: state.matched ? String(state.matched) : '' });
@@ -90,7 +108,7 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
     state.pending = state.pending.filter(clip => !known.has(clip.video_id));
     if (!(await flush())) return { state };
     if (message.type === 'start') {
-      state = { ...initialState(), knownIds: state.knownIds, settings, tabId: tab.id!, activeMode: settings.mode === 'narrated' ? 'narrated' : 'credits' };
+      state = { ...initialState(), tabProtection: state.tabProtection, knownIds: state.knownIds, settings, tabId: tab.id!, activeMode: settings.mode === 'narrated' ? 'narrated' : 'credits' };
     } else {
       if (state.tabId !== tab.id) throw new Error('Resume in the same YouTube tab, or Stop and start a new session.');
       if (filtersChanged(state.settings, settings)) state.seenIds = [];
@@ -102,7 +120,7 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
       await save(); return { state };
     }
     state.status = 'running'; state.reason = `Looking for ${state.activeMode === 'credits' ? 'credited' : 'narrated'} Shorts.`;
-    log(message.type === 'start' ? 'Scout started. Leave this YouTube tab open.' : 'Scout resumed.');
+    log(message.type === 'start' ? 'Scout started. Keep this YouTube tab open; you can switch tabs.' : 'Scout resumed.');
     await save();
     try { await tellTab('run'); }
     catch (error) { state.status = 'paused'; state.reason = (error as Error).message; await save(); throw error; }

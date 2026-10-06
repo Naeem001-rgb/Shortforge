@@ -1,0 +1,123 @@
+[
+  {
+    "name": "Zenxius",
+    "url": "https://www.pinterest.com/pin/dashboard-design--624944885827729004/",
+    "image": "https://i.pinimg.com/736x/7a/2d/c2/7a2dc29ba2ca5604cdbb03a313b492db.jpg",
+    "researcher": "SaaS / workspace",
+    "note": "Grouped navigation and concise overview.",
+    "kind": "pin"
+  },
+  {
+    "name": "Oripio",
+    "url": "https://uk.pinterest.com/pin/saas-web-app-design--589690145003419085/",
+    "image": "https://i.pinimg.com/736x/30/8d/9e/308d9e4a32060ff222d95922a7eefc8e.jpg",
+    "researcher": "SaaS / workspace",
+    "note": "Aligned search, heading, and actions.",
+    "kind": "pin"
+  },
+  {
+    "name": "FindMe",
+    "url": "https://www.pinterest.com/pin/findme-minimalist-dashboard-redesign--462885667963443900/",
+    "image": "https://i.pinimg.com/736x/56/34/06/563406e611570dda4227469d683a4e79.jpg",
+    "researcher": "SaaS / workspace",
+    "note": "Quiet canvas and readable task hierarchy.",
+    "kind": "pin"
+  },
+  {
+    "name": "Hello David",
+    "url": "https://www.pinterest.com/pin/292452569560757182/",
+    "image": "https://i.pinimg.com/736x/56/83/67/568367ede47a68b34209213fa264403b.jpg",
+    "researcher": "SaaS / workspace",
+    "note": "One strong focal panel.",
+    "kind": "pin"
+  },
+  {
+    "name": "KUBMA",
+    "url": "https://au.pinterest.com/pin/minimal-dashboard-design--615163630351164319/",
+    "image": "https://i.pinimg.com/736x/e5/a9/c7/e5a9c7d2288c1f71fe2326db9240e1c7.jpg",
+    "researcher": "SaaS / workspace",
+    "note": "Thumbnail-first media cards and explicit actions.",
+    "kind": "pin"
+  },
+  {
+    "name": "Portfolio workspace",
+    "url": "https://au.pinterest.com/pin/676243700345136219/",
+    "image": "https://i.pinimg.com/736x/02/e5/41/02e5419672345525f7ec10f97503c9dc.jpg",
+    "researcher": "SaaS / workspace",
+    "note": "Fine dividers and consistent spacing.",
+    "kind": "pin"
+  },
+  {
+    "name": "Donezo",
+    "url": "https://www.pinterest.com/pin/35254809577482776/",
+    "image": "https://i.pinimg.com/originals/e4/b5/8c/e4b58c5d1c363d3a7223476d657d0f79.png",
+    "researcher": "Dashboard / productivity",
+    "note": "Accented overview card and pale content well.",
+    "kind": "pin"
+  },
+  {
+    "name": "Coursie",
+    "url": "https://www.pinterest.com/pin/304626362318839469/",
+    "image": "https://i.pinimg.com/originals/8e/38/8a/8e388a8d275d7fbd9019f29bbe073ec0.png",
+    "researcher": "Dashboard / productivity",
+    "note": "PRIMARY: violet, inset rounded shell, white working surfaces.",
+    "kind": "pin"
+  },
+  {
+    "name": "Taskly",
+    "url": "https://www.pinterest.com/pin/42854633949843939/",
+    "image": "https://i.pinimg.com/originals/1f/e4/df/1fe4df244bca59198bcfca18f7e8648d.png",
+    "researcher": "Dashboard / productivity",
+    "note": "Filters and written states beside the work.",
+    "kind": "pin"
+  },
+  {
+    "name": "iDraft",
+    "url": "https://www.pinterest.com/pin/785455991311895862/",
+    "image": "https://i.pinimg.com/originals/f6/86/aa/f686aa16cd9f8367f110f024a3c5757b.png",
+    "researcher": "Dashboard / productivity",
+    "note": "Creation action and consistent recent-project controls.",
+    "kind": "pin"
+  },
+  {
+    "name": "Eduplex",
+    "url": "https://www.pinterest.com/pin/1477812372350738/",
+    "image": "https://i.pinimg.com/originals/39/b8/0d/39b80d90c8f7585cce93b1e3ad0defee.jpg",
+    "researcher": "Dashboard / productivity",
+    "note": "Content metadata and supporting information.",
+    "kind": "pin"
+  },
+  {
+    "name": "Bankio",
+    "url": "https://www.pinterest.com/pin/148126275239748454/",
+    "image": "https://i.pinimg.com/originals/1e/a0/9e/1ea09e7dad4ba76329eeb9172dbe4842.jpg",
+    "researcher": "Dashboard / productivity",
+    "note": "Readable tables, written status, and quiet dividers.",
+    "kind": "pin"
+  },
+  {
+    "name": "Courseco",
+    "url": "https://id.pinterest.com/pin/1128714725392184328/",
+    "image": "https://i.pinimg.com/736x/b4/e2/e2/b4e2e279c4592f3dc639ff4fa4b5b7f3.jpg",
+    "researcher": "Creator / media",
+    "note": "Content-led hierarchy and concise metadata.",
+    "kind": "pin"
+  },
+  {
+    "name": "Robovision",
+    "url": "https://www.pinterest.com/pin/416231190587216444/",
+    "canonical": "https://in.pinterest.com/pin/1123437069579125613/",
+    "image": "https://i.pinimg.com/736x/b6/73/88/b673888a2bf9b4259e844d629581f9de.jpg",
+    "researcher": "Creator / media",
+    "note": "Video thumbnail grids and creation controls.",
+    "kind": "pin"
+  },
+  {
+    "name": "EditorPro",
+    "url": "https://www.pinterest.com/search/pins/?q=video%20dashboard%20ui",
+    "image": "https://i.pinimg.com/736x/30/0f/f5/300ff5386413c6edf71f9fc563c712f7.jpg",
+    "researcher": "Creator / media",
+    "note": "Calm media wells; footage carries the visual weight.",
+    "kind": "search image; pin permalink unavailable"
+  }
+]

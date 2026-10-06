@@ -1,6 +1,5 @@
 """Timestamp plumbing and an explicitly enabled local recognizer smoke test."""
 import os
-from pathlib import Path
 import shutil
 import subprocess
 from unittest.mock import patch

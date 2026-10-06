@@ -10,10 +10,8 @@ import {
 import { CopyButton } from "../ui";
 export function ScoutPage({
   onImport,
-  onSettings,
 }: {
   onImport: () => void;
-  onSettings: () => void;
 }) {
   return (
     <>

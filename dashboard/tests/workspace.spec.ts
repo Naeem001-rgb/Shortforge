@@ -14,7 +14,7 @@ test("library, theme, navigation, settings and responsive layout", async ({
   await page.goto("/");
   await expect(page.getByText("Engine connected")).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Your library." }),
+    page.getByRole("heading", { name: "Your library", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Light theme", exact: true }).click();
   await page.screenshot({
@@ -113,7 +113,7 @@ test("library, theme, navigation, settings and responsive layout", async ({
       ),
     ).toBe(true);
     await expect(
-      page.getByRole("heading", { name: "Your library." }),
+      page.getByRole("heading", { name: "Your library", exact: true }),
     ).toBeVisible();
   } finally {
     await editor.close();

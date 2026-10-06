@@ -1,4 +1,4 @@
-import { LoaderCircle, Music2, Pause, Play, Plus, Volume2 } from "lucide-react";
+import { LoaderCircle, Pause, Play, Plus, Volume2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import { newItem } from "./editorModel";

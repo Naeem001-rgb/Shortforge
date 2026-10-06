@@ -11,4 +11,3 @@ test-results/
 playwright-report/
 .impeccable/
 *.tsbuildinfo
-CODEX_HANDOFF.jsonl

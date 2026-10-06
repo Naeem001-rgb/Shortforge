@@ -13,12 +13,13 @@ export interface ScanResult {
 }
 export interface ScoutState {
   status: Status; settings: Settings; activeMode: 'credits' | 'narrated'; tabId: number | null;
+  tabProtection: { tabId: number; autoDiscardable: boolean } | null;
   scanned: number; matched: number; saved: number; creditMisses: number; reason: string;
   pending: Candidate[]; knownIds: string[]; seenIds: string[]; logs: LogEntry[]; lastScan: ScanResult | null;
 }
 export const DEFAULTS: Settings = { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated' };
 export function initialState(): ScoutState {
-  return { status: 'idle', settings: { ...DEFAULTS }, activeMode: 'narrated', tabId: null,
+  return { status: 'idle', settings: { ...DEFAULTS }, activeMode: 'narrated', tabId: null, tabProtection: null,
     scanned: 0, matched: 0, saved: 0, creditMisses: 0,
     reason: 'Open a YouTube Short, then start scouting.', pending: [], knownIds: [], seenIds: [], logs: [], lastScan: null };
 }

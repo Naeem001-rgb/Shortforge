@@ -5,11 +5,10 @@ into generated ASS files and paths passed as process arguments, never a shell.
 """
 from pathlib import Path
 import math
-import re
 import subprocess
 import tempfile
 
-from .editor_models import Project, TimelineItem
+from .editor_models import Project
 from .editor_transitions import transition_alpha_expression, transition_map
 from .media import ffmpeg_binary
 

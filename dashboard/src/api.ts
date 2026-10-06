@@ -100,8 +100,6 @@ export const count = (value: number | null) =>
         notation: "compact",
         maximumFractionDigits: 1,
       }).format(value);
-export const wordCount = (text: string) =>
-  text.trim() ? text.trim().split(/\s+/u).length : 0;
 export async function api<T>(
   path: string,
   options: RequestInit = {},

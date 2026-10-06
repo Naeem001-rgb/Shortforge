@@ -58,7 +58,8 @@ async function waitForDescriptionPanel(): Promise<HTMLElement | null> {
     }
     await wait(100);
   } while (Date.now() < deadline);
-  return null;
+  // A background timer can wake after the deadline even though the panel is ready.
+  return first(document, SELECTORS.descriptionPanel);
 }
 function descriptionMenuItem(): HTMLElement | null {
   const item = all(document, SELECTORS.menuItems).find(node => visible(node)
@@ -74,7 +75,7 @@ async function waitForDescriptionMenuItem(): Promise<HTMLElement | null> {
     if (item) return item;
     await wait(100);
   } while (Date.now() < deadline);
-  return null;
+  return descriptionMenuItem();
 }
 function challenge(): string | null {
   for (const node of all(document, SELECTORS.challenges).filter(visible)) {
@@ -158,9 +159,6 @@ async function tick(token: number) {
   if (!running || generation !== token) return;
   try {
     if (!location.pathname.startsWith('/shorts/')) { await pause('You left YouTube Shorts. Return to a Short, then resume.'); return; }
-    if (document.visibilityState !== 'visible') {
-      await pause('Your Shorts tab is in the background. Bring it to the front, then resume.'); return;
-    }
     const blocker = challenge();
     if (blocker) { await pause(blocker); return; }
     const clip = await readClip();
@@ -174,7 +172,6 @@ async function tick(token: number) {
     // Wait 4–9 seconds between advances. No stealth or bot-check bypasses.
     timer = setTimeout(async () => {
       if (!running || generation !== token) return;
-      if (document.visibilityState !== 'visible') { await pause('Your Shorts tab is in the background. Bring it to the front, then resume.'); return; }
       const blocker = challenge();
       if (blocker) { await pause(blocker); return; }
       advance(); advancedAt = Date.now(); await wait(1200); await tick(token);

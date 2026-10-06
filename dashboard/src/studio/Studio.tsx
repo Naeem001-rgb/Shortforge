@@ -5,8 +5,6 @@ import { readRecovery, saveRecovery } from "./mediaStorage";
 import {
   AudioLines,
   Captions,
-  Check,
-  ChevronDown,
   Download,
   Film,
   FolderOpen,
@@ -18,8 +16,6 @@ import {
   Plus,
   Scissors,
   SlidersHorizontal,
-  Sparkles,
-  ScanText,
   Sticker,
   Subtitles,
   Type,
@@ -30,7 +26,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Asset, Clip } from "../api";
-import { api, assetUrl, useJob } from "../api";
+import { api, useJob } from "../api";
 import { IconButton, JobProgress, Notice } from "../ui";
 import { EditorInspector } from "./EditorInspector";
 import { EditorPreview } from "./EditorPreview";
@@ -40,6 +36,7 @@ import { CustomTemplates } from "./CustomTemplates";
 import { addKeyframe, cueItems, removeItems } from "./timelineOps";
 import { ScriptVoicePanel } from "./ScriptVoicePanel";
 import { CaptionPanel } from "./CaptionPanel";
+import { CaptionRemoval } from "./CaptionRemoval";
 import { EditorExportPanel } from "./EditorExportPanel";
 import { applyTextPreset } from "./textPresets";
 import {
@@ -61,7 +58,6 @@ import type { TextPreset } from "./textPresets";
 import {
   clamp,
   durationOf,
-  formatTime,
   newItem,
   parseSrt,
   trimItem,
@@ -190,8 +186,9 @@ function ProjectEditor({
     available: boolean;
     message: string;
   } | null>(null);
-  const [ocrSpeed, setOcrSpeed] = useState<"fast" | "balanced" | "accurate">("balanced");
+  const [ocrSpeed] = useState<"fast" | "balanced" | "accurate">("balanced");
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [removalOpen, setRemovalOpen] = useState(false);
   const { layout, setLayout, style: layoutStyle } = useEditorLayout();
   const sourceAttempted = useRef(false);
   const projectInput = useRef<HTMLInputElement>(null);
@@ -483,7 +480,7 @@ function ProjectEditor({
     const key = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const target = e.target as HTMLElement;
-      if (target.closest("input,textarea,select,[contenteditable=true]"))
+      if (target.closest("input,textarea,select,[contenteditable=true],dialog[open]"))
         return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
@@ -1301,6 +1298,27 @@ function ProjectEditor({
           event.target.value = "";
         }}
       />
+      <CaptionRemoval
+        projectId={selected} item={selectedItem} asset={selectedAsset} open={removalOpen}
+        onClose={() => setRemovalOpen(false)}
+        onAsset={asset => setMedia(current => current.some(entry => entry.id === asset.id) ? current : [...current, asset])}
+        onApply={(request, asset) => {
+          const current = projectRef.current;
+          const target = current?.items.find(entry => entry.id === request.item_id);
+          if (!current || !target || target.asset_id !== request.asset_id || target.freeze_at != null ||
+              Math.abs(target.source_in - request.start) > .01 || Math.abs(target.duration * target.speed - request.duration) > .06) {
+            setError("This clip's timing or source changed while removal ran. The cleaned video is in Media; preview a new removal for this edit.");
+            setRemovalOpen(false);
+            return false;
+          }
+          commit({ ...current, items: current.items.map(entry => entry.id === target.id ? {
+            ...entry, asset_id: asset.id, source_in: 0,
+            conceal: entry.conceal ? { ...entry.conceal, mode: "none" as const } : undefined,
+          } : entry) });
+          setMessage("Cleaned clip applied. Use Undo to restore the original.");
+          return true;
+        }}
+      />
       {(error || jobError || message) && (
         <div
           className={`editor-status-toast ${error || jobError ? "is-error" : ""}`}
@@ -1765,6 +1783,7 @@ function ProjectEditor({
                 onProject={(patch) => commit({ ...project, ...patch })}
                 onTime={seek}
                 onExtractAudio={() => void runAudio("extract")}
+                onRemoveCaptions={() => { setPlaying(false); setRemovalOpen(true); }}
                 onExtractCaptions={
                   ocrTarget
                     ? () =>

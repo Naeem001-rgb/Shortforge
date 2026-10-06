@@ -31,6 +31,7 @@ For Scout, load `extension/dist` as an unpacked Chrome extension. See [the exten
 - Position, scale, rotation, opacity, and volume keyframes with interpolation/easing.
 - Fade, slide, and zoom entrance/exit animations; timed text and imported SRT captions.
 - Local voiceover/music uploads and non-destructive original-audio extraction.
+- Local AI removal of burned-in captions, with an adjustable area, one-second preview, cancellation, and undo. Installed on this machine; see [caption removal](docs/CAPTION-REMOVAL.md). Results can flicker or smudge, and CPU processing can take a long time.
 - Optional local Demucs vocal/instrumental separation. It is installed on this development machine; see [audio separation setup](docs/AUDIO-SEPARATION.md) for another machine. Separation can leave artifacts and is not guaranteed to perfectly remove speech from every mix.
 - Portrait, landscape, or square canvas; CPU H.264/AAC MP4 exports at 480p, 720p, or 1080p.
 - Server-side project saving, restored project selection, light/dark/system themes.

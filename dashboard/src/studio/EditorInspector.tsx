@@ -6,6 +6,7 @@ import { captionFonts } from "./fonts";
 import "./fonts.css";
 import {
   AudioLines,
+  Eraser,
   Diamond,
   LoaderCircle,
   ScanText,
@@ -128,6 +129,7 @@ export function EditorInspector({
   onProject,
   onTime,
   onExtractAudio,
+  onRemoveCaptions,
   onExtractCaptions,
   captionsBusy,
   captionsAvailable,
@@ -142,6 +144,7 @@ export function EditorInspector({
   onProject: (patch: Partial<EditorProject>) => void;
   onTime: (n: number) => void;
   onExtractAudio?: () => void;
+  onRemoveCaptions?: () => void;
   onExtractCaptions?: () => void;
   captionsBusy?: boolean;
   captionsAvailable?: boolean;
@@ -244,14 +247,7 @@ export function EditorInspector({
       ].sort((a, b) => a.time - b.time),
     });
   };
-  const conceal = item.conceal || {
-    mode: "none" as const,
-    x: 5,
-    y: 66,
-    width: 90,
-    height: 18,
-    color: "#101014",
-  };
+
   const addKey = () =>
     update({
       keyframes: [
@@ -288,8 +284,7 @@ export function EditorInspector({
           <section className="editor-inspector-section editor-strip-original" hidden={tab!=="basic"}>
             <h3>Remove what came with this clip</h3>
             <p>
-              Take away the original sound or the subtitles burned into the
-              picture, then bring in your own.
+              Separate the soundtrack, read the captions, or remove them from the picture.
             </p>
             <button
               className="button secondary full"
@@ -316,66 +311,11 @@ export function EditorInspector({
             {!captionsAvailable && captionsMessage && (
               <p className="editor-inspector-hint">{captionsMessage}</p>
             )}
-            <label className="editor-field">
-              <span>Remove burned-in subtitles</span>
-              <select
-                aria-label="Cover existing captions"
-                value={conceal.mode}
-                onChange={(event)=>
-                  update({
-                    conceal: {
-                      ...conceal,
-                      mode: event.target.value as typeof conceal.mode,
-                    },
-                  })
-                }
-              >
-                <option value="none">Leave them</option>
-                <option value="cover">Cover with a solid block</option>
-                <option value="blur">Blur that area</option>
-                <option value="mosaic">Pixelate that area</option>
-              </select>
-            </label>
-            {conceal.mode!=="none"&&(
-              <>
-                <div className="editor-field-pair">
-                  {(["x","y","width","height"] as const).map((key)=>(
-                    <label className="editor-field" key={key}>
-                      <span>{key.toUpperCase()} %</span>
-                      <input
-                        aria-label={`Cover ${key}`}
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={conceal[key]}
-                        onChange={(event)=>
-                          update({
-                            conceal: {
-                              ...conceal,
-                              [key]: Math.max(0, Math.min(100, +event.target.value)),
-                            },
-                          })
-                        }
-                      />
-                    </label>
-                  ))}
-                </div>
-                {conceal.mode==="cover"&&(
-                  <label className="editor-field">
-                    <span>Cover color</span>
-                    <input
-                      type="color"
-                      value={conceal.color}
-                      onChange={(event)=>
-                        update({
-                          conceal: { ...conceal, color: event.target.value },
-                        })
-                      }
-                    />
-                  </label>
-                )}
-              </>
-            )}
+            <button className="button primary full" disabled={!onRemoveCaptions || !asset} onClick={onRemoveCaptions}>
+              <Eraser size={15} />
+              Remove burned-in captions
+            </button>
+            <p className="editor-inspector-hint">AI rebuilds the caption area. Preview the result before using it.</p>
           </section>
         )}
         <section className="editor-inspector-section" hidden={tab!=="basic"}>

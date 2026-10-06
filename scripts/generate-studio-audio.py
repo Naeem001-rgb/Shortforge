@@ -1,6 +1,6 @@
 """Original procedural starter sounds. Source and generated audio dedicated CC0-1.0."""
 from pathlib import Path
-import math, random, subprocess, tempfile, wave
+import subprocess, tempfile, wave
 import numpy as np
 ROOT=Path(__file__).resolve().parents[1]/'dashboard/public/audio'
 ROOT.mkdir(parents=True,exist_ok=True)

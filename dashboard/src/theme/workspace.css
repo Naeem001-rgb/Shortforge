@@ -18,16 +18,16 @@ h3 {
 .button {
   font-size: 13px;
   font-weight: 500;
-  min-height: 36px;
-  padding: 8px 12px;
-  border-radius: 7px;
+  min-height: 40px;
+  padding: 9px 15px;
+  border-radius: 10px;
   transition:
     background 180ms ease-out,
     border-color 180ms ease-out,
     box-shadow 180ms ease-out;
 }
 .button.primary {
-  box-shadow: 0 2px 3px rgba(44, 32, 118, 0.1);
+  box-shadow: none;
 }
 .button.secondary {
   background: var(--surface-raised);
@@ -57,12 +57,12 @@ input[type="checkbox"]:indeterminate {
   box-shadow: var(--shadow-sm);
 }
 .page-heading h1 {
-  font-size: 24px;
+  font-size: 30px;
   font-weight: 600;
   letter-spacing: -0.025em;
 }
 .page-heading p {
-  margin-top: 6px;
+  margin-top: 8px;
   font-size: 13px;
 }
 .page-heading {
@@ -73,14 +73,14 @@ input[type="checkbox"]:indeterminate {
   border-color: var(--border);
   background: var(--surface);
   box-shadow: none;
-  border-radius: 10px;
+  border-radius: 16px;
 }
 .scout-feature,
 .voice-intro {
   border: 1px solid var(--border);
   background: var(--hero-bg);
   color: var(--hero-ink);
-  border-radius: 10px;
+  border-radius: 16px;
 }
 .scout-feature p,
 .voice-intro p,

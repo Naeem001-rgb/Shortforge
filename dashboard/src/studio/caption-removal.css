@@ -1,0 +1,132 @@
+.modal:has(.caption-removal) {
+  background: var(--surface);
+  color: var(--text);
+}
+.caption-removal {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.caption-removal p {
+  margin: 0;
+  line-height: 1.5;
+}
+.removal-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.removal-comparison figure {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.removal-comparison figcaption {
+  font-size: 12px;
+  color: var(--muted);
+}
+.removal-picture {
+  position: relative;
+  max-height: 280px;
+  max-width: 100%;
+  overflow: hidden;
+  background: var(--bg);
+}
+.removal-picture video {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.removal-selection {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+.removal-box {
+  position: absolute;
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  pointer-events: none;
+}
+.removal-result {
+  width: 100%;
+  height: 280px;
+  object-fit: contain;
+  background: var(--bg);
+}
+.removal-empty {
+  display: flex;
+  flex: 1;
+  min-height: 160px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--elevated);
+  color: var(--muted);
+  text-align: center;
+}
+.removal-controls {
+  display: grid;
+  gap: 12px;
+}
+.removal-coordinates {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.removal-coordinates input {
+  min-width: 0;
+  width: 100%;
+}
+.removal-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+.removal-error {
+  color: var(--danger);
+}
+.removal-progress {
+  display: grid;
+  gap: 8px;
+}
+.removal-progress p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.removal-progress progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.removal-progress button {
+  justify-self: start;
+}
+.removal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 560px) {
+  .removal-comparison {
+    gap: 8px;
+  }
+  .removal-picture {
+    max-height: 210px;
+  }
+  .removal-result {
+    height: 210px;
+  }
+  .removal-coordinates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .removal-actions .button {
+    width: 100%;
+  }
+}

@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from engine.ai.writing import original_script, rewrite_script, seo_pack, within_tolerance, word_bounds, word_count
+from engine.ai.writing import rewrite_script, seo_pack, within_tolerance, word_bounds, word_count
 
 
 class WritingTests(unittest.TestCase):

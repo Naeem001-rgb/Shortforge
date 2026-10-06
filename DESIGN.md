@@ -1,19 +1,19 @@
 ---
 name: "ShortForge"
-description: "A compact local video workspace following the supplied Nexus dashboard reference."
+description: "A framed local video workspace shaped by the selected Pinterest/Coursie dashboard reference."
 colors:
-  bg: "#f5f7f9"
+  bg: "#f5f5f8"
   surface: "#ffffff"
   surface-raised: "#ffffff"
   media-card-bg: "#ffffff"
-  media-card-border: "#dcd9eb"
-  elevated: "#f0f2f5"
-  text: "#22232c"
-  muted: "#616571"
-  border: "#e6e8ee"
+  media-card-border: "#e6e6ee"
+  elevated: "#ebebf1"
+  text: "#242432"
+  muted: "#686878"
+  border: "#e4e4ed"
   accent: "#5347ce"
   button-bg: "#5347ce"
-  accent-soft: "#eeecfc"
+  accent-soft: "#eae7fc"
   secondary: "#887cfd"
   info: "#4896fe"
   teal: "#16c8c7"
@@ -21,19 +21,27 @@ colors:
   danger: "#bc3748"
   danger-button: "#b42c42"
   warning: "#8c601b"
-  sidebar-bg: "#fdfdfe"
-  topbar-bg: "#ffffff"
+  sidebar-bg: "#f5f5f8"
+  topbar-bg: "#f5f5f8"
+  frame-bg: "#ffffff"
+  feature-bg: "#5347ce"
+  feature-ink: "#ffffff"
+  feature-muted: "#e7e3ff"
+  device-bg: "#242137"
+  device-ink: "#f6f3ff"
+  device-muted: "#c1bdd4"
+  hero-bg: "#eeecfb"
   hero-ink: "#28243f"
   hero-muted: "#625d77"
-  dark-bg: "#171820"
-  dark-surface: "#20212c"
-  dark-surface-raised: "#252633"
-  dark-media-card-bg: "#2a2c3b"
-  dark-media-card-border: "#48465f"
-  dark-elevated: "#2c2d3c"
-  dark-text: "#f0f0f6"
-  dark-muted: "#b0b0c1"
-  dark-border: "#343544"
+  dark-bg: "#1d1e29"
+  dark-surface: "#272835"
+  dark-surface-raised: "#2d2e3c"
+  dark-media-card-bg: "#272835"
+  dark-media-card-border: "#3d3e50"
+  dark-elevated: "#333446"
+  dark-text: "#f1f0f8"
+  dark-muted: "#b3b2c7"
+  dark-border: "#3b3b4f"
   dark-accent: "#b5adff"
   dark-button-bg: "#6558d8"
   dark-accent-soft: "#302b4c"
@@ -44,102 +52,126 @@ colors:
   dark-danger: "#ff9daa"
   dark-danger-button: "#b73850"
   dark-warning: "#e4bd7c"
-  dark-sidebar-bg: "#1b1c25"
-  dark-topbar-bg: "#1e1f29"
+  dark-sidebar-bg: "#1d1e29"
+  dark-topbar-bg: "#1d1e29"
+  dark-frame-bg: "#14151e"
+  dark-feature-bg: "#5b4bd3"
+  dark-feature-ink: "#ffffff"
+  dark-feature-muted: "#e7e3ff"
+  dark-device-bg: "#302b47"
+  dark-device-ink: "#f6f3ff"
+  dark-device-muted: "#c1bdd4"
+  dark-hero-bg: "#302b47"
   dark-hero-ink: "#efecff"
   dark-hero-muted: "#bab4d3"
-  on-action: "#ffffff"
 typography:
   display:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", Inter, \"Segoe UI\", sans-serif"
-    fontSize: "25px"
-    fontWeight: 620
-    lineHeight: 1.25
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
+    fontSize: "30px"
+    fontWeight: 600
+    lineHeight: 1.2
     letterSpacing: "-0.035em"
   headline:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", Inter, \"Segoe UI\", sans-serif"
-    fontSize: "24px"
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
+    fontSize: "30px"
     fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "-0.025em"
   title:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", Inter, \"Segoe UI\", sans-serif"
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
     fontSize: "20px"
     fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "-0.025em"
   body:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", Inter, \"Segoe UI\", sans-serif"
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.55
   label:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", Inter, \"Segoe UI\", sans-serif"
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
     fontSize: "13px"
     fontWeight: 500
     lineHeight: 1.45
   navigation:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", Inter, \"Segoe UI\", sans-serif"
-    fontSize: "12px"
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
+    fontSize: "13px"
     fontWeight: 450
     lineHeight: 1.55
+  navigation-active:
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
+    fontSize: "13px"
+    fontWeight: 600
+    lineHeight: 1.55
+  overview-number:
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
+    fontSize: "33px"
+    fontWeight: 550
+    lineHeight: 1.1
+    letterSpacing: "-0.04em"
   card-title:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", Inter, \"Segoe UI\", sans-serif"
-    fontSize: "12px"
-    fontWeight: 570
-    lineHeight: 1.4
-    letterSpacing: "-0.01em"
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
+    fontSize: "13px"
+    fontWeight: 560
+    lineHeight: 1.5
+    letterSpacing: "-0.015em"
+  card-metadata:
+    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
+    fontSize: "11px"
+    fontWeight: 400
+    lineHeight: 1.6
   code:
     fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace"
     fontSize: "12px"
 rounded:
   micro: "4px"
-  navigation: "5px"
+  count: "5px"
   compact: "6px"
-  button: "7px"
+  card-action: "7px"
+  filter: "8px"
   field: "9px"
-  panel: "10px"
-  thumbnail: "12px"
-  dialog: "16px"
-  media-card: "17px"
-  card-action: "20px"
+  navigation: "9px"
+  thumbnail: "9px"
+  button: "10px"
+  inset: "12px"
+  media-card: "14px"
+  overview: "14px"
+  panel: "16px"
 spacing:
   xs: "4px"
+  media-inset: "6px"
   sm: "8px"
   md: "12px"
-  lg: "16px"
-  group: "20px"
+  overview-gap: "14px"
+  group: "16px"
+  section: "22px"
   workspace: "24px"
   panel: "28px"
 components:
   button-primary:
     backgroundColor: "{colors.button-bg}"
-    textColor: "{colors.on-action}"
+    textColor: "{colors.feature-ink}"
     typography: "{typography.label}"
     rounded: "{rounded.button}"
-    padding: "8px 12px"
-    height: "36px"
+    padding: "9px 15px"
   button-secondary:
     backgroundColor: "{colors.surface-raised}"
     textColor: "{colors.text}"
     typography: "{typography.label}"
     rounded: "{rounded.button}"
-    padding: "8px 12px"
-    height: "36px"
+    padding: "9px 15px"
   button-ghost:
     backgroundColor: "transparent"
     textColor: "{colors.muted}"
     typography: "{typography.label}"
     rounded: "{rounded.button}"
-    padding: "8px 12px"
-    height: "36px"
+    padding: "9px 15px"
   button-danger:
     backgroundColor: "{colors.danger-button}"
-    textColor: "{colors.on-action}"
+    textColor: "{colors.feature-ink}"
     typography: "{typography.label}"
     rounded: "{rounded.button}"
-    padding: "8px 12px"
-    height: "36px"
+    padding: "9px 15px"
   input:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.text}"
@@ -147,12 +179,11 @@ components:
     rounded: "{rounded.field}"
     padding: "10px 12px"
   navigation-active:
-    backgroundColor: "{colors.elevated}"
-    textColor: "{colors.text}"
-    typography: "{typography.navigation}"
+    backgroundColor: "{colors.accent-soft}"
+    textColor: "{colors.accent}"
+    typography: "{typography.navigation-active}"
     rounded: "{rounded.navigation}"
-    padding: "8px 10px"
-    height: "35px"
+    padding: "10px 12px"
   badge-neutral:
     backgroundColor: "{colors.elevated}"
     textColor: "{colors.muted}"
@@ -165,137 +196,181 @@ components:
     padding: "28px"
   theme-selector:
     backgroundColor: "{colors.elevated}"
-    rounded: "{rounded.compact}"
-    padding: "2px"
+    rounded: "{rounded.field}"
+    padding: "3px"
   media-card:
     backgroundColor: "{colors.media-card-bg}"
     textColor: "{colors.text}"
     rounded: "{rounded.media-card}"
     padding: "6px"
+  overview-featured:
+    backgroundColor: "{colors.feature-bg}"
+    textColor: "{colors.feature-ink}"
+    rounded: "{rounded.overview}"
+    padding: "16px 17px"
 ---
 
 # Design System: ShortForge
 
 ## Overview
 
-**Creative North Star: "The compact creative workspace"**
+**Creative North Star: "The framed creator workspace"**
 
-ShortForge follows the user-supplied Nexus dashboard and brand guide: a compact, precise application frame, white working panels, cool-gray gradients, and violet actions. The selected solid card reference supplies inset rounded media, clear text below the image, and a small capsule action. The interface keeps the real ShortForge library and production tools.
+ShortForge follows the user-selected Pinterest direction, led by Coursie's framed workspace and supported by Donezo's grouping and creator/media references. A white outer frame separates inset, rounded pale-gray navigation and work regions. White content surfaces, a strong violet collection tile, clear typography, and compact footage cards make the next working action easy to find.
 
-Light, dark, and system modes share the same geometry. Dark mode translates the surfaces into charcoal and readable lavender accents. Apple system fonts lead on Apple platforms; bundled Inter supplies the fallback elsewhere. Lucide line icons and thin neutral rules keep the chrome quiet around actual footage.
+Light, dark, and system dashboard themes preserve the same geometry. Dark mode uses a deeper outer frame, charcoal work regions, and readable lavender interaction colors. Platform system fonts lead the dashboard stack, with bundled Inter Variable available on every installation. Studio opens in a separate browser tab and retains its own dark editing workspace; the dashboard frame does not wrap the editor.
 
 **Key Characteristics:**
 
-- A subtle cool-gray/lavender page gradient with solid white light-mode panels.
-- The supplied violet, lavender, blue, and teal palette with separate semantic status colors.
-- A 200px navigation rail, 56px utility header, and compact working controls.
-- Five compact media cards per desktop row, with real thumbnails and metadata.
-- Persistent light/dark/system themes, visible focus, and responsive navigation.
+- A solid outer frame and inset rounded work regions, with no dashboard canvas gradient.
+- Violet actions and one featured overview tile, with neutral content surfaces and factual status colors.
+- A 212px desktop navigation rail, 64px utility bar, 16px outer inset, and 24px content gutters.
+- Four actionable Library overview counts and at most five compact media cards per row.
+- Persistent dashboard themes and grid/table choice, keyboard navigation, useful unavailable states, and a separate Studio tab.
 
-This document records the user-authorized replacement of the earlier creative-studio styling with the supplied Nexus dashboard, guide, and solid inset-image card. Runtime sources are `dashboard/src/theme/tokens.css`, `app.css`, `workspace.css`, `shell.css`, and `library.css`. The page-specific contract and reference paths live in `.impeccable/surfaces/dashboard.md`.
+This replaces the previous Nexus specification. The [active dashboard contract](.impeccable/surfaces/dashboard-src-library-library-tsx.md), [15-reference research record](docs/design/pinterest-dashboard-research.md), and [independent ship review](.impeccable/review/pinterest-dashboard/finish-review.md) retain the selection and finish evidence. Reference rasters are research-only; rendered video thumbnails are library media. No Pinterest raster is bundled as application artwork.
+
+The normative implementation is in [tokens.css](dashboard/src/theme/tokens.css), [app.css](dashboard/src/theme/app.css), [workspace.css](dashboard/src/theme/workspace.css), [shell.css](dashboard/src/theme/shell.css), and [library.css](dashboard/src/theme/library.css). [App.tsx](dashboard/src/shell/App.tsx) and [Library.tsx](dashboard/src/library/Library.tsx) define the interactions. [editor.css](dashboard/src/theme/editor.css) owns Studio's separate dark scope.
 
 ## Colors
 
-The frontmatter uses runtime token names without the CSS `--` prefix. A `dark-` prefix denotes the corresponding dark-theme value. These extracted values are normative; do not substitute the earlier blue-accent palette.
+The frontmatter preserves runtime color values and custom-property names without their leading double hyphen. A **dark-** prefix identifies the dashboard dark-theme value. Components reference these primitives; the sidecar records shadow values and the solid-color aliases whose legacy names still contain “gradient.”
 
 ### Primary
 
-`accent` and `button-bg` use the supplied violet #5347CE in light mode. In dark mode, readable lavender `accent` is separate from the darker `button-bg` fill so white button text stays clear. `accent-soft` carries quiet selected surfaces and tinted details. Text selection uses white on `button-bg`.
+**accent** marks navigation, links, focus, and selected controls. **button-bg** supplies the action fill; its dark value is deliberately darker than the dark accent ink so white action text remains readable. **accent-soft** provides selected and secondary-action surfaces. **feature-bg**, **feature-ink**, and **feature-muted** form the featured overview tile in both themes.
 
 ### Secondary
 
-The supplied lavender #887CFD is `secondary`, blue #4896FE is `info`, and teal #16C8C7 is `teal`. Their dark-mode counterparts are coordinated brighter values. These colors support the violet hierarchy rather than assigning a different accent to each control.
+**secondary**, **info**, and **teal** retain the supporting lavender, blue, and teal palette. They support specific interface details rather than assigning a new accent to each dashboard region.
+
+### Tertiary
+
+**success**, **warning**, and **danger** express actual state. Filled destructive actions use **danger-button**. Success badges pair semantic ink with a ten-percent success tint.
 
 ### Neutral
 
-`bg` supplies the root fallback. The body uses `workspace-gradient`: a slight lavender radial tint over a cool-gray diagonal gradient, attached to the scrolling page. `surface` and `surface-raised` are solid white in light mode; `elevated` gives controls and selected navigation a quiet gray fill. `text`, `muted`, and `border` establish readable hierarchy and thin edges. The near-white sidebar and opaque header use `sidebar-bg` and `topbar-bg`.
+**frame-bg** is the outer application frame. **bg**, **sidebar-bg**, and **topbar-bg** form the solid inset work regions; **surface** and **surface-raised** separate content and controls. **elevated** is the neutral hover/control fill. **text**, **muted**, and **border** establish the reading hierarchy and fine rules.
 
-The Library collection panel preserves `library-gradient`: the workspace gradient in light mode, and `linear-gradient(135deg, #20232e 0%, #181a24 55%, #10141c 100%)` in dark mode. Media cards use their dedicated `media-card-bg` and `media-card-border` tokens to remain distinct from this gradient.
+**media-card-bg** and **media-card-border** define compact footage cards. **device-bg**, **device-ink**, and **device-muted** keep the sidebar's local-workspace information panel dark and legible in both dashboard themes. **hero-bg**, **hero-ink**, and **hero-muted** remain available to shared tool introduction surfaces.
 
-The shared feature material uses a pale lavender `hero-bg` with dark `hero-ink` and muted purple `hero-muted`; all three switch with the theme. Semantic success, danger, and warning values describe real state. Filled destructive actions use the distinct `danger-button` token.
+Both **workspace-gradient** and **library-gradient** resolve to **var(--bg)** in each dashboard theme. Their names no longer imply a rendered gradient. Studio overrides its own colors inside the editor scope; do not treat those as dashboard dark-theme replacements.
 
-**The Violet Action Rule.** Use violet for primary actions, links, focus, and selection. Lavender, blue, and teal are supporting guide colors; success, warning, and danger communicate actual state.
+**The Violet Action Rule.** Use violet for primary actions, active navigation, links, focus, and the total-collection overview tile. Supporting hues and semantic status colors must not compete with that hierarchy.
 
-**The Paired Material Rule.** Switch semantic tokens together when the theme changes. Preserve layout, control placement, and reading hierarchy across light and dark modes.
+**The Paired Surface Rule.** Switch dashboard surface and ink tokens together while preserving geometry. Keep the editor-scoped dark palette separate from the dashboard theme.
 
 ## Typography
 
-**Display and body:** `-apple-system`, `BlinkMacSystemFont`, `SF Pro Display`, bundled Inter, Segoe UI, sans-serif. **Code and keyboard hints:** the recorded system monospace stack.
+**Dashboard display and body:** the exact platform stack in the frontmatter: Apple system fonts, SF Pro Display, bundled Inter Variable, Inter, Segoe UI, sans-serif. [main.tsx](dashboard/src/main.tsx) bundles Inter Variable locally. **Code and keyboard hints:** the system monospace stack. **Studio:** Inter Variable, Inter, sans-serif inside its own editor scope.
 
-The system stack follows the supplied SF Pro direction where the platform provides it, while retaining the bundled Inter fallback on other systems. No remote font or unlicensed SF Pro file is needed. Headings have balanced wrapping and restrained negative tracking; interface labels stay compact.
+The dashboard uses compact sans-serif copy, moderate heading weight, and restrained negative tracking. Headings balance their wrapping. Counts use tabular numerals; card titles reserve two lines, while creator names truncate to one.
 
-The Library title is 25px, weight 620, and steps to 23px at 650px. Standard page headings use 24px, weight 600, stepping to 23px at 820px and 22px at 560px. General body text is 14px/1.55; standard buttons use 13px. Navigation is 12px at rest and weight 600 when selected. Library card titles are 12px/1.4, weight 570, with two-line space; creator and metric text use 10px. On the one-column mobile card these increase to 13px and 11px respectively.
+| Role | Implemented use |
+|---|---|
+| Display | Library heading: 30px, weight 600, line-height 1.2, tracking -0.035em; 27px at 650px and below. |
+| Headline | Other dashboard page headings: 30px, weight 600, line-height 1.25, tracking -0.025em; 23px at 820px and 22px at 560px. |
+| Title | Shared section headings: 20px, weight 600, line-height 1.25; settings section headings use 19px. |
+| Body | General copy and fields: 14px, weight 400, line-height 1.55. |
+| Label | Shared buttons: 13px, weight 500, line-height 1.45. Library heading actions use 12px on wide screens. |
+| Navigation | 13px, weight 450 at rest and 600 when active; uppercase group labels use 10px, weight 550, and 0.06em tracking. |
+| Overview number | 33px, weight 550, line-height 1.1, tracking -0.04em; 26px in the two-column compact overview. |
+| Card title | 13px, weight 560, line-height 1.5, tracking -0.015em; 14px/1.45 at 440px and below. |
+| Card metadata | Creator copy is 11px/1.6; statistics are 11px/1.2. Both become 12px on one-column mobile cards. |
 
 ## Layout
 
-The fixed sidebar is 200px wide. Its 56px brand row aligns with the 56px utility header. The header places the workspace search on the left and engine status, theme selector, and workspace settings on the right. Main content has 24px gutters and a maximum width of 1760px. The application fills the viewport without decorative browser chrome.
+The desktop application has a solid 16px outer inset. Its fixed sidebar is 212px wide, inset 16px from the top, bottom, and left, with 15px 13px internal padding and 16px corners. The body starts 228px from the inside edge of the frame, leaving a 16px gap after the rail. The utility bar is 64px high, with 20px horizontal padding and 16px corners. Main content begins 16px below it, has 24px padding and 16px corners, and has no fixed maximum width.
 
-At 820px the sidebar becomes a 242px drawer, the header grows to 60px, and main gutters become 22px. At 560px gutters become 16px; at 375px they become 12px. The drawer sets focus inside navigation, traps Tab, makes background content inert, closes with Escape, and returns focus to the menu trigger. The app supports a minimum viewport width of 320px.
+The rail groups Workspace, Production, and Preferences. It includes the workspace selector, Create a Short, and a local-device information panel. At desktop heights of 800px or less, the lower rail tightens spacing and hides the device panel's supporting icon and paragraph to keep Settings accessible.
 
-The Library begins with a compact title/action row and three panels showing actual record counts. Its collection panel has 16px side padding, a 56px tab/view row, and a compact search/filter row. The grid is **five columns maximum**, with 28px row gaps and 24px column gaps; it becomes four at 1100px, three at 820px, two at 650px, and one at 440px. Gaps become 24px by 16px at 1100px and 20px at 440px. Grid and table views show the same records with working filters, selection, and bulk actions. The previously removed creative-workflow footer stays absent.
+The Library's heading and two actions precede four overview controls: All videos, Ready to edit, Exported, and Inspiration. Wide-screen overview tiles have 14px gaps, 16px 17px padding, and 14px corners. All videos remains the featured violet tile; current filtering is communicated by the tabs, not by moving the tile's emphasis. Tabs, grid/table choice, selection, search, rights, and sort controls sit directly above the collection without an extra enclosing card.
 
-Cards use 6px exterior padding. The inset thumbnail has a 6:5 aspect ratio constrained to 142–167px tall on desktop; metadata and a stats/action row sit below the image. Cards target a maximum height of 320px at the user’s 1261px desktop width. At 440px the thumbnail range becomes 186–191px. The empty library uses a centered, quiet gradient panel with actual import and discovery actions rather than a promotional media mockup.
+The media grid has five columns maximum and 22px row / 16px column gaps. Cards have a 6px inset and a 6:5 thumbnail constrained to 142–160px height. At 440px and below, the image changes to 16:10 and 186–200px height. Metadata remains below the image. The reviewed captures measured cards at approximately 314px high at 1440px and 298px at the user's 1261px viewport; those are observed results, not fixed CSS heights.
 
-The Studio preserves the existing three-pane editing hierarchy: tools, preview/timeline, and contextual properties. Smaller layouts adapt the panes and controls to available space rather than changing the content or workflow.
+| Maximum viewport width | Dashboard behavior |
+|---|---|
+| 1200px | Workspace search narrows from 292px to 250px; the profile label and chevron disappear. |
+| 1100px | Four media columns; overview padding becomes 14px; filters may wrap. |
+| 980px | Engine status becomes a dot with its descriptive title retained. |
+| 820px | Three media columns; the rail becomes a 260px drawer; outer inset is 12px; the utility bar is 60px high; content has 22px padding and a 12px top gap. |
+| 650px | Heading/actions stack; overview becomes two columns of compact 60px-minimum controls; two media columns with 20px / 12px gaps; search and filters wrap into full-width rows. Overview notes and arrows disappear while labels and counts remain. |
+| 560px | Outer inset is 8px; utility and content corners become 12px; content padding is 20px 16px. Header search becomes an icon, the current page label appears, and engine/profile controls leave the header. Theme choices grow to 32px. |
+| 440px | One media column with 16px gaps; larger thumbnail and text treatment; the two heading actions share the available width. |
+| 375px | Content horizontal padding becomes 12px and utility-bar padding becomes 9px. |
+
+The application supports a 320px minimum viewport. Mobile navigation has its own close control, traps Tab while open, makes background content inert, closes with Escape, and restores focus to its trigger. Tabs may scroll within their strip; the table scrolls inside its container rather than expanding the document.
+
+Studio opens in its own browser tab and fills a 100dvh editor root with no dashboard rail, utility bar, frame padding, or theme selector. Preserve its requested CapCut-style arrangement: media bin, central player, right inspector, and multitrack timeline below. Its existing dark editor scope and responsive pane behavior remain separate from this dashboard layout.
 
 ## Elevation & Depth
 
-Ordinary panels use solid theme surfaces with thin neutral borders and no shadow. The body gradient supplies atmospheric depth without glass or blur. Media cards use a 1px `media-card-border` edge, a separate `media-card-bg` fill, and no shadow. Hover mixes 45% accent with 55% default border; selected cards retain the inset accent outline. Dialogs keep the stronger overlay shadow.
+The dashboard uses solid tonal separation and whitespace. The pale workspace is flat; overview tiles, media cards, standard primary buttons, and working sections have no cast shadow. Media cards keep a fine one-pixel edge; hover mixes 60% accent into the default card border. Selection uses an inset two-pixel accent outline with a -2px offset.
 
-`shadow-sm` is 0 2px 4px with light/dark opacity 0.045/0.12. `shadow-card` is 0 5px 15px -7px with opacity 0.12/0.28. The overlay `shadow` is 0 24px 70px -15px with opacity 0.2/0.5. Exact color-bearing declarations and workspace/library gradients are recorded in the sidecar. The available shared `shadow-card` token is not applied to Library media cards. Primary actions use a small 0 2px 3px violet cast shadow; the Library heading action suppresses it.
+The shared shadow vocabulary remains available: **shadow-sm** for low control elevation, **shadow-card** as an available shared card token, and **shadow** for dialogs and the open mobile drawer. Their exact light/dark declarations are in the sidecar. Neither the dashboard media cards nor the selected header theme/grid controls apply those small shadows.
 
-**The Quiet Frame Rule.** Use thin borders for working panels and media cards, and the large shadow for overlays. Keep media cards shadow-free and the frame quieter than the video content.
+**The Flat Frame Rule.** Separate ordinary content through solid fills, spacing, and thin borders. Keep media cards and overview tiles shadow-free; reserve the larger shadow for dialogs and the open mobile drawer.
 
-Feedback transitions run for 160–180ms with ease/ease-out. The Library has no entrance animation. Reduced-motion rules remove media-card and shared-control transitions; no content depends on animation to become visible.
+Overview and card border feedback runs for 160ms ease-out. Shared buttons and fields use 180ms ease-out; the open drawer uses a 200ms ease-out transition. Loading skeletons pulse over 1.6s, while the collection has no entrance animation. Reduced-motion rules remove these transitions and animations or reduce remaining shared feedback to 0.01ms; content never waits for motion to become usable.
 
 ## Shapes
 
-The frame uses precise small corners: navigation 5px, compact search/select/theme controls 6px, standard buttons 7px, standard fields 9px, and working panels 10px. Inset thumbnails use 12px corners, media cards 17px, and dialogs 16px. The small capsule action on a media card uses a 20px radius following the chosen card reference.
+The family uses rounded rectangles whose size follows their role: four- to six-pixel corners for tiny badges/counts, seven pixels for card actions, eight for Library filters, nine for navigation and image insets, ten for shared buttons, fourteen for media/overview cards, and sixteen for larger work regions and dialogs. Standard fields use nine-pixel corners. These values describe existing components rather than a universal radius to apply everywhere.
 
-Lucide icons use consistent line strokes, normally 1.6; the violet brand and selected navigation use slightly stronger strokes. Images crop inside rounded insets with `object-fit: cover` and center 42% positioning. Native controls, focus outlines, carets, scrollbars, and text selection follow semantic theme tokens.
+Lucide icons generally use a 1.6 stroke; navigation uses 1.7 and the brand uses 1.9. Media crops with object-fit cover and a center 42% position inside the rounded inset. Thumbnail source labels use a dark scrim; titles, creator names, rights, and statistics remain in the solid text area.
 
 ## Components
 
 ### Buttons
 
-Primary actions use violet fill with white text, 36px minimum height, 8px 12px padding, and 7px corners. Hover mixes 10% black into the fill. Secondary buttons use raised surfaces with thin borders; ghost buttons gain an inset surface on hover. Danger actions use the dedicated danger fill. Disabled controls fade and retain the not-allowed cursor. Keyboard focus keeps the global 2px accent outline and 4px offset.
+Shared actions have a 40px minimum height, 9px 15px padding, ten-pixel corners, and a 13px label. Primary fill uses **button-bg** with white text and darkens by ten percent on hover. Secondary actions use **surface-raised** and a fine border; ghost actions use muted ink and gain **elevated** fill and primary ink on hover. Danger actions use **danger-button** and darken by twelve percent. Disabled buttons use a not-allowed cursor and reduced opacity (0.45, or 0.55 for danger).
+
+Library heading actions use a compact 38px minimum, 9px 13px padding, and nine-pixel corners on wide screens, growing to 40px at 650px. Create a Short and Open Studio launch a separate editor tab; Add a video opens import. Keep the distinction between importing media and starting a blank project.
 
 ### Chips
 
-Permission/status badges show factual record state. Global neutral badges use elevated fill, muted text, 6px corners, and 3px 8px padding. Card badges are smaller: 9px text, 17px minimum height, 4px corners, and 3px 5px padding. Verified states use the success tint and text.
+Neutral permission badges use **elevated**, **muted**, six-pixel corners, and 3px 8px padding. Card badges use ten-pixel text, four-pixel corners, 3px 5px padding, and an 18px minimum height. Positive permission states use the semantic success tint. These labels report stored source/rights information rather than decorative categories.
 
 ### Cards / Containers
 
-Section cards and settings sections use a 10px radius, surface fill, thin border, and no shadow; base section-card padding remains 28px. Library count panels use a 9px radius and 14px 16px padding. Media cards follow the supplied solid inset-image reference: 17px shell, 12px image, a 1px theme-specific border, readable metadata below, actual metrics, and a small capsule action. Their dedicated fill is white in light mode and #2A2C3B in dark mode; the border is #DCD9EB and #48465F respectively. The image remains clickable; selection and a visible more menu retain full record actions.
+Shared section cards use sixteen-pixel corners, a solid surface, a thin border, and 28px base padding. Overview controls use fourteen-pixel corners; the featured total tile uses the dedicated feature colors. Clicking an overview control clears the search and selects its relevant collection/rights filter. Counts are derived from real records; loading or an unavailable empty collection shows an em dash.
+
+Media cards use fourteen-pixel corners, a dedicated surface and border, no shadow, six-pixel padding, and a nine-pixel image inset. Thumbnail and title open details; the checkbox and more control remain visible. Edit opens eligible media in Studio, while unavailable editing states retain a details action. When both view and like counts are missing, the card shows its saved date. A failed or absent thumbnail shows the source-aware icon fallback. The first five images load eagerly and the rest load lazily.
+
+The table shows the same records, source/rights metadata, and selection. Its container has twelve-pixel corners and internal overflow; previews are 58px by 43px with six-pixel corners. Search, filters, and view changes preserve selections; select-all applies to the currently visible records.
 
 ### Inputs / Fields
 
-Standard form fields retain a 42px minimum height, 10px 12px padding, 9px corners, and thin border. The shell search is a 32px-high launch control, 284px wide on desktop and 236px at 1080px. Library search and selects use 33–35px minimum heights with 6px corners. Fields keep descriptive labels, readable placeholders, accent carets, and a visible focus outline. Mobile library filters wrap while retaining all controls.
+Shared fields have a 42px minimum height, 10px 12px padding, nine-pixel corners, and a thin border. Library search uses a 35px input inside an eight-pixel frame; rights/sort selects have a 37px minimum. At 650px, search becomes 38px and selects 40px. Placeholders use **muted**, carets use **accent**, and controls keep accessible names.
+
+Keyboard focus uses a two-pixel accent outline; buttons, links, and fields use a four-pixel offset. The workspace command launcher opens the search palette and advertises Ctrl/Cmd K on desktop.
 
 ### Navigation
 
-Workspace, Production, and Workspace settings organize real destinations. Desktop nav rows are 35px high with 8px 10px padding; mobile rows are 43px high. Resting labels use primary text and muted icons. Active rows use a neutral elevated background, stronger text, and a violet icon. The footer's personal workspace control opens Settings. The utility header retains a functional search palette, factual engine state, and persistent light/dark/system choice; system mode follows operating-system changes.
+Desktop rows have a 43px minimum height, 10px 12px padding, nine-pixel corners, muted ink, and 13px labels. Hover adds the neutral elevated surface; the current destination uses **accent-soft**, **accent**, and weight 600. Mobile rows grow to 44px. The Library count reflects active records; Studio's external-arrow cue matches its separate-tab behavior.
 
-### Theme selector
+The persistent light/dark/system control has a nine-pixel track with 3px padding and 2px gaps. Desktop choices are 29px square with six-pixel corners, growing to 32px at 560px. Selected choices have a solid surface, accent ink, and no shadow. System mode follows operating-system changes. Grid/table controls use the same clear selected-state logic and persist their own choice.
 
-The compact header track has a 6px radius and 2px padding. Each desktop choice is 27px square with 4px corners; the selected choice uses the raised surface and a violet icon. Mobile choices grow to 30px. All icon controls retain accessible names and pressed state.
+### Empty, unavailable, and loading states
+
+A genuinely empty collection offers Import footage and Explore Scout in a centered white/surface panel with a dashed border and fourteen-pixel corners. A filtered-empty view offers Clear filters. An unavailable library shows an explicit connection message, unknown counts when no records are available, and Try again. Skeletons follow the current grid and honor reduced motion. The small result/local-storage footer remains; the removed creative-workflow footer stays absent.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- Do use the semantic variables in dashboard/src/theme/tokens.css for shared UI.
-- Do follow the supplied Nexus hierarchy and brand colors with the real ShortForge identity.
-- Do keep five cards as the desktop maximum and preserve the shorter inset thumbnails.
-- Do use the Apple system font where available, bundled Inter elsewhere, and Lucide icons.
-- Do show actual library counts, truthful states, and useful empty-state actions.
-- Do preserve all routes, keyboard access, focus treatment, and reduced-motion behavior.
+- Do use the semantic dashboard tokens and their paired dark values.
+- Do preserve the Pinterest/Coursie frame and the actual ShortForge destinations and content.
+- Do keep Library counts derived from records, show unavailable counts honestly, and retain source and permission labels.
+- Do use the platform system font stack with bundled Inter Variable and Lucide line icons.
+- Do preserve compact media geometry, responsive controls, visible focus, keyboard tabs, and selection across filters.
+- Do keep Studio in its separate dark editing workspace with the media bin, player, inspector, and multitrack timeline.
 
 ### Don't:
 
-- Don't replace the gradient light canvas with a flat pure-white page.
-- Don't restore the removed creative-workflow footer or the earlier six-column grid.
-- Don't copy finance charts, fake accounts, browser chrome, or invented metrics from the reference.
-- Don't put metadata over busy thumbnails or stretch the compact cards into tall portrait panels.
-- Don't use unlicensed font downloads, remote font dependencies, or gratuitous glass effects.
-- Don't change theme geometry or remove core creation, navigation, or editing routes on mobile.
+- Don't restore the discarded Nexus shell, three-count overview, or gradient Library panel.
+- Don't turn Pinterest reference artwork into shipping application assets or invent media records, metrics, accounts, or subscription offers.
+- Don't overlay titles and creator metadata on footage or stretch the compact dashboard cards into tall portrait panels.
+- Don't apply dashboard themes, outer gutters, or navigation chrome to the separate Studio editor.
+- Don't remove working import, discovery, editing, selection, or theme controls on narrow screens.
+- Don't restore the removed creative-workflow footer or add entrance motion that delays access to the collection.

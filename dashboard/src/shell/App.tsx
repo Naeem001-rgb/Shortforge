@@ -1,9 +1,11 @@
 import {
   ArrowUpRight,
+  ChevronsUpDown,
   ChevronRight,
   Clapperboard,
   Compass,
   FolderOpen,
+  HardDrive,
   Library,
   Menu,
   Monitor,
@@ -265,12 +267,25 @@ export function App() {
           </IconButton>
         </div>
         <button
+          className="sidebar-workspace"
+          aria-label="Personal workspace"
+          onClick={() => navigate("settings")}
+        >
+          <span className="workspace-avatar" aria-hidden="true">
+            <FolderOpen size={17} />
+          </span>
+          <span>
+            My workspace<small>On this device</small>
+          </span>
+          <ChevronsUpDown size={14} aria-hidden="true" />
+        </button>
+        <button
           className="sidebar-create"
           aria-label="Create a Short"
           title="Create a Short"
           onClick={() => {
             setMenu(false);
-            setImporting(true);
+            open("");
           }}
         >
           <Plus size={17} />
@@ -300,12 +315,19 @@ export function App() {
                     }
                   </span>
                 )}
+                {id === "studio" && (
+                  <ArrowUpRight
+                    className="nav-external"
+                    size={14}
+                    aria-hidden="true"
+                  />
+                )}
               </button>
             </div>
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="nav-label">Workspace settings</div>
+          <div className="nav-label">Preferences</div>
           <button
             className={`nav-item ${page === "settings" ? "active" : ""}`}
             aria-label="Settings"
@@ -316,18 +338,14 @@ export function App() {
             <Settings2 size={16} />
             <span>Settings</span>
           </button>
-          <button
-            className="profile-row"
-            aria-label="Personal workspace"
-            title="Personal workspace"
-            onClick={() => navigate("settings")}
-          >
-            <span className="profile-avatar">S</span>
-            <span>
-              Personal workspace<small>Saved on this device</small>
-            </span>
-            <ChevronRight size={15} />
-          </button>
+          <div className="sidebar-device">
+            <HardDrive size={22} aria-hidden="true" />
+            <strong>A space of your own.</strong>
+            <p>Your videos and projects are saved on this device.</p>
+            <button onClick={() => navigate("settings")}>
+              Workspace settings <ArrowUpRight size={14} />
+            </button>
+          </div>
         </div>
       </aside>
       <div className="app-body" inert={mobile && menu}>
@@ -349,8 +367,8 @@ export function App() {
               onClick={() => setPalette(true)}
               aria-label="Search workspace"
             >
-              <Search size={15} />
-              <span>Search workspace</span>
+              <Search size={17} />
+              <span>Search your workspace…</span>
               <kbd>{navigator.platform.includes("Mac") ? "⌘" : "Ctrl"} K</kbd>
             </button>
           </div>
@@ -399,6 +417,10 @@ export function App() {
               <span className="profile-avatar" aria-hidden="true">
                 S
               </span>
+              <span className="topbar-profile-label">
+                Your workspace<small>Local creator</small>
+              </span>
+              <ChevronRight size={14} aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -417,6 +439,7 @@ export function App() {
             <LibraryPage
               clips={clips}
               loading={loading}
+              unavailable={Boolean(error)}
               refresh={refresh}
               onImport={() => setImporting(true)}
               onOpen={open}
@@ -426,7 +449,6 @@ export function App() {
           {page === "scout" && (
             <ScoutPage
               onImport={() => setImporting(true)}
-              onSettings={() => navigate("settings")}
             />
           )}
           {page === "seo" && (
@@ -439,12 +461,6 @@ export function App() {
           )}
           {page === "settings" && <SettingsPage health={health} />}
         </main>
-        <footer className="workspace-footer">
-          <span>Your creative workspace, on your machine.</span>
-          <span>
-            ShortForge <span>·</span> v0.1
-          </span>
-        </footer>
       </div>
       {importing && (
         <ImportDialog
