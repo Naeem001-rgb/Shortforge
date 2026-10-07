@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ShortForge Scout",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Discover YouTube Shorts and Instagram Reels and edit them in the bundled ShortForge Studio with your local engine.",
   "permissions": [
     "storage",

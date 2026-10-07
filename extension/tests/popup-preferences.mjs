@@ -73,13 +73,22 @@ try {
     await page.locator('#captionFilter').selectOption(value);
     await until(async () => (await preferences())?.captionFilter === value, `saved ${value}`);
   };
+  const mode = async value => {
+    await page.locator(`input[name="mode"][value="${value}"]`).check();
+    await until(async () => (await preferences())?.mode === value, `saved mode ${value}`);
+  };
 
   // Bounds, not isVisible(), prove the primary controls need no scrolling.
   const dock = await page.locator('.actions').boundingBox();
-  for (const id of ['minLikes', 'minViews', 'captionFilter']) {
+  for (const id of ['minLikes', 'minViews']) {
     const box = await page.locator('#' + id).boundingBox();
     assert.ok(box.y >= 65 && box.y + box.height < dock.y, `${id} is above the action dock`);
   }
+  for (const choice of await page.locator('.mode-choice').all()) {
+    const box = await choice.boundingBox();
+    assert.ok(box.y >= 65 && box.y + box.height < dock.y, 'each discovery mode is visible without scrolling');
+  }
+  assert.deepEqual(await page.locator('input[name="mode"]').evaluateAll(inputs => inputs.map(input => input.value)), ['narrated', 'credits', 'auto', 'credits-any']);
   assert.match(await page.locator('#count-help').textContent(), /0 = no minimum/);
   await input('minLikes', 125);
   await input('minViews', 2500);
@@ -95,6 +104,24 @@ try {
   for (const [id, expected] of Object.entries({ minLikes: '125', minViews: '2500', target: '12', maxCaptionSeconds: '2', captionFilter: 'small-text-no-speech' })) {
     assert.equal(await page.locator('#' + id).inputValue(), expected, `${id} survives reopening`);
   }
+  // Every mode is a visible choice and retains the user's count/account settings.
+  for (const value of ['narrated', 'credits', 'auto', 'credits-any']) {
+    await mode(value);
+    await page.reload();
+    await until(async () => await page.locator(`input[name="mode"][value="${value}"]`).isChecked() && await page.locator('#minLikes').inputValue() === '125', `restored mode ${value}`);
+    assert.equal(await page.locator('#minLikes').inputValue(), '125');
+    assert.equal(await page.locator('#minViews').inputValue(), '2500');
+    assert.equal(await page.locator('#sourceUrl').inputValue(), 'https://www.instagram.com/qianxiang_guyue/reels/');
+  }
+  assert.equal((await preferences()).captionFilter, 'off', 'credited-any forces caption analysis off');
+  assert.equal(await page.locator('#captionFilter').inputValue(), 'off');
+  assert.equal(await page.locator('#captionFilter').isDisabled(), true);
+  assert.equal(await page.locator('#maxCaptionSeconds').isDisabled(), true);
+  assert.match(await page.locator('#mode-help').textContent(), /Requires attribution and your count limits\. Captions and voiceover are allowed/);
+  await mode('narrated');
+  assert.equal(await page.locator('#captionFilter').isDisabled(), false, 'leaving the preset unlocks caption filters');
+  assert.equal(await page.locator('#maxCaptionSeconds').isDisabled(), false);
+  assert.match(await page.locator('#mode-help').textContent(), /narration is not verified/);
   await policy('brief-only');
   assert.equal(await page.locator('#caption-allowance').isHidden(), false);
   assert.match(await page.locator('#caption-help').textContent(), /2 seconds of visible text/);
@@ -168,17 +195,37 @@ try {
   assert.equal(await page.locator('#maxCaptionSeconds').inputValue(), '4.5');
   await input('maxCaptionSeconds', 2);
 
+  // Switching into credited-any also ignores a formerly visible invalid allowance.
+  await page.locator('#maxCaptionSeconds').fill('');
+  await page.locator('#maxCaptionSeconds').dispatchEvent('change');
+  await until(() => page.locator('#maxCaptionSeconds').getAttribute('aria-invalid').then(value => value === 'true'), 'unfinished allowance flagged');
+  await mode('credits-any');
+  assert.equal((await preferences()).captionFilter, 'off');
+  assert.equal((await preferences()).maxCaptionSeconds, 2);
+  assert.equal(await page.locator('#error').isHidden(), true);
+  assert.equal(await page.locator('#captionFilter').isDisabled(), true);
+  const previousSession = (await state()).sessionId;
+  await page.locator('#start').click();
+  await until(async () => (await state()).sessionId !== previousSession, 'credited-any starts with captions allowed');
+  assert.equal((await state()).activeMode, 'credits');
+  assert.equal((await preferences()).mode, 'credits-any');
+  assert.equal((await preferences()).captionFilter, 'off');
+  await page.locator('#stop').click();
+  await until(async () => (await state()).status === 'stopped', 'credited-any fixture session stops');
+  assert.ok((await worker.evaluate(() => globalThis.preferenceRequests)).every(url => url.endsWith('/clips')), 'credited-any never requests caption/speech analysis');
+
   // One batched visual pass at the actual Chrome popup size in both themes.
+  if (!process.argv.includes('--no-screenshots')) await page.bringToFront();
   for (const colorScheme of process.argv.includes('--no-screenshots') ? [] : ['light', 'dark']) {
     await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' });
     await page.locator('main').evaluate(element => { element.scrollTop = 0; });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     const box = await page.locator('.actions').boundingBox();
     assert.equal(box.y + box.height, 600, 'action dock stays in the popup');
-    await page.screenshot({ path: resolve(screenshots, `scout-preferences-${colorScheme}.png`) });
+    await page.screenshot({ path: resolve(screenshots, `scout-modes-${colorScheme}.png`) });
   }
   assert.deepEqual(pageErrors, [], 'no unhandled page errors');
-  console.log('Passed: real MV3 preferences persist custom/zero count limits and optional caption policy; invalid counts cannot save; disabling captions with an unfinished allowance saves and starts; controls fit at 392×600.');
+  console.log('Passed: real MV3 preferences persist all four visible modes and custom count limits; credited-any locks caption checks off and starts with an unfinished allowance; leaving it unlocks caption filters; invalid counts cannot save; controls fit at 392×600.');
 } finally {
   await browser?.close();
   chromeProcess.kill('SIGTERM');

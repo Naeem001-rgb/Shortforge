@@ -1,4 +1,4 @@
-export type Mode = 'narrated' | 'credits' | 'auto';
+export type Mode = 'narrated' | 'credits' | 'auto' | 'credits-any';
 export type Status = 'idle' | 'running' | 'paused' | 'stopped' | 'complete';
 export type CaptionPolicy = 'brief-only' | 'small-text-no-speech';
 export interface Settings {

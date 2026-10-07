@@ -8,7 +8,18 @@ A local Chrome extension for collecting YouTube Shorts and Instagram Reels into 
 2. Open Scout and paste a **YouTube channel** or **Instagram account** URL in **Account or channel URL**. Leave it empty to scout an already-open Short/Reel feed.
 3. Set **Minimum likes**, **Minimum views**, and **Clips to collect**. The defaults of 5,000 likes and 10,000 views are editable, not fixed requirements. For example, 100 likes and 1,000 views allow a 242-like/15,381-view Reel to reach the next check. **0** disables that count requirement, including hidden counts. Instagram may show views only on profile tiles; Scout uses those when available.
 4. Under **Captions and speech**, keep **Brief captions only** for the existing text-time limit, choose **Small Chinese text + no speech** for small Chinese annotations with no detected speech, or **Any captions** to disable both checks. **Text allowance (sec.)** defaults to 3; in the small-text option, **Other text (sec.)** applies only to text that does not qualify for the exception.
-5. Press **Start scouting**. Account mode opens that account's Shorts/Reels grid in a new tab, visits its video links, and stops at your target, 500 videos, or the end of that account. Matches appear in Library. Pause before changing filters; Stop before switching accounts.
+5. Choose a **Look for** mode, then **Start scouting**. Account mode opens that account's Shorts/Reels grid in a new tab, visits its video links, and stops at your target, 500 videos, or the end of that account. Matches appear in Library. Pause before changing filters; Stop before switching accounts.
+
+## Discovery modes
+
+All four **Look for** choices are visible in the popup. The previous modes remain available:
+
+- **Narrated candidates** collects videos meeting your limits for audio review; it does not prove the video contains narration or an AI voice.
+- **Credited only** requires attribution and applies your selected caption/speech filter.
+- **Credits first, then narrated** starts with credited candidates and switches after 30 misses. Your caption/speech filter still applies.
+- **Credited, any captions/voiceover** requires attribution and your likes/views limits, while explicitly allowing burned-in captions and voiceover. It disables OCR and speech screening and never falls back to uncredited videos. The caption control shows **Any captions** while this mode is selected; choose another mode to edit it again.
+
+This credited-any mode works for YouTube Shorts and Instagram Reels. It records `discovery_mode: credits` in Library, retains duplicate checks, and uses your existing account/feed target. Caption presence and voiceover are allowed, not required.
 
 Caption screening uses the installed local OCR model after a video passes the other criteria. It temporarily downloads the public video and checks the **whole frame throughout the full duration**, every half-second. Clear or brief results pass; persistent text, unavailable downloads, incomplete scans, and unreadable videos do not. It uses no paid service and deletes temporary video files afterwards. Pause/Stop cancels the current analysis.
 
@@ -40,11 +51,11 @@ Then:
 4. Open Scout, set your criteria, and press **Start scouting**. Keep that tab open; you can switch to other tabs while Scout continues.
 5. Choose **Open dashboard** in Scout to open the bundled Library. **Edit** opens a full Studio tab and automatically fetches a saved video’s source. The local engine on `127.0.0.1:8787` must be running; the Vite dashboard server is not required.
 
-The default limits are **30 clips**, **5,000 likes**, and **10,000 views**. All three are customizable and saved between popup openings. Pause to change them. Unknown counts are skipped when their minimum is greater than zero. **Credits first, then narrated** switches after 30 scanned videos without a new eligible credited match. **Credited sources only** retains the original discovery option.
+The default limits are **30 clips**, **5,000 likes**, and **10,000 views**. All three are customizable and saved between popup openings. Pause to change them. Unknown counts are skipped when their minimum is greater than zero.
 
 ## Controls and recovery
 
-- After updating Scout, click its **Reload** icon at `chrome://extensions`. Version **0.4.0** adds the optional small-text/no-speech filter and keeps the lost-tab recovery fix. Press **Resume** to keep a paused session; disconnected page scripts are refreshed automatically. Use **Stop** and **Start scouting** when choosing a different account.
+- After updating Scout, click its **Reload** icon at `chrome://extensions`. Version **0.4.1** exposes the discovery modes and adds **Credited, any captions/voiceover**, while retaining the small-text/no-speech filter and lost-tab recovery. Press **Resume** to keep a paused session; disconnected page scripts are refreshed automatically. Use **Stop** and **Start scouting** when choosing a different account.
 - **Pause / Resume** keeps your session's progress. **Stop** ends it; a new Start begins a new session.
 - **“No tab with id…”** in an older version means Scout remembered a tab that no longer exists. Resume now finds the selected account's open profile or reopens its Shorts/Reels grid, retaining counts, filters, and saved/pending matches. It may revisit earlier tiles, but previously scanned videos and Library records are deduplicated. For a feed session with no account URL, open a Short or Reel and press **Resume**.
 - **Last video** shows the detected likes, views, and match or skip reason. **Recent activity** keeps the last eight events. Missing required counts are shown as unreadable and skipped; open the description and use **Self-test** to investigate.

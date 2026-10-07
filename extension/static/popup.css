@@ -57,8 +57,14 @@ footer { display:flex; align-items:center; justify-content:space-between; gap:12
 
 .caption-settings { margin-top:16px; }
 .caption-limits { margin:12px 0; }
-.discovery { margin-top:0; border:0; padding:0; }
-.discovery .hint { margin-bottom:0; }
+.discovery { min-width:0; margin:0; border:0; padding:0; }
+.discovery legend { padding:0; margin-bottom:6px; font-weight:500; }
+.mode-options { display:grid; }
+.mode-choice { display:flex; align-items:center; gap:10px; min-height:40px; margin:0; padding:6px 10px; border-radius:8px; font-weight:400; cursor:pointer; }
+.mode-choice:has(input:checked) { background:var(--soft); color:var(--accent); }
+.mode-choice input { flex:0 0 16px; width:16px; height:16px; margin:0; padding:0; accent-color:var(--accent); }
+.mode-choice:has(input:disabled) { cursor:default; }
+select:disabled { color:var(--muted); cursor:default; }
 #sourceUrl { font-variant-numeric:normal; }
 #caption-help { margin-bottom:4px; }
 [hidden] { display:none!important; }

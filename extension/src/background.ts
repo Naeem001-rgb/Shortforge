@@ -13,7 +13,8 @@ async function load() {
     state.settings = { ...DEFAULTS, ...state.settings };
     // Only Auto has a separate phase. Explicit choices always win over a
     // stale phase saved by an older extension worker.
-    if (state.settings.mode !== 'auto') state.activeMode = state.settings.mode;
+    if (state.settings.mode !== 'auto') state.activeMode = state.settings.mode === 'narrated' ? 'narrated' : 'credits';
+    if (state.settings.mode === 'credits-any') state.settings.captionFilter = 'off';
   }
   return state;
 }
@@ -131,12 +132,12 @@ async function cancelCaptionCheck() {
 }
 function settingsFrom(value: unknown): Settings {
   const candidate = value as Settings;
-  if (!candidate || !['narrated', 'credits', 'auto'].includes(candidate.mode)) throw new Error('Choose a discovery mode.');
+  if (!candidate || !['narrated', 'credits', 'auto', 'credits-any'].includes(candidate.mode)) throw new Error('Choose a discovery mode.');
   for (const [name, max] of [['target', 500], ['minLikes', 1e12], ['minViews', 1e12]] as const) {
     if (!Number.isSafeInteger(candidate[name]) || candidate[name] < (name === 'target' ? 1 : 0) || candidate[name] > max) throw new Error(name === 'target' ? 'Target must be a whole number from 1 to 500.' : 'Enter a valid whole-number minimum.');
   }
   const sourceUrl = canonicalSourceUrl(String(candidate.sourceUrl || ''));
-  const captionFilter = candidate.captionFilter ?? DEFAULTS.captionFilter;
+  const captionFilter = candidate.mode === 'credits-any' ? 'off' : candidate.captionFilter ?? DEFAULTS.captionFilter;
   const maxCaptionSeconds = candidate.maxCaptionSeconds ?? 3;
   if (!['off', 'brief-only', 'small-text-no-speech'].includes(captionFilter!)) throw new Error('Choose a caption filter.');
   if (!Number.isFinite(maxCaptionSeconds) || maxCaptionSeconds < 0 || maxCaptionSeconds > 10) throw new Error('Caption allowance must be between 0 and 10 seconds.');
@@ -286,7 +287,7 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
     const clip = validCandidate(message.clip);
     if (state.seenIds.includes(clip.video_id)) return { running: true, repeat: true };
     const duplicate = state.knownIds.includes(clip.video_id) || state.pending.some(item => item.video_id === clip.video_id);
-    if (state.settings.mode !== 'auto') state.activeMode = state.settings.mode;
+    if (state.settings.mode !== 'auto') state.activeMode = state.settings.mode === 'narrated' ? 'narrated' : 'credits';
     const decision = matchesCandidate(clip, state.settings, state.activeMode);
     if (!duplicate && decision.matched && state.settings.captionFilter !== 'off') {
       const caption = await captionDecision(clip, message.captionJobId);

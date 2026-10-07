@@ -585,6 +585,66 @@ test('user-chosen thresholds, including zero, govern eligibility instead of the 
   assert.equal(h.state().settings.minViews, 0);
 });
 
+test('credited-any mode accepts captions and voiceover without analysis, but still requires credit and custom counts', async () => {
+  const h = await harness();
+  const chosen = { ...settings, mode: 'credits-any', captionFilter: 'small-text-no-speech', minLikes: 100, minViews: 1000 };
+  const started = await h.message({ type: 'start', tabId: 7, settings: chosen });
+  assert.equal(started.error, undefined);
+  assert.equal(h.state().settings.captionFilter, 'off');
+  assert.equal(h.state().activeMode, 'credits');
+  const credited = clip(1, { video_id: 'ig:Credit12345', url: 'https://www.instagram.com/reel/Credit12345/', title: 'Voiceover with full-length subtitles', credit_target: '@original', credit_snippet: 'Credit: @original', likes: 242, views: 15381 });
+  const prepared = await h.message({ type: 'prepareScan', clip: credited }, true);
+  assert.equal(prepared.skipCaptionCheck, true);
+  assert.equal(h.jobs.size, 0);
+  await h.message({ type: 'scan', clip: credited }, true);
+  assert.equal(h.state().saved, 1);
+  assert.equal(h.state().lastScan?.mode, 'credits');
+  assert.match(h.state().lastScan!.reason, /Credited source/);
+  await h.message({ type: 'scan', clip: clip(2, { title: 'Narrated with captions, no attribution' }) }, true);
+  assert.equal(h.state().saved, 1);
+  assert.match(h.state().lastScan!.reason, /No credited source/);
+  await h.message({ type: 'scan', clip: clip(3, { credit_target: '@original', likes: 99 }) }, true);
+  assert.equal(h.state().saved, 1);
+  assert.match(h.state().lastScan!.reason, /likes 99 < 100/);
+  assert.equal(h.requests.some(url => url.includes('/scout/caption-check')), false);
+});
+
+test('credited-any never falls back to uncredited videos after misses', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings: { ...settings, mode: 'credits-any' } });
+  for (let index = 0; index < 32; index++) await h.message({ type: 'scan', clip: clip(index) }, true);
+  assert.equal(h.state().activeMode, 'credits');
+  assert.equal(h.state().matched, 0);
+  assert.equal(h.state().status, 'running');
+});
+
+test('restoring credited-any normalizes stale caption and active-mode settings', async () => {
+  const h = await harness([], { ...initialState(), settings: { ...initialState().settings, mode: 'credits-any', captionFilter: 'brief-only' }, activeMode: 'narrated' });
+  const restored = await h.message({ type: 'state' });
+  assert.equal(restored.state.settings.mode, 'credits-any');
+  assert.equal(restored.state.settings.captionFilter, 'off');
+  assert.equal(restored.state.activeMode, 'credits');
+});
+
+test('switching to credited-any cancels analysis, and switching back restores configurable credit filtering', async () => {
+  const h = await captionHarness('small-text-no-speech');
+  const candidate = clip(1, { credit_target: '@creator' });
+  const prepared = await h.message({ type: 'prepareScan', clip: candidate }, true);
+  await h.message({ type: 'saveSettings', settings: { ...settings, mode: 'credits-any', captionFilter: 'brief-only' } });
+  assert.equal(h.jobs.get(prepared.captionJobId).status, 'cancelled');
+  assert.equal(h.state().settings.captionFilter, 'off');
+  await h.message({ type: 'resume', tabId: 7, settings: { ...settings, mode: 'credits-any', captionFilter: 'small-text-no-speech' } });
+  await h.message({ type: 'scan', clip: candidate }, true);
+  assert.equal(h.state().saved, 1);
+  await h.message({ type: 'pause' });
+  await h.message({ type: 'resume', tabId: 7, settings: { ...settings, mode: 'credits', captionFilter: 'brief-only' } });
+  const next = await h.message({ type: 'prepareScan', clip: clip(2, { credit_target: '@creator' }) }, true);
+  assert.ok(next.captionJobId);
+  finishCaption(h, next.captionJobId, 20);
+  await h.message({ type: 'scan', clip: clip(2, { credit_target: '@creator' }), captionJobId: next.captionJobId }, true);
+  assert.equal(h.state().saved, 1, 'Existing credited-only mode still honors the chosen caption filter');
+});
+
 test('metadata failures and duplicates avoid caption downloads', async () => {
   const h = await captionHarness();
   const result = await h.message({ type: 'prepareScan', clip: clip(1, { likes: 20 }) }, true);

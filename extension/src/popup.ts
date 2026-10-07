@@ -5,27 +5,31 @@ const byId = <T extends HTMLElement = HTMLElement>(id: string) => document.getEl
 const button = (id: string) => byId<HTMLButtonElement>(id);
 let current = initialState();
 let busy = false;
+const selectedMode = () => document.querySelector<HTMLInputElement>('input[name="mode"]:checked')!.value as Settings['mode'];
 const hints: Record<Settings['mode'], string> = {
-  narrated: 'Saves clips meeting your limits. No credits or keywords required. Review narration in Library.',
+  narrated: 'Matches your limits; narration is not verified. No credits or keywords required.',
   auto: 'Starts with credited sources. After 30 misses, collects clips meeting your limits for narration review.',
-  credits: 'Looks for attribution in descriptions. Credit alone does not grant permission to reuse a video.',
+  credits: 'Requires attribution and your count limits. Caption and speech filters still apply.',
+  'credits-any': 'Requires attribution and your count limits. Captions and voiceover are allowed.',
 };
-function numberSetting(id: string, label: string, min: number, max: number, whole = true): number {
+function numberSetting(id: string, label: string, min: number, max: number, whole = true, report = false): number {
   const input = byId<HTMLInputElement>(id);
   const value = input.valueAsNumber;
   if (!Number.isFinite(value) || value < min || value > max || (whole && !Number.isInteger(value))) {
     const message = `${label}: enter ${whole ? 'a whole number' : 'a number'} from ${min.toLocaleString()} to ${max.toLocaleString()}.`;
     input.setAttribute('aria-invalid', 'true');
     input.setCustomValidity(message);
-    input.reportValidity();
+    // Auto-saving on blur must not steal focus from a mode the user is choosing.
+    if (report) input.reportValidity();
     throw new Error(message);
   }
   input.removeAttribute('aria-invalid');
   input.setCustomValidity('');
   return value;
 }
-function settings(): Settings {
-  const captionFilter = byId<HTMLSelectElement>('captionFilter').value as Settings['captionFilter'];
+function settings(report = false): Settings {
+  const mode = selectedMode();
+  const captionFilter = mode === 'credits-any' ? 'off' : byId<HTMLSelectElement>('captionFilter').value as Settings['captionFilter'];
   const allowance = byId<HTMLInputElement>('maxCaptionSeconds');
   let maxCaptionSeconds: number;
   if (captionFilter === 'off') {
@@ -37,13 +41,13 @@ function settings(): Settings {
     allowance.removeAttribute('aria-invalid');
     allowance.setCustomValidity('');
   } else {
-    maxCaptionSeconds = numberSetting('maxCaptionSeconds', 'Text allowance', 0, 10, false);
+    maxCaptionSeconds = numberSetting('maxCaptionSeconds', 'Text allowance', 0, 10, false, report);
   }
   return {
-    minLikes: numberSetting('minLikes', 'Minimum likes', 0, 1e12),
-    minViews: numberSetting('minViews', 'Minimum views', 0, 1e12),
-    target: numberSetting('target', 'Clips to collect', 1, 500),
-    mode: byId<HTMLSelectElement>('mode').value as Settings['mode'],
+    minLikes: numberSetting('minLikes', 'Minimum likes', 0, 1e12, true, report),
+    minViews: numberSetting('minViews', 'Minimum views', 0, 1e12, true, report),
+    target: numberSetting('target', 'Clips to collect', 1, 500, true, report),
+    mode,
     sourceUrl: byId<HTMLInputElement>('sourceUrl').value.trim(),
     captionFilter,
     maxCaptionSeconds,
@@ -51,20 +55,27 @@ function settings(): Settings {
 }
 function error(message = '') { byId('error').hidden = !message; byId('error').textContent = message; }
 function captionHint() {
-  const policy = byId<HTMLSelectElement>('captionFilter').value;
+  const forcedOff = selectedMode() === 'credits-any';
+  const select = byId<HTMLSelectElement>('captionFilter');
+  if (forcedOff) select.value = 'off';
+  select.disabled = forcedOff || current.status === 'running';
+  byId<HTMLInputElement>('maxCaptionSeconds').disabled = select.disabled;
+  const policy = select.value;
   const allowance = byId<HTMLInputElement>('maxCaptionSeconds').value || '0';
   byId('caption-allowance').hidden = policy === 'off';
   byId('caption-allowance-label').textContent = policy === 'small-text-no-speech' ? 'Other text (sec.)' : 'Text allowance (sec.)';
-  byId('caption-help').textContent = policy === 'small-text-no-speech'
+  byId('caption-help').textContent = forcedOff
+    ? 'Captions and voiceover are allowed in this mode. Choose another mode to filter them.'
+    : policy === 'small-text-no-speech'
     ? `Small Chinese annotations allowed. Requires no detected speech. Other text: up to ${allowance} seconds. Local estimate; unverified clips are skipped.`
     : policy === 'brief-only'
       ? `Allow up to ${allowance} seconds of visible text in total. Local estimate; unreadable clips are skipped.`
       : 'Save videos without checking for burned-in captions or speech.';
 }
 function modeHint() {
-  const mode = byId<HTMLSelectElement>('mode').value as Settings['mode'];
+  const mode = selectedMode();
   const noSpeech = byId<HTMLSelectElement>('captionFilter').value === 'small-text-no-speech';
-  byId('mode-help').textContent = noSpeech && mode !== 'credits'
+  byId('mode-help').textContent = noSpeech && mode !== 'credits' && mode !== 'credits-any'
     ? mode === 'auto'
       ? 'Starts with credited sources. After 30 misses, applies your limits without requiring credit.'
       : 'No credits or keywords required. Your count, caption and speech limits still apply.'
@@ -77,14 +88,14 @@ function render(state: ScoutState, populate = false) {
     byId<HTMLInputElement>('target').value = String(state.settings.target);
     byId<HTMLInputElement>('minLikes').value = String(state.settings.minLikes);
     byId<HTMLInputElement>('minViews').value = String(state.settings.minViews);
-    byId<HTMLSelectElement>('mode').value = state.settings.mode;
+    for (const option of document.querySelectorAll<HTMLInputElement>('input[name="mode"]')) option.checked = option.value === state.settings.mode;
     byId<HTMLInputElement>('sourceUrl').value = state.settings.sourceUrl || '';
     byId<HTMLSelectElement>('captionFilter').value = state.settings.captionFilter!;
     byId<HTMLInputElement>('maxCaptionSeconds').value = String(state.settings.maxCaptionSeconds);
   }
-  captionHint();
   byId('settings').hidden = state.status === 'running';
   for (const input of document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('#settings input, #settings select')) input.disabled = state.status === 'running';
+  captionHint();
   modeHint();
   byId('status').textContent = state.status[0].toUpperCase() + state.status.slice(1);
   byId('status').dataset.status = state.status;
@@ -129,7 +140,7 @@ async function action(fn: () => Promise<unknown>) {
 }
 button('start').addEventListener('click', () => action(async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  await command(current.status === 'paused' ? 'resume' : 'start', { tabId: tab?.id, settings: settings() });
+  await command(current.status === 'paused' ? 'resume' : 'start', { tabId: tab?.id, settings: settings(true) });
 }));
 button('pause').addEventListener('click', () => action(() => command('pause')));
 button('stop').addEventListener('click', () => action(() => command('stop')));
