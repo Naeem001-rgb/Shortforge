@@ -1,5 +1,5 @@
 import { activeShort, all, first, INSTAGRAM, SELECTORS, visible } from './selectors';
-import { activeInstagramReel, instagramCounts, instagramReelId, instagramTileViews, readInstagramClip } from './instagram';
+import { activeInstagramReel, instagramCounts, instagramPayloadCounts, instagramReelId, instagramTileViews, readInstagramClip } from './instagram';
 import { addAccountVideos, candidateIdFromUrl, canonicalCandidateUrl, canonicalSourceUrl, createAccountQueue, nextAccountVideo, type AccountQueue } from './sources';
 import { countFromLabel, detectCredit, parseCount, videoIdFromUrl } from './parsers';
 import type { Candidate, SelectorCheck } from './types';
@@ -436,12 +436,15 @@ async function selftest(): Promise<SelectorCheck[]> {
   }
   if (instagram()) {
     const root = activeInstagramReel();
+    const id = instagramReelId(root);
+    const payload = instagramPayloadCounts(id?.slice(3) || '');
     const counts = root ? instagramCounts(root) : { likes: null, views: null };
     return [
-      { name: 'Instagram Reel permalink', found: Boolean(instagramReelId(root)), required: true },
+      { name: 'Instagram Reel permalink', found: Boolean(id), required: true },
       { name: 'Visible active Reel', found: Boolean(root), required: true },
-      { name: 'Readable like count', found: counts.likes !== null, required: true },
-      { name: 'Readable views (may only appear on account grid)', found: counts.views !== null, required: false },
+      { name: 'Instagram count payload', found: payload.likes !== null, required: true },
+      { name: `Readable like count${payload.likes !== null ? ` (${payload.likes.toLocaleString('en-US')})` : ''}`, found: (payload.likes ?? counts.likes) !== null, required: true },
+      { name: `Readable view count${payload.views !== null ? ` (${payload.views.toLocaleString('en-US')})` : ''}`, found: (payload.views ?? counts.views) !== null, required: false },
       { name: 'No verification prompt', found: !challenge(), required: true },
     ];
   }

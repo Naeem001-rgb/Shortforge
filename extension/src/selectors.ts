@@ -27,12 +27,18 @@ export const INSTAGRAM = {
   reelRoot: ['article', '[role="dialog"]'],
   main: ['main', '[role="main"]'],
   channel: ['header a[href]', 'a[role="link"][href]', 'a[href]'],
-  description: ['h1', '[data-testid="post-caption"]', '[data-testid="reel-caption"]', 'div[role="button"] > span[dir="auto"]'],
-  title: ['h1', '[data-testid="reel-caption"]'],
+  // The caption. Instagram also uses dir=auto for comment rows and empty rail
+  // labels, so instagram.ts requires element children and takes the longest block.
+  captionHeading: ['h1', '[data-testid="post-caption"]', '[data-testid="reel-caption"]'],
+  caption: ['span[dir="auto"]'],
   permalink: ['a[href*="/reel/"]', 'a[href*="/reels/"]'],
   stats: ['a[href*="/liked_by/"]', 'a[href*="/likes/"]', '[aria-label*=" likes" i]', '[aria-label*=" views" i]', '[aria-label*=" plays" i]', '[data-testid="like-count"]', '[data-testid="view-count"]'],
   statText: ['span'],
-  comments: ['ul'],
+  /** Instagram dropped the <ul> comment list; each comment is its own control. */
+  commentRow: ['div[role="button"]', 'li'],
+  /** A Reel's action rail is one <section> holding [icon control][count] per action. */
+  rail: ['section'],
+  railCount: ['span[role="button"]'],
   likeIcon: ['svg[aria-label="Like"]', 'svg[aria-label="Unlike"]'],
   viewIcon: ['svg[aria-label="View count"]', 'svg[aria-label="View Count"]', 'svg[aria-label="Views"]', 'svg[aria-label="Play count"]', 'svg[aria-label="Play"]'],
   controls: ['button', '[role="button"]'],
@@ -45,6 +51,10 @@ export const INSTAGRAM = {
   excludedGrid: ['aside', 'nav', '[role="navigation"]', '[aria-label*="suggested" i]', '[aria-label*="recommended" i]'],
   challenges: ['iframe[src*="captcha"]', 'iframe[src*="challenge"]', '[role="dialog"]', 'form[action*="login"]', 'input[name="username"]', 'input[name="password"]'],
   loading: ['[role="progressbar"]', '[aria-busy="true"]'],
+  /** Instagram ships the Reel's own Relay payload as JSON; it carries exact
+   * like_count and, for a signed-in viewer, play_count. The DOM only ever shows a
+   * rounded like count and no views at all. */
+  payload: ['script[type="application/json"]'],
 };
 export function first(root: ParentNode, selectors: readonly string[]): HTMLElement | null {
   for (const selector of selectors) {

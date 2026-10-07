@@ -214,7 +214,7 @@ button('selftest').addEventListener('click', async () => {
       const indicator = document.createElement('strong'); indicator.textContent = check.found ? 'OK' : check.required ? 'Fail' : 'Note';
       row.append(indicator, document.createTextNode(check.name)); target.append(row);
     }
-    const note = document.createElement('p'); note.className = 'hint'; note.textContent = 'This reads the current page without clicking. For YouTube, open the Short’s menu → Description to check views. Instagram layouts may hide counts; required unreadable counts are skipped.'; target.append(note);
+    const note = document.createElement('p'); note.className = 'hint'; note.textContent = 'This reads the current page without clicking. For YouTube, open the Short’s menu → Description to check views. Instagram never shows views on a Reel page — Scout reads them from the account grid when a tile displays one.'; target.append(note);
   } catch (cause) { target.textContent = cause instanceof Error ? cause.message : 'Reload the YouTube tab and try again.'; }
 });
 chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.scout) render(changes.scout.newValue); });
