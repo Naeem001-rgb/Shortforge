@@ -1,4 +1,4 @@
-export type Mode = 'narrated' | 'credits' | 'auto' | 'credits-any';
+export type Mode = 'any' | 'narrated' | 'credits' | 'auto' | 'credits-any';
 export type Status = 'idle' | 'running' | 'paused' | 'stopped' | 'complete';
 export type CaptionPolicy = 'brief-only' | 'small-text-no-speech';
 export interface Settings {
@@ -23,9 +23,14 @@ export interface ScoutState {
   scanned: number; matched: number; saved: number; creditMisses: number; reason: string;
   pending: Candidate[]; knownIds: string[]; seenIds: string[]; logs: LogEntry[]; lastScan: ScanResult | null;
 }
-export const DEFAULTS: Settings = { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated', sourceUrl: '', captionFilter: 'brief-only', maxCaptionSeconds: 3 };
+// Unrestricted candidates use the engine's existing count-qualified phase.
+// The stored discovery metadata does not assert that narration was verified.
+export function activeModeFor(mode: Mode): 'credits' | 'narrated' {
+  return mode === 'any' || mode === 'narrated' ? 'narrated' : 'credits';
+}
+export const DEFAULTS: Settings = { target: 30, minLikes: 5000, minViews: 10000, mode: 'any', sourceUrl: '', captionFilter: 'brief-only', maxCaptionSeconds: 3 };
 export function initialState(): ScoutState {
-  return { sessionId: '', sessionSourceUrl: '', captionCheck: null, status: 'idle', settings: { ...DEFAULTS }, activeMode: 'narrated', tabId: null, tabProtection: null,
+  return { sessionId: '', sessionSourceUrl: '', captionCheck: null, status: 'idle', settings: { ...DEFAULTS }, activeMode: activeModeFor(DEFAULTS.mode), tabId: null, tabProtection: null,
     scanned: 0, matched: 0, saved: 0, creditMisses: 0,
     reason: 'Open a Short or Reel, or paste an account above.', pending: [], knownIds: [], seenIds: [], logs: [], lastScan: null };
 }

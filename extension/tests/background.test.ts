@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import vm from 'node:vm';
-import type { Candidate, ScoutState } from '../src/types';
+import type { Candidate, Mode, ScoutState } from '../src/types';
 import { initialState } from '../src/types';
 
 async function harness(existingIds: string[] = [], initial?: ScoutState, autoDiscardable = true) {
@@ -10,6 +10,7 @@ async function harness(existingIds: string[] = [], initial?: ScoutState, autoDis
   let stored: Record<string, unknown> = initial ? { scout: initial } : {};
   let online = true;
   const known = new Set(existingIds);
+  const submittedClips: Candidate[] = [];
   const sends: object[] = [];
   const jobs = new Map<string, any>();
   const created: any[] = [];
@@ -69,7 +70,10 @@ async function harness(existingIds: string[] = [], initial?: ScoutState, autoDis
     }
     if (url.includes('/jobs/')) return { ok: true, json: async () => structuredClone(jobs.get(url.split('/').at(-1)!)) };
     let added = 0;
-    if (options.body) for (const clip of JSON.parse(options.body as string).clips) if (!known.has(clip.video_id)) { known.add(clip.video_id); added++; }
+    if (options.body) for (const clip of JSON.parse(options.body as string).clips) {
+      submittedClips.push(clip);
+      if (!known.has(clip.video_id)) { known.add(clip.video_id); added++; }
+    }
     return { ok: true, json: async () => ({ clips: [...known].map(video_id => ({ video_id })), added }) };
   } });
   const message = (payload: object, tab: boolean | number = false) => new Promise<any>(resolve => handler(tab ? { sessionId: (stored.scout as ScoutState)?.sessionId || '', ...payload } : payload, tab ? { tab: { id: typeof tab === 'number' ? tab : 7 } } : {}, resolve));
@@ -79,7 +83,7 @@ async function harness(existingIds: string[] = [], initial?: ScoutState, autoDis
     tabEvents[name](...args);
     await message({ type: 'state' });
   };
-  return { message, state: () => stored.scout as ScoutState, online: (value: boolean) => { online = value; }, known, sends, tabUpdates, tabs, tabEvent, jobs, created, requests, tabUrls, pendingUrls, reloads, disconnected };
+  return { message, state: () => stored.scout as ScoutState, online: (value: boolean) => { online = value; }, known, submittedClips, sends, tabUpdates, tabs, tabEvent, jobs, created, requests, tabUrls, pendingUrls, reloads, disconnected };
 }
 const settings = { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated', sourceUrl: '', captionFilter: 'off', maxCaptionSeconds: 3 };
 const clip = (index: number, extra: Partial<Candidate> = {}): Candidate => ({ video_id: `test${String(index).padStart(7, '0')}`, url: `https://www.youtube.com/shorts/test${String(index).padStart(7, '0')}`, title: 'A narrated story', description: '', likes: 8000, views: 20000, credit_target: '', credit_snippet: '', channel_handle: '', channel_name: '', thumbnail_url: '', ...extra });
@@ -163,11 +167,81 @@ test('narrated mode saves a full target without credits or narration keywords', 
   assert.equal(h.state().lastScan?.mode, 'narrated');
 });
 test('explicit narrated mode overrides a stale saved credits phase after a worker reload', async () => {
-  const h = await harness([], { ...initialState(), settings: { ...initialState().settings, captionFilter: 'off' }, status: 'running', activeMode: 'credits', tabId: 7 });
+  const h = await harness([], { ...initialState(), settings: { ...initialState().settings, mode: 'narrated', captionFilter: 'off' }, status: 'running', activeMode: 'credits', tabId: 7 });
   await h.message({ type: 'scan', clip: clip(1, { title: 'Wait for the ending' }) }, true);
   assert.equal(h.state().activeMode, 'narrated');
   assert.equal(h.state().saved, 1);
   assert.equal(h.state().lastScan?.mode, 'narrated');
+});
+test('new settings have no Look for preset and stored explicit selections stay selected', async () => {
+  const fresh = await harness();
+  const response = await fresh.message({ type: 'state' });
+  assert.equal(response.state.settings.mode, 'any');
+  assert.equal(response.state.activeMode, 'narrated');
+  assert.equal(response.state.settings.captionFilter, 'brief-only');
+  for (const mode of ['credits', 'credits-any', 'narrated', 'auto'] as const) {
+    const initial = initialState();
+    initial.settings.mode = mode;
+    initial.activeMode = 'narrated';
+    const h = await harness([], initial);
+    const restored = await h.message({ type: 'state' });
+    assert.equal(restored.state.settings.mode, mode);
+    assert.equal(restored.state.activeMode, mode === 'credits' || mode === 'credits-any' ? 'credits' : 'narrated');
+  }
+});
+test('cleared Look for saves uncredited YouTube and Instagram clips with compatible discovery metadata', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings: { ...settings, mode: 'any', target: 2 } });
+  assert.equal(h.state().reason, 'Looking for Shorts and Reels that meet your filters.');
+  const candidates = [
+    clip(1, { title: 'My original video' }),
+    clip(2, { video_id: 'ig:Original123', url: 'https://www.instagram.com/reel/Original123/', title: 'My original Reel' }),
+  ];
+  for (const candidate of candidates) {
+    await h.message({ type: 'scan', clip: candidate }, true);
+    assert.equal(h.state().lastScan?.matched, true);
+    assert.equal(h.state().lastScan?.reason, 'Meets your limits');
+  }
+  assert.equal(h.state().saved, 2);
+  assert.equal(h.state().status, 'complete');
+  assert.deepEqual(h.submittedClips.map(candidate => candidate.discovery_mode), ['narrated', 'narrated']);
+  assert.ok(h.submittedClips.every(candidate => !candidate.credit_target));
+});
+test('cleared Look for overrides a stale saved credits phase before caption preparation', async () => {
+  const initial = initialState();
+  initial.status = 'running'; initial.tabId = 7; initial.activeMode = 'credits';
+  const h = await harness([], initial);
+  const restored = await h.message({ type: 'state' });
+  assert.equal(restored.state.activeMode, 'narrated');
+  const prepared = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+  assert.ok(prepared.captionJobId);
+  finishCaption(h, prepared.captionJobId, 0);
+  await h.message({ type: 'scan', clip: clip(1), captionJobId: prepared.captionJobId }, true);
+  assert.equal(h.state().saved, 1);
+});
+test('clearing a paused credit selection retries prior skips and keeps matches deduplicated', async () => {
+  for (const clearVia of ['saveSettings', 'resume']) {
+    const h = await harness();
+    await h.message({ type: 'start', tabId: 7, settings: { ...settings, mode: 'credits' } });
+    await h.message({ type: 'scan', clip: clip(1) }, true);
+    await h.message({ type: 'scan', clip: clip(2, { credit_target: '@original' }) }, true);
+    assert.equal(h.state().saved, 1);
+    await h.message({ type: 'pause' });
+    const cleared = { ...settings, mode: 'any' };
+    if (clearVia === 'saveSettings') {
+      await h.message({ type: 'saveSettings', settings: cleared });
+      assert.equal(h.state().activeMode, 'narrated');
+    }
+    await h.message({ type: 'resume', tabId: 7, settings: cleared });
+    await h.message({ type: 'scan', clip: clip(1) }, true);
+    assert.equal(h.state().saved, 2);
+    assert.equal(h.state().lastScan?.reason, 'Meets your limits');
+    await h.message({ type: 'scan', clip: clip(2, { credit_target: '@original' }) }, true);
+    assert.equal(h.state().saved, 2);
+    assert.equal(h.state().matched, 2);
+    assert.match(h.state().lastScan!.reason, /Already in your Library/);
+    assert.equal(h.submittedClips.length, 2);
+  }
 });
 test('changing credits to narrated while paused takes effect immediately on resume', async () => {
   const h = await harness();
@@ -472,9 +546,9 @@ test('Instagram ids save independently and candidate URL mismatches are rejected
   assert.match(bad.error, /source link/);
 });
 
-async function captionHarness(policy = 'brief-only') {
+async function captionHarness(policy = 'brief-only', mode: Mode = 'narrated') {
   const h = await harness();
-  await h.message({ type: 'start', tabId: 7, settings: { ...settings, captionFilter: policy } });
+  await h.message({ type: 'start', tabId: 7, settings: { ...settings, mode, captionFilter: policy } });
   return h;
 }
 function finishCaption(h: Awaited<ReturnType<typeof harness>>, jobId: string, seconds: number, extra: object = {}) {
@@ -502,6 +576,33 @@ test('brief checked captions save; persistent, unchecked and wrong-video results
 });
 
 const silentSmallText = { small_text_seconds: 20, speech_status: 'absent', speech_seconds: 0, speech_analysis_duration: 30, speech_model: 'silero-vad-test' };
+
+test('cleared Look for still requires selected caption and speech checks and skips low counts before analysis', async () => {
+  for (const policy of ['brief-only', 'small-text-no-speech']) {
+    const h = await captionHarness(policy, 'any');
+    const lowCount = await h.message({ type: 'prepareScan', clip: clip(1, { likes: 4999 }) }, true);
+    assert.equal(lowCount.skipCaptionCheck, true);
+    assert.equal(h.jobs.size, 0);
+    await h.message({ type: 'scan', clip: clip(1, { likes: 4999 }) }, true);
+    assert.match(h.state().lastScan!.reason, /likes 4,999 < 5,000/);
+    await h.message({ type: 'scan', clip: clip(2) }, true);
+    assert.match(h.state().lastScan!.reason, /not checked/);
+    const persistent = await h.message({ type: 'prepareScan', clip: clip(3) }, true);
+    finishCaption(h, persistent.captionJobId, 20, silentSmallText);
+    await h.message({ type: 'scan', clip: clip(3), captionJobId: persistent.captionJobId }, true);
+    assert.equal(h.state().saved, 0);
+    if (policy === 'small-text-no-speech') {
+      const speech = await h.message({ type: 'prepareScan', clip: clip(4) }, true);
+      finishCaption(h, speech.captionJobId, 0, { ...silentSmallText, speech_status: 'present', speech_seconds: 2 });
+      await h.message({ type: 'scan', clip: clip(4), captionJobId: speech.captionJobId }, true);
+      assert.equal(h.state().saved, 0);
+    }
+    const valid = await h.message({ type: 'prepareScan', clip: clip(5) }, true);
+    finishCaption(h, valid.captionJobId, 0, silentSmallText);
+    await h.message({ type: 'scan', clip: clip(5), captionJobId: valid.captionJobId }, true);
+    assert.equal(h.state().saved, 1);
+  }
+});
 
 test('optional small-Chinese-text policy saves only after full caption and speech verification', async () => {
   const h = await captionHarness('small-text-no-speech');
@@ -624,6 +725,26 @@ test('restoring credited-any normalizes stale caption and active-mode settings',
   assert.equal(restored.state.settings.mode, 'credits-any');
   assert.equal(restored.state.settings.captionFilter, 'off');
   assert.equal(restored.state.activeMode, 'credits');
+});
+
+test('clearing credited-any keeps captions off until the user chooses a different caption filter', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings: { ...settings, mode: 'credits-any', captionFilter: 'brief-only' } });
+  const cleared = { ...h.state().settings, mode: 'any' };
+  await h.message({ type: 'saveSettings', settings: cleared });
+  assert.equal(h.state().settings.captionFilter, 'off');
+  await h.message({ type: 'resume', tabId: 7, settings: cleared });
+  await h.message({ type: 'scan', clip: clip(1) }, true);
+  assert.equal(h.state().saved, 1);
+  assert.equal(h.jobs.size, 0);
+  const filtered = { ...cleared, captionFilter: 'brief-only' };
+  await h.message({ type: 'saveSettings', settings: filtered });
+  await h.message({ type: 'resume', tabId: 7, settings: filtered });
+  const prepared = await h.message({ type: 'prepareScan', clip: clip(2) }, true);
+  assert.ok(prepared.captionJobId);
+  finishCaption(h, prepared.captionJobId, 20);
+  await h.message({ type: 'scan', clip: clip(2), captionJobId: prepared.captionJobId }, true);
+  assert.equal(h.state().saved, 1);
 });
 
 test('switching to credited-any cancels analysis, and switching back restores configurable credit filtering', async () => {

@@ -5,8 +5,10 @@ const byId = <T extends HTMLElement = HTMLElement>(id: string) => document.getEl
 const button = (id: string) => byId<HTMLButtonElement>(id);
 let current = initialState();
 let busy = false;
-const selectedMode = () => document.querySelector<HTMLInputElement>('input[name="mode"]:checked')!.value as Settings['mode'];
+let shownMode: Settings['mode'] = DEFAULTS.mode;
+const selectedMode = () => (document.querySelector<HTMLInputElement>('input[name="mode"]:checked')?.value ?? 'any') as Settings['mode'];
 const hints: Record<Settings['mode'], string> = {
+  any: 'No credits or narration required. Your other filters still apply.',
   narrated: 'Matches your limits; narration is not verified. No credits or keywords required.',
   auto: 'Starts with credited sources. After 30 misses, collects clips meeting your limits for narration review.',
   credits: 'Requires attribution and your count limits. Caption and speech filters still apply.',
@@ -65,7 +67,7 @@ function captionHint() {
   byId('caption-allowance').hidden = policy === 'off';
   byId('caption-allowance-label').textContent = policy === 'small-text-no-speech' ? 'Other text (sec.)' : 'Text allowance (sec.)';
   byId('caption-help').textContent = forcedOff
-    ? 'Captions and voiceover are allowed in this mode. Choose another mode to filter them.'
+    ? 'Captions and voiceover are allowed in this mode. Clear it or choose another mode to filter them.'
     : policy === 'small-text-no-speech'
     ? `Small Chinese annotations allowed. Requires no detected speech. Other text: up to ${allowance} seconds. Local estimate; unverified clips are skipped.`
     : policy === 'brief-only'
@@ -75,7 +77,8 @@ function captionHint() {
 function modeHint() {
   const mode = selectedMode();
   const noSpeech = byId<HTMLSelectElement>('captionFilter').value === 'small-text-no-speech';
-  byId('mode-help').textContent = noSpeech && mode !== 'credits' && mode !== 'credits-any'
+  button('clear-mode').disabled = mode === 'any' || current.status === 'running';
+  byId('mode-help').textContent = noSpeech && mode !== 'any' && mode !== 'credits' && mode !== 'credits-any'
     ? mode === 'auto'
       ? 'Starts with credited sources. After 30 misses, applies your limits without requiring credit.'
       : 'No credits or keywords required. Your count, caption and speech limits still apply.'
@@ -90,6 +93,7 @@ function render(state: ScoutState, populate = false) {
     byId<HTMLInputElement>('minLikes').value = String(state.settings.minLikes);
     byId<HTMLInputElement>('minViews').value = String(state.settings.minViews);
     for (const option of document.querySelectorAll<HTMLInputElement>('input[name="mode"]')) option.checked = option.value === state.settings.mode;
+    shownMode = selectedMode();
     byId<HTMLInputElement>('sourceUrl').value = state.settings.sourceUrl || '';
     byId<HTMLSelectElement>('captionFilter').value = state.settings.captionFilter!;
     byId<HTMLInputElement>('maxCaptionSeconds').value = String(state.settings.maxCaptionSeconds);
@@ -154,12 +158,34 @@ byId('settings').addEventListener('input', event => {
   }
 });
 byId('settings').addEventListener('change', () => {
+  shownMode = selectedMode();
   captionHint();
   modeHint();
   void (async () => {
     await command('saveSettings', { settings: settings() });
     error();
   })().catch(cause => error(cause.message));
+});
+for (const option of document.querySelectorAll<HTMLInputElement>('input[name="mode"]')) {
+  option.addEventListener('keydown', event => {
+    // Browsers do not click an already-checked radio on Space by default.
+    if (event.key === ' ' && !option.disabled) {
+      event.preventDefault();
+      if (!event.repeat) option.click();
+    }
+  });
+  option.addEventListener('click', () => {
+    // Native clicks check the radio before this handler. Remember the prior choice
+    // so a second click (or Space) clears it, while arrow keys still select normally.
+    if (!option.disabled && shownMode === option.value) {
+      option.checked = false;
+      option.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+}
+button('clear-mode').addEventListener('click', () => {
+  for (const option of document.querySelectorAll<HTMLInputElement>('input[name="mode"]')) option.checked = false;
+  byId('settings').dispatchEvent(new Event('change', { bubbles: true }));
 });
 const START_HINT = 'ShortForge is not running. Open the ShortForge folder, run ./start.sh (Windows: double-click start.bat), leave that window open, then click again.';
 // The editor is packaged with the extension. Only the engine must be running.

@@ -75,6 +75,7 @@ export function matchesCandidate(clip: Candidate, settings: Settings, mode: 'cre
     return { matched: false, reason: `Below your limits: ${below}` };
   }
   if (mode === 'credits' && !clip.credit_target) return { matched: false, reason: 'No credited source found' };
+  if (settings.mode === 'any') return { matched: true, reason: 'Meets your limits' };
   // Narrators rarely identify their format in the description. Keywords are a
   // useful hint, but their absence is not evidence that a clip has no narration.
   // Collect eligible candidates for review without requiring credits or keywords.

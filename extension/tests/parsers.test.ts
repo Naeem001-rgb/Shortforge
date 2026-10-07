@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCount, countFromLabel, detectCredit, hasNarrationHints, videoIdFromUrl, matchesCandidate } from '../src/parsers';
-import { DEFAULTS, type Candidate } from '../src/types';
+import { activeModeFor, DEFAULTS, type Candidate } from '../src/types';
 
 test('YouTube counts support compact, comma, decimal and accessible forms', () => {
   for (const [input, expected] of [
@@ -63,11 +63,25 @@ test('mode and thresholds require known counts while narration does not require 
 test('narrated candidates are not rejected for ordinary titles, empty descriptions or missing credits', () => {
   const clip: Candidate = { video_id: 'tleaVXWF3YI', url: '', title: 'Wait for the ending', description: '', channel_name: '', channel_handle: '', likes: 5000, views: 10000, credit_target: '', credit_snippet: '', thumbnail_url: '' };
   for (const title of ['Wait for the ending', 'He never expected this', '', 'یہ کیسے ہوا']) {
-    const result = matchesCandidate({ ...clip, title }, DEFAULTS, 'narrated');
+    const result = matchesCandidate({ ...clip, title }, { ...DEFAULTS, mode: 'narrated' }, 'narrated');
     assert.equal(result.matched, true, title);
     assert.match(result.reason, /review narration/);
   }
   assert.equal(matchesCandidate(clip, DEFAULTS, 'credits').matched, false);
+});
+test('cleared Look for accepts original clips without credits or narration and still applies count limits', () => {
+  const clip: Candidate = { video_id: 'tleaVXWF3YI', url: '', title: 'My original video', description: '', channel_name: '', channel_handle: '', likes: 5000, views: 10000, credit_target: '', credit_snippet: '', thumbnail_url: '' };
+  const settings = { ...DEFAULTS, mode: 'any' as const };
+  const phase = activeModeFor(settings.mode);
+  for (const title of ['My original video', 'A narrated story', '']) {
+    const decision = matchesCandidate({ ...clip, title }, settings, phase);
+    assert.equal(decision.matched, true);
+    assert.equal(decision.reason, 'Meets your limits');
+  }
+  for (const counts of [{ likes: 4999 }, { views: 9999 }, { likes: null }, { views: null }]) {
+    assert.equal(matchesCandidate({ ...clip, ...counts }, settings, phase).matched, false);
+  }
+  assert.equal(matchesCandidate({ ...clip, likes: null, views: null }, { ...settings, minLikes: 0, minViews: 0 }, phase).matched, true);
 });
 test('skip decisions explain the actual missing count or failed threshold', () => {
   const clip: Candidate = { video_id: 'tleaVXWF3YI', url: '', title: 'Wait for it', description: '', channel_name: '', channel_handle: '', likes: 8000, views: 25000, credit_target: '', credit_snippet: '', thumbnail_url: '' };

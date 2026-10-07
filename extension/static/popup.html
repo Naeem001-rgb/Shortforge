@@ -11,15 +11,15 @@
     <form id="settings" novalidate>
       <section class="settings-group discovery-group" aria-label="Discovery settings">
       <fieldset class="discovery" aria-describedby="mode-help">
-        <legend>Look for</legend>
+        <legend><span class="mode-heading"><span>Look for <span class="secondary">optional</span></span><button id="clear-mode" type="button" class="text-button" aria-label="Clear discovery mode" disabled>Clear</button></span></legend>
         <div class="mode-options">
-          <label class="mode-choice"><input type="radio" name="mode" value="narrated" checked><span>Narrated candidates</span></label>
+          <label class="mode-choice"><input type="radio" name="mode" value="narrated"><span>Narrated candidates</span></label>
           <label class="mode-choice"><input type="radio" name="mode" value="credits"><span>Credited only</span></label>
           <label class="mode-choice"><input type="radio" name="mode" value="auto"><span>Credits first, then narrated</span></label>
           <label class="mode-choice"><input type="radio" name="mode" value="credits-any"><span>Credited, any captions/<wbr>voiceover</span></label>
         </div>
       </fieldset>
-      <p id="mode-help" class="hint">Matches your limits; narration is not verified. No credits or keywords required.</p>
+      <p id="mode-help" class="hint" aria-live="polite">No credits or narration required. Your other filters still apply.</p>
       </section>
       <section class="settings-group count-group" aria-label="Engagement minimums">
       <div class="fields count-fields"><div class="count-field"><label for="minLikes">Minimum likes</label><input id="minLikes" name="minLikes" type="number" inputmode="numeric" min="0" max="1000000000000" step="1" value="5000" required aria-describedby="count-help"></div><div class="count-field"><label for="minViews">Minimum views</label><input id="minViews" name="minViews" type="number" inputmode="numeric" min="0" max="1000000000000" step="1" value="10000" required aria-describedby="count-help"></div></div>

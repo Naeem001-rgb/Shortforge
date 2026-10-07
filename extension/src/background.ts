@@ -1,4 +1,4 @@
-import { DEFAULTS, initialState, type Candidate, type ScoutState, type Settings } from './types';
+import { activeModeFor, DEFAULTS, initialState, type Candidate, type ScoutState, type Settings } from './types';
 import { matchesCandidate } from './parsers';
 
 import { canonicalSourceUrl, candidateIdFromUrl, isScoutUrl } from './sources';
@@ -13,7 +13,7 @@ async function load() {
     state.settings = { ...DEFAULTS, ...state.settings };
     // Only Auto has a separate phase. Explicit choices always win over a
     // stale phase saved by an older extension worker.
-    if (state.settings.mode !== 'auto') state.activeMode = state.settings.mode === 'narrated' ? 'narrated' : 'credits';
+    if (state.settings.mode !== 'auto') state.activeMode = activeModeFor(state.settings.mode);
     if (state.settings.mode === 'credits-any') state.settings.captionFilter = 'off';
   }
   return state;
@@ -132,7 +132,7 @@ async function cancelCaptionCheck() {
 }
 function settingsFrom(value: unknown): Settings {
   const candidate = value as Settings;
-  if (!candidate || !['narrated', 'credits', 'auto', 'credits-any'].includes(candidate.mode)) throw new Error('Choose a discovery mode.');
+  if (!candidate || !['any', 'narrated', 'credits', 'auto', 'credits-any'].includes(candidate.mode)) throw new Error('Choose a valid Look for option, or clear the selection.');
   for (const [name, max] of [['target', 500], ['minLikes', 1e12], ['minViews', 1e12]] as const) {
     if (!Number.isSafeInteger(candidate[name]) || candidate[name] < (name === 'target' ? 1 : 0) || candidate[name] > max) throw new Error(name === 'target' ? 'Target must be a whole number from 1 to 500.' : 'Enter a valid whole-number minimum.');
   }
@@ -195,7 +195,7 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
         await cancelCaptionCheck();
       }
     }
-    if (previous.mode !== state.settings.mode) { state.activeMode = state.settings.mode === 'narrated' ? 'narrated' : 'credits'; state.creditMisses = 0; }
+    if (previous.mode !== state.settings.mode) { state.activeMode = activeModeFor(state.settings.mode); state.creditMisses = 0; }
     await save(); return { state };
   }
   if (message.type === 'start' || message.type === 'resume') {
@@ -225,15 +225,15 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
     }
     if (message.type === 'start') {
       await cancelCaptionCheck();
-      state = { ...initialState(), tabProtection: state.tabProtection, knownIds: state.knownIds, settings, sessionSourceUrl: settings.sourceUrl || '', sessionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`, tabId: tab.id!, activeMode: settings.mode === 'narrated' ? 'narrated' : 'credits' };
+      state = { ...initialState(), tabProtection: state.tabProtection, knownIds: state.knownIds, settings, sessionSourceUrl: settings.sourceUrl || '', sessionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`, tabId: tab.id!, activeMode: activeModeFor(settings.mode) };
     } else {
       if (reconnect) await cancelCaptionCheck();
       state.tabId = tab.id!;
       if (filtersChanged(state.settings, settings)) state.seenIds = [];
-      if (settings.mode !== state.settings.mode) { state.activeMode = settings.mode === 'narrated' ? 'narrated' : 'credits'; state.creditMisses = 0; }
+      if (settings.mode !== state.settings.mode) { state.activeMode = activeModeFor(settings.mode); state.creditMisses = 0; }
       state.settings = settings;
     }
-    state.status = 'running'; state.reason = `Looking for ${state.activeMode === 'credits' ? 'credited' : 'narrated'} Shorts and Reels.`;
+    state.status = 'running'; state.reason = settings.mode === 'any' ? 'Looking for Shorts and Reels that meet your filters.' : `Looking for ${state.activeMode === 'credits' ? 'credited' : 'narrated'} Shorts and Reels.`;
     log(message.type === 'start' ? 'Scout started. Keep the scouting tab open; you can switch tabs.' : reconnect ? 'Scout reconnected. Your session progress was kept.' : 'Scout resumed.');
     await save();
     try {
@@ -287,7 +287,7 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
     const clip = validCandidate(message.clip);
     if (state.seenIds.includes(clip.video_id)) return { running: true, repeat: true };
     const duplicate = state.knownIds.includes(clip.video_id) || state.pending.some(item => item.video_id === clip.video_id);
-    if (state.settings.mode !== 'auto') state.activeMode = state.settings.mode === 'narrated' ? 'narrated' : 'credits';
+    if (state.settings.mode !== 'auto') state.activeMode = activeModeFor(state.settings.mode);
     const decision = matchesCandidate(clip, state.settings, state.activeMode);
     if (!duplicate && decision.matched && state.settings.captionFilter !== 'off') {
       const caption = await captionDecision(clip, message.captionJobId);

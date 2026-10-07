@@ -537,7 +537,7 @@ A genuinely empty collection offers Import footage and Explore Scout in a center
 
 ### Scout discovery and criteria
 
-The two-column discovery group is a native fieldset with four labeled radios. Each choice has a 16px radio, 6px internal gap, 11px 8px padding, and a thin border. Checked choices use the Scout selected palette; keyboard focus surrounds the whole choice and arrow-key navigation stays native. Associated guidance preserves the explicit uncertainty that narration is not verified.
+The two-column discovery group is a native fieldset with four labeled radios. Each choice has a 16px radio, 6px internal gap, 11px 8px padding, and a thin border. Checked choices use the Scout selected palette; keyboard focus surrounds the whole choice and arrow-key navigation stays native. The legend marks the group optional and pairs it with a 40px-high Clear text action. Clicking a selected choice again or pressing Space clears it; no selection requires neither credits nor narration and keeps the other filters. Clear is disabled when nothing is selected. Associated guidance preserves the explicit uncertainty that narration is not verified.
 
 Paired engagement fields place a muted label above a 16px value inside a ten-pixel frame. The inner inputs are 40px high with no border; the frame carries focus and invalid state. Other inputs/selects are 42px high with 9px 10px padding and nine-pixel corners. A native select uses an SVG chevron; invalid fields use danger borders. Caption allowance, collection target, account URL, and every mode remain available. Credits-any disables caption/speech checks and their controls.
 

@@ -77,6 +77,15 @@ try {
     await page.locator(`input[name="mode"][value="${value}"]`).check();
     await until(async () => (await preferences())?.mode === value, `saved mode ${value}`);
   };
+  const cleared = async () => {
+    await until(async () => (await preferences())?.mode === 'any', 'cleared mode persisted');
+    assert.equal(await page.locator('input[name="mode"]:checked').count(), 0);
+    assert.equal(await page.locator('#clear-mode').isDisabled(), true);
+    assert.match(await page.locator('#mode-help').textContent(), /No credits or narration required/);
+  };
+
+  assert.equal(await page.locator('input[name="mode"]:checked').count(), 0, 'fresh settings have no preset');
+  assert.equal(await page.locator('#clear-mode').isDisabled(), true);
 
   // Bounds, not isVisible(), prove the primary controls need no scrolling.
   const dock = await page.locator('.actions').boundingBox();
@@ -104,6 +113,26 @@ try {
   for (const [id, expected] of Object.entries({ minLikes: '125', minViews: '2500', target: '12', maxCaptionSeconds: '2', captionFilter: 'small-text-no-speech' })) {
     assert.equal(await page.locator('#' + id).inputValue(), expected, `${id} survives reopening`);
   }
+  // Clicking an already-selected card or radio clears it without changing other criteria.
+  await mode('credits');
+  await page.locator('.mode-choice').filter({ has: page.locator('input[value="credits"]') }).click();
+  await cleared();
+  assert.equal((await preferences()).captionFilter, 'small-text-no-speech');
+  await page.reload();
+  await until(() => page.locator('#minLikes').inputValue().then(value => value === '125'), 'cleared settings restored');
+  await cleared();
+  await mode('narrated');
+  await page.locator('input[value="narrated"]').click();
+  await cleared();
+  await mode('auto');
+  await page.locator('#clear-mode').focus();
+  await page.keyboard.press('Enter');
+  await cleared();
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(await preferences()).filter(([key]) => key !== 'mode')),
+    { target: 12, minLikes: 125, minViews: 2500, sourceUrl: 'https://www.instagram.com/qianxiang_guyue/reels/', captionFilter: 'small-text-no-speech', maxCaptionSeconds: 2 },
+    'clearing only changes the discovery preset',
+  );
   // Every mode is a visible choice and retains the user's count/account settings.
   for (const value of ['narrated', 'credits', 'auto', 'credits-any']) {
     await mode(value);
@@ -118,6 +147,10 @@ try {
   assert.equal(await page.locator('#captionFilter').isDisabled(), true);
   assert.equal(await page.locator('#maxCaptionSeconds').isDisabled(), true);
   assert.match(await page.locator('#mode-help').textContent(), /Requires attribution and your count limits\. Captions and voiceover are allowed/);
+  await page.locator('#clear-mode').click();
+  await cleared();
+  assert.equal(await page.locator('#captionFilter').isDisabled(), false, 'clearing credited-any unlocks caption filters');
+  assert.equal(await page.locator('#captionFilter').inputValue(), 'off', 'clearing keeps the current caption choice');
   await mode('narrated');
   assert.equal(await page.locator('#captionFilter').isDisabled(), false, 'leaving the preset unlocks caption filters');
   assert.equal(await page.locator('#maxCaptionSeconds').isDisabled(), false);
@@ -128,6 +161,10 @@ try {
   await until(async () => (await preferences())?.mode === 'credits', 'arrow-key mode choice persists');
   await page.keyboard.press('ArrowLeft');
   await until(async () => (await preferences())?.mode === 'narrated', 'arrow-key mode choice returns');
+  await page.keyboard.press('Space');
+  await cleared();
+  await page.keyboard.press('Space');
+  await until(async () => (await preferences())?.mode === 'narrated', 'Space selects an unchecked mode again');
   await policy('brief-only');
   assert.equal(await page.locator('#caption-allowance').isHidden(), false);
   assert.match(await page.locator('#caption-help').textContent(), /2 seconds of visible text/);
@@ -220,6 +257,17 @@ try {
   await until(async () => (await state()).status === 'stopped', 'credited-any fixture session stops');
   assert.ok((await worker.evaluate(() => globalThis.preferenceRequests)).every(url => url.endsWith('/clips')), 'credited-any never requests caption/speech analysis');
 
+  await page.locator('#clear-mode').click();
+  await cleared();
+  const unrestrictedSession = (await state()).sessionId;
+  await page.locator('#start').click();
+  await until(async () => (await state()).sessionId !== unrestrictedSession, 'no preset starts scouting');
+  assert.equal((await preferences()).mode, 'any');
+  assert.equal((await state()).activeMode, 'narrated', 'unrestricted discovery uses the compatible count-qualified phase');
+  assert.doesNotMatch((await state()).reason, /narrat|credit/i, 'unrestricted start does not claim narration or credits are required');
+  await page.locator('#stop').click();
+  await until(async () => (await state()).status === 'stopped', 'unrestricted session stops');
+
   // One batched visual pass at the actual Chrome popup size in both themes.
   if (!process.argv.includes('--no-screenshots')) await page.bringToFront();
   for (const colorScheme of process.argv.includes('--no-screenshots') ? [] : ['light', 'dark']) {
@@ -228,10 +276,10 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     const box = await page.locator('.actions').boundingBox();
     assert.equal(box.y + box.height, 600, 'action dock stays in the popup');
-    await page.screenshot({ path: resolve(screenshots, `scout-modes-${colorScheme}.png`) });
+    await page.screenshot({ path: resolve(screenshots, `scout-optional-mode-${colorScheme}.png`) });
   }
   assert.deepEqual(pageErrors, [], 'no unhandled page errors');
-  console.log('Passed: real MV3 preferences persist all four visible modes and custom count limits; credited-any locks caption checks off and starts with an unfinished allowance; leaving it unlocks caption filters; invalid counts cannot save; controls fit at 392×600.');
+  console.log('Passed: real MV3 preferences allow no preset, repeated-click/Space deselection and keyboard Clear; cleared settings survive reopening and can start scouting; all four existing modes, custom filters, native arrow keys, credited-any behavior and validation remain intact; controls fit at 392×600.');
 } finally {
   await browser?.close();
   chromeProcess.kill('SIGTERM');
