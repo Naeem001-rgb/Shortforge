@@ -17,7 +17,7 @@ from threading import BoundedSemaphore, Event, Lock
 import time
 
 from engine.core import db
-from .media import ffmpeg_binary
+from .media import ffmpeg_binary, probe_media
 
 INTERVAL = 0.5
 MAX_DURATION = 180
@@ -28,6 +28,9 @@ SLOTS = BoundedSemaphore(1)
 CANCEL_LOCK = Lock()
 CANCEL_EVENTS: dict[str, Event] = {}
 NOTE = "Sampled visible-text estimate every 0.5 seconds across the full frame; brief flashes may be missed and scene text can count as captions."
+SMALL_TEXT_POLICY = "small-text-no-speech"
+POLICIES = {"brief-only", SMALL_TEXT_POLICY}
+SMALL_TEXT_NOTE = "Small, short Han-script annotations are allowed; size and amount are estimated, not caption style or language."
 
 
 def local_models() -> dict[str, str]:
@@ -59,10 +62,14 @@ def caption_capability() -> dict:
     return {"available": True, "message": "Local Scout caption checking is ready. " + NOTE}
 
 
-def unknown_result(video_id: str, url: str, reason: str) -> dict:
-    return {"video_id": video_id, "url": url, "status": "unknown", "duration": None,
+def unknown_result(video_id: str, url: str, reason: str, policy: str = "brief-only") -> dict:
+    result = {"video_id": video_id, "url": url, "status": "unknown", "duration": None,
             "caption_seconds": None, "coverage": None, "frames_scanned": 0,
-            "interval": INTERVAL, "reason": reason}
+            "interval": INTERVAL, "reason": reason, "policy": policy}
+    if policy == SMALL_TEXT_POLICY:
+        result.update(small_text_seconds=None, speech_status="unknown", speech_seconds=None,
+                      speech_analysis_duration=None, speech_model=None)
+    return result
 
 
 def classify_samples(samples: list[bool], duration: float, max_caption_seconds: float,
@@ -84,27 +91,53 @@ def classify_samples(samples: list[bool], duration: float, max_caption_seconds: 
             "interval": interval, "reason": descriptions[status] + " " + NOTE}
 
 
+def text_readings(result, width: int, height: int) -> list[dict]:
+    """Keep every reading so a small label cannot hide another large caption."""
+    if result is None or not hasattr(result, "txts") or width <= 0 or height <= 0:
+        raise ValueError("OCR did not return a readable result. This clip was skipped.")
+    texts = result.txts
+    scores, boxes = getattr(result, "scores", None), getattr(result, "boxes", None)
+    try:
+        if isinstance(texts, (str, bytes)):
+            raise ValueError("Text readings must be a sequence")
+        if texts is None or len(texts) == 0:
+            if ((scores is not None and len(scores)) or (boxes is not None and len(boxes))):
+                raise ValueError("Unexpected OCR boxes without text")
+            return []
+        if scores is None or boxes is None or len(texts) != len(scores) or len(texts) != len(boxes):
+            raise ValueError("Incomplete readings")
+        readings = []
+        for text, confidence, box in zip(texts, scores, boxes):
+            if not isinstance(text, str) or not text.strip() or not math.isfinite(float(confidence)) or not 0 <= float(confidence) <= 1:
+                raise ValueError("Invalid text or confidence")
+            if len(box) != 4 or any(len(point) != 2 for point in box):
+                raise ValueError("Invalid text box")
+            xs = [float(point[0]) / width for point in box]
+            ys = [float(point[1]) / height for point in box]
+            if not all(math.isfinite(value) and 0 <= value <= 1 for value in xs + ys):
+                raise ValueError("Text box outside the frame")
+            box_width, box_height = max(xs) - min(xs), max(ys) - min(ys)
+            if box_width <= 0 or box_height <= 0:
+                raise ValueError("Empty text box")
+            readings.append({"text": text.strip(), "confidence": float(confidence),
+                             "xs": xs, "ys": ys, "width": box_width, "height": box_height})
+        return readings
+    except (TypeError, ValueError, OverflowError, IndexError):
+        raise ValueError("OCR returned incomplete or unreadable text readings. This clip was skipped.") from None
+
+
 def has_caption_text(result, width: int, height: int) -> bool:
     """Count confident text anywhere; ignore only obvious small corner handles.
 
     Scene signs and title cards deliberately remain conservative matches. A
     static subtitle is still a subtitle, so persistence alone never ignores it.
     """
-    if result is None or not hasattr(result, "txts"):
-        raise ValueError("OCR did not return a readable result. This clip was skipped.")
-    texts = getattr(result, "txts", None)
-    if texts is None or len(texts) == 0:
-        return False
-    scores = getattr(result, "scores", None)
-    boxes = getattr(result, "boxes", None)
-    if scores is None or boxes is None or len(texts) != len(scores) or len(texts) != len(boxes):
-        raise ValueError("OCR returned incomplete text readings. This clip was skipped.")
-    for text, confidence, box in zip(texts, scores, boxes):
-        text = str(text).strip()
-        if float(confidence) < 0.55 or sum(char.isalnum() for char in text) < 2:
+    for reading in text_readings(result, width, height):
+        text = reading["text"]
+        if reading["confidence"] < 0.55 or sum(char.isalnum() for char in text) < 2:
             continue
-        xs, ys = [float(point[0]) / width for point in box], [float(point[1]) / height for point in box]
-        small = max(xs) - min(xs) <= 0.32 and max(ys) - min(ys) <= 0.06
+        xs, ys = reading["xs"], reading["ys"]
+        small = reading["width"] <= 0.32 and reading["height"] <= 0.06
         corner = (max(xs) < 0.4 or min(xs) > 0.6) and (max(ys) < 0.15 or min(ys) > 0.85)
         handle = re.fullmatch(r"@?[\w.]+(?:\.com)?", text, re.UNICODE)
         branded = text.lower() in {"tiktok", "instagram", "youtube", "youtube shorts"}
@@ -112,6 +145,27 @@ def has_caption_text(result, width: int, height: int) -> bool:
             continue
         return True
     return False
+
+
+def is_han(character: str) -> bool:
+    value = ord(character)
+    return (0x3400 <= value <= 0x4DBF or 0x4E00 <= value <= 0x9FFF
+            or 0xF900 <= value <= 0xFAFF or 0x20000 <= value <= 0x323AF)
+
+
+def small_text_sample(result, width: int, height: int) -> tuple[bool, bool]:
+    """Return (caption, exempt annotation), based on the whole frame's text."""
+    readings = [item for item in text_readings(result, width, height)
+                if any(character.isalnum() for character in item["text"])]
+    if not readings:
+        return False, False
+    characters = [character for item in readings for character in item["text"] if character.isalnum()]
+    allowed = (len(readings) <= 2 and len(characters) <= 12
+               and sum(is_han(character) for character in characters) / len(characters) >= .8
+               and all(item["confidence"] >= .55 and item["width"] <= .4 + 1e-9
+                       and item["height"] <= .06 + 1e-9 for item in readings)
+               and sum(item["width"] * item["height"] for item in readings) <= .03 + 1e-9)
+    return not allowed, allowed
 
 
 def make_ocr():
@@ -126,7 +180,18 @@ def make_ocr():
                             "EngineConfig.onnxruntime.inter_op_num_threads": 1})
 
 
-def download_source(url: str, directory: Path) -> tuple[Path, float]:
+def source_audio_state(info: dict) -> str:
+    """Only explicit extractor metadata can establish that a source is silent."""
+    formats = info.get("formats") or info.get("requested_formats") or [info]
+    if not isinstance(formats, list) or not formats or any(not isinstance(item, dict) for item in formats):
+        return "unknown"
+    codecs = [item.get("acodec") for item in formats]
+    if any(isinstance(codec, str) and codec not in {"", "none"} for codec in codecs):
+        return "present"
+    return "absent" if all(codec == "none" for codec in codecs) else "unknown"
+
+
+def download_source(url: str, directory: Path, require_audio: bool = False) -> tuple[Path, float]:
     """Public extraction only: no cookies, login, browser profiles or config."""
     import yt_dlp
 
@@ -139,12 +204,21 @@ def download_source(url: str, directory: Path) -> tuple[Path, float]:
         if (data.get("downloaded_bytes") or 0) > MAX_DOWNLOAD_BYTES:
             raise ValueError("This video exceeds Scout's 80 MB temporary download limit.")
 
+    video_format = "bv*[height<=1280][width<=1280]/b[height<=1280][width<=1280]"
+    if require_audio:
+        # Last fallback permits genuinely silent sources, verified below. It
+        # must never turn missing/downloaded-away audio into a silent verdict.
+        video_format = ("bv[height<=1280][width<=1280]+ba/"
+                        "b[height<=1280][width<=1280]/bv[height<=1280][width<=1280]")
     options = {"noplaylist": True, "quiet": True, "no_warnings": True, "logger": QuietLog(),
-               "format": "bv*[height<=1280][width<=1280]/b[height<=1280][width<=1280]",
+               "format": video_format,
                "outtmpl": str(directory / "source.%(ext)s"), "max_filesize": MAX_DOWNLOAD_BYTES,
                "socket_timeout": 15, "retries": 1, "fragment_retries": 1,
                "concurrent_fragment_downloads": 1, "cachedir": False,
                "progress_hooks": [bounded_progress]}
+    if require_audio:
+        options.update(merge_output_format="mkv", ffmpeg_location=ffmpeg_binary())
+    audio_state = "unknown"
     with yt_dlp.YoutubeDL(options) as downloader:
         try:
             info = downloader.extract_info(url, download=False)
@@ -153,6 +227,11 @@ def download_source(url: str, directory: Path) -> tuple[Path, float]:
                 raise ValueError("Choose one public, recorded Short or Reel for caption checking.")
             if not math.isfinite(duration) or not 0 < duration <= MAX_DURATION:
                 raise ValueError(f"Scout caption checking supports videos up to {MAX_DURATION} seconds with a known duration.")
+            if require_audio:
+                audio_state = source_audio_state(info)
+                selected = info.get("requested_formats") or [info]
+                if audio_state == "present" and source_audio_state({"formats": selected}) == "absent":
+                    raise ValueError("Scout could not select the original audio for this video. This clip was skipped.")
             downloader.process_info(info)
         except yt_dlp.utils.DownloadError:
             raise ValueError("The public video could not be downloaded for caption checking. "
@@ -162,6 +241,14 @@ def download_source(url: str, directory: Path) -> tuple[Path, float]:
         raise ValueError("The public video download was incomplete or exceeded 80 MB. This clip was skipped.")
     if files[0].stat().st_size > MAX_DOWNLOAD_BYTES:
         raise ValueError("This video exceeds Scout's 80 MB temporary download limit.")
+    if require_audio:
+        actual = probe_media(files[0])
+        # Instagram's direct MP4 entries may omit acodec even when sound is
+        # present. A real audio track can be checked; an absent track is safe
+        # only when the extractor explicitly established source silence.
+        if (not actual.get("video") or (actual.get("audio") and audio_state == "absent")
+                or (not actual.get("audio") and audio_state != "absent")):
+            raise ValueError("The downloaded video does not contain the source's verified audio. This clip was skipped.")
     return files[0], duration
 
 
@@ -191,7 +278,10 @@ def normalize_source(path: Path) -> Path:
         raise ValueError("FFmpeg could not prepare this video for caption checking. This clip was skipped.") from None
 
 
-def scan_video(path: Path, expected_duration: float, max_caption_seconds: float, progress=None, reader=None) -> dict:
+def scan_video(path: Path, expected_duration: float, max_caption_seconds: float, progress=None, reader=None,
+               policy: str = "brief-only") -> dict:
+    if policy not in POLICIES:
+        raise ValueError("Unknown Scout caption policy.")
     import cv2
     cv2.setNumThreads(1)
     capture = cv2.VideoCapture(str(path))
@@ -204,6 +294,7 @@ def scan_video(path: Path, expected_duration: float, max_caption_seconds: float,
             raise ValueError("The complete video duration could not be verified. This clip was skipped.")
         reader = reader or make_ocr()
         samples = []
+        small_samples = []
         total = math.ceil(duration / INTERVAL)
         for index in range(total):
             # Middle of each bin, including a short final bin. Reads at the end
@@ -224,20 +315,66 @@ def scan_video(path: Path, expected_duration: float, max_caption_seconds: float,
             height, width = frame.shape[:2]
             # RapidOCR consumes BGR, exactly what OpenCV returns. Errors are
             # never converted to an empty reading.
-            samples.append(has_caption_text(reader(frame), width, height))
+            reading = reader(frame)
+            if policy == SMALL_TEXT_POLICY:
+                caption, small_text = small_text_sample(reading, width, height)
+                samples.append(caption)
+                small_samples.append(small_text)
+            else:
+                samples.append(has_caption_text(reading, width, height))
             if progress:
                 progress(15 + 80 * (index + 1) / total)
-        return classify_samples(samples, duration, max_caption_seconds)
+        result = classify_samples(samples, duration, max_caption_seconds)
+        result["policy"] = policy
+        if policy == SMALL_TEXT_POLICY:
+            result["small_text_seconds"] = classify_samples(small_samples, duration, duration)["caption_seconds"]
+            result["reason"] += " " + SMALL_TEXT_NOTE
+        return result
     finally:
         capture.release()
 
 
 def check_in_worker(config: dict, directory: Path) -> dict:
-    path, duration = download_source(config["url"], directory)
+    policy = config.get("policy", "brief-only")
+    if policy not in POLICIES:
+        raise ValueError("Unknown Scout caption policy.")
+    speech = None
+    if policy == SMALL_TEXT_POLICY:
+        from .scout_speech import inspect_speech
+        path, duration = download_source(config["url"], directory, require_audio=True)
+        # Inspect the original A/V file. The OCR proxy deliberately has no audio.
+        speech = inspect_speech(path, duration)
+        (directory / "progress").write_text("14")
+    else:
+        path, duration = download_source(config["url"], directory)
     proxy = normalize_source(path)
     path.unlink()  # Only the temporary decoded copy is needed during OCR.
-    return scan_video(proxy, duration, config["max_caption_seconds"],
-                      progress=lambda value: (directory / "progress").write_text(str(value)))
+    result = scan_video(proxy, duration, config["max_caption_seconds"], policy=policy,
+                        progress=lambda value: (directory / "progress").write_text(str(value)))
+    if speech is not None:
+        result = combine_speech(result, speech)
+    return result
+
+
+def combine_speech(result: dict, speech: dict) -> dict:
+    """A text exception is usable only with a complete, valid speech decision."""
+    result = dict(result)
+    fields = ("speech_status", "speech_seconds", "speech_analysis_duration", "speech_model")
+    result.update({field: speech.get(field) for field in fields})
+    seconds, checked = speech.get("speech_seconds"), speech.get("speech_analysis_duration")
+    numeric = lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    valid = (speech.get("speech_status") in {"absent", "present"} and numeric(seconds) and numeric(checked)
+             and 0 <= seconds <= checked and abs(checked - result["duration"]) <= .1
+             and isinstance(speech.get("speech_model"), str) and bool(speech["speech_model"].strip()))
+    if not valid or (speech["speech_status"] == "absent" and seconds != 0) or (speech["speech_status"] == "present" and seconds == 0):
+        result.update(status="unknown", speech_status="unknown")
+        result["reason"] = (speech.get("reason") if speech.get("speech_status") == "unknown" else None) or "The whole audio track could not be verified. This clip was skipped."
+    elif speech["speech_status"] == "present":
+        result["status"] = "speech"
+        result["reason"] = speech.get("reason") or "Speech was detected. This option requires a video without speech."
+    else:
+        result["reason"] += " " + (speech.get("reason") or "No speech was detected across the complete video.")
+    return result
 
 
 def terminate_worker(process):
@@ -300,23 +437,26 @@ def run_worker(config: dict, directory: Path, cancel: Event, progress=None) -> d
         terminate_worker(process)
 
 
-def caption_check_job(job_id: str, video_id: str, url: str, max_caption_seconds: float, cancel: Event):
+def caption_check_job(job_id: str, video_id: str, url: str, max_caption_seconds: float, cancel: Event,
+                      policy: str = "brief-only"):
     try:
         if cancel.is_set():
             raise ValueError("Caption check cancelled. This clip was skipped.")
         db.update_job(job_id, status="running", progress=1)
         # Default temp storage is deleted on both success and exceptions.
         with tempfile.TemporaryDirectory(prefix="shortforge-scout-") as temporary:
-            result = run_worker({"url": url, "max_caption_seconds": max_caption_seconds},
+            result = run_worker({"url": url, "max_caption_seconds": max_caption_seconds, "policy": policy},
                                 Path(temporary), cancel,
                                 progress=lambda value: db.update_job(job_id, progress=value))
             if cancel.is_set():
                 raise ValueError("Caption check cancelled. This clip was skipped.")
         db.update_job(job_id, status="completed", progress=100,
-                      result={**result, "video_id": video_id, "url": url, "max_caption_seconds": max_caption_seconds})
+                      result={**result, "video_id": video_id, "url": url, "max_caption_seconds": max_caption_seconds,
+                              "policy": policy})
     except Exception as exc:
         reason = str(exc) if isinstance(exc, ValueError) else "Local caption checking failed. This clip was skipped."
-        db.update_job(job_id, status="failed", error=reason, result={**unknown_result(video_id, url, reason), "max_caption_seconds": max_caption_seconds})
+        db.update_job(job_id, status="failed", error=reason,
+                      result={**unknown_result(video_id, url, reason, policy), "max_caption_seconds": max_caption_seconds})
     finally:
         with CANCEL_LOCK:
             # Absence from the registry means cleanup is finished and the

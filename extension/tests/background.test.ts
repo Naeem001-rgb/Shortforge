@@ -59,7 +59,7 @@ async function harness(existingIds: string[] = [], initial?: ScoutState, autoDis
       const body = JSON.parse(options.body as string);
       const path = new URL(body.url).pathname.split('/');
       const video_id = body.url.includes('instagram.com') ? `ig:${path[2]}` : path[2];
-      const job = { id: `job-${jobs.size + 1}`, status: 'running', progress: 10, result: { video_id, url: body.url, max_caption_seconds: body.max_caption_seconds } };
+      const job = { id: `job-${jobs.size + 1}`, status: 'running', progress: 10, result: { video_id, url: body.url, max_caption_seconds: body.max_caption_seconds, policy: body.policy ?? 'brief-only' } };
       jobs.set(job.id, job); return { ok: true, json: async () => structuredClone(job) };
     }
     if (url.endsWith('/cancel')) {
@@ -472,9 +472,9 @@ test('Instagram ids save independently and candidate URL mismatches are rejected
   assert.match(bad.error, /source link/);
 });
 
-async function captionHarness() {
+async function captionHarness(policy = 'brief-only') {
   const h = await harness();
-  await h.message({ type: 'start', tabId: 7, settings: { ...settings, captionFilter: 'brief-only' } });
+  await h.message({ type: 'start', tabId: 7, settings: { ...settings, captionFilter: policy } });
   return h;
 }
 function finishCaption(h: Awaited<ReturnType<typeof harness>>, jobId: string, seconds: number, extra: object = {}) {
@@ -499,6 +499,90 @@ test('brief checked captions save; persistent, unchecked and wrong-video results
   await h.message({ type: 'scan', clip: clip(4), captionJobId: fourth.captionJobId }, true);
   assert.equal(h.state().saved, 1);
   assert.equal(h.state().scanned, 4);
+});
+
+const silentSmallText = { small_text_seconds: 20, speech_status: 'absent', speech_seconds: 0, speech_analysis_duration: 30, speech_model: 'silero-vad-test' };
+
+test('optional small-Chinese-text policy saves only after full caption and speech verification', async () => {
+  const h = await captionHarness('small-text-no-speech');
+  const prepared = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+  assert.ok(prepared.captionJobId);
+  assert.equal(h.jobs.get(prepared.captionJobId).result.policy, 'small-text-no-speech');
+  assert.equal(h.state().captionCheck?.policy, 'small-text-no-speech');
+  finishCaption(h, prepared.captionJobId, 1, silentSmallText);
+  await h.message({ type: 'scan', clip: clip(1), captionJobId: prepared.captionJobId }, true);
+  assert.equal(h.state().saved, 1);
+});
+
+test('new policy fails closed on speech, partial audio, missing evidence and incompatible results', async () => {
+  const h = await captionHarness('small-text-no-speech');
+  const invalid = [
+    { speech_status: 'present', speech_seconds: 2, status: 'speech' },
+    { speech_status: 'unknown' }, { speech_status: undefined },
+    { speech_analysis_duration: 5 }, { speech_analysis_duration: null },
+    { speech_model: '' }, { speech_seconds: null }, { speech_seconds: 0.1 },
+    { small_text_seconds: null }, { small_text_seconds: 31 },
+    { policy: 'brief-only' }, { policy: undefined }, { max_caption_seconds: 10 },
+    { duration: null }, { status: 'unknown' }, { caption_seconds: null },
+  ];
+  for (const [index, extra] of invalid.entries()) {
+    const candidate = clip(index + 1);
+    const prepared = await h.message({ type: 'prepareScan', clip: candidate }, true);
+    finishCaption(h, prepared.captionJobId, 0, { ...silentSmallText, ...extra });
+    await h.message({ type: 'scan', clip: candidate, captionJobId: prepared.captionJobId }, true);
+    assert.equal(h.state().saved, 0, JSON.stringify(extra));
+  }
+});
+
+test('persistent other subtitles still fail the small-text exception even with no speech', async () => {
+  const h = await captionHarness('small-text-no-speech');
+  const prepared = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+  finishCaption(h, prepared.captionJobId, 12, silentSmallText);
+  await h.message({ type: 'scan', clip: clip(1), captionJobId: prepared.captionJobId }, true);
+  assert.equal(h.state().saved, 0);
+});
+
+test('switching caption policy cancels its job and cannot reuse a previous policy result', async () => {
+  const h = await captionHarness();
+  const old = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+  await h.message({ type: 'saveSettings', settings: { ...settings, captionFilter: 'small-text-no-speech' } });
+  assert.equal(h.jobs.get(old.captionJobId).status, 'cancelled');
+  await h.message({ type: 'resume', tabId: 7, settings: { ...settings, captionFilter: 'small-text-no-speech' } });
+  const next = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+  assert.notEqual(next.captionJobId, old.captionJobId);
+  finishCaption(h, old.captionJobId, 0, silentSmallText);
+  await h.message({ type: 'scan', clip: clip(1), captionJobId: old.captionJobId }, true);
+  assert.equal(h.state().saved, 0);
+});
+
+test('brief-only keeps speech optional and rejects using relaxed-policy results', async () => {
+  const h = await captionHarness();
+  const first = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+  finishCaption(h, first.captionJobId, 2, { policy: undefined });
+  await h.message({ type: 'scan', clip: clip(1), captionJobId: first.captionJobId }, true);
+  assert.equal(h.state().saved, 1, 'Legacy strict OCR results remain compatible');
+  const second = await h.message({ type: 'prepareScan', clip: clip(2) }, true);
+  finishCaption(h, second.captionJobId, 0, { ...silentSmallText, policy: 'small-text-no-speech' });
+  await h.message({ type: 'scan', clip: clip(2), captionJobId: second.captionJobId }, true);
+  assert.equal(h.state().saved, 1, 'An exemption must not leak into the strict filter');
+});
+
+test('user-chosen thresholds, including zero, govern eligibility instead of the defaults', async () => {
+  const h = await harness();
+  const custom = { ...settings, minLikes: 100, minViews: 1000, captionFilter: 'small-text-no-speech' };
+  await h.message({ type: 'start', tabId: 7, settings: custom });
+  const candidate = clip(1, { likes: 242, views: 15381 });
+  const prepared = await h.message({ type: 'prepareScan', clip: candidate }, true);
+  assert.ok(prepared.captionJobId, 'The screenshot clip clears custom100/1000 minimums');
+  finishCaption(h, prepared.captionJobId, 0, silentSmallText);
+  await h.message({ type: 'scan', clip: candidate, captionJobId: prepared.captionJobId }, true);
+  assert.equal(h.state().saved, 1);
+  await h.message({ type: 'pause' });
+  await h.message({ type: 'resume', tabId: 7, settings: { ...custom, minLikes: 0, minViews: 0, captionFilter: 'off' } });
+  await h.message({ type: 'scan', clip: clip(2, { likes: null, views: null }) }, true);
+  assert.equal(h.state().saved, 2, 'Zero ignores hidden counts');
+  assert.equal(h.state().settings.minLikes, 0);
+  assert.equal(h.state().settings.minViews, 0);
 });
 
 test('metadata failures and duplicates avoid caption downloads', async () => {

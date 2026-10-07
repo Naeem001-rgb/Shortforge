@@ -1,8 +1,9 @@
 export type Mode = 'narrated' | 'credits' | 'auto';
 export type Status = 'idle' | 'running' | 'paused' | 'stopped' | 'complete';
+export type CaptionPolicy = 'brief-only' | 'small-text-no-speech';
 export interface Settings {
   target: number; minLikes: number; minViews: number; mode: Mode;
-  sourceUrl?: string; captionFilter?: 'off' | 'brief-only'; maxCaptionSeconds?: number;
+  sourceUrl?: string; captionFilter?: 'off' | CaptionPolicy; maxCaptionSeconds?: number;
 }
 export interface Candidate {
   video_id: string; url: string; title: string; channel_name: string; channel_handle: string;
@@ -16,7 +17,7 @@ export interface ScanResult {
 }
 export interface ScoutState {
   sessionId: string; sessionSourceUrl: string;
-  captionCheck: { jobId: string; videoId: string; maxSeconds: number; sessionId: string } | null;
+  captionCheck: { jobId: string; videoId: string; maxSeconds: number; sessionId: string; policy?: CaptionPolicy } | null;
   status: Status; settings: Settings; activeMode: 'credits' | 'narrated'; tabId: number | null;
   tabProtection: { tabId: number; autoDiscardable: boolean } | null;
   scanned: number; matched: number; saved: number; creditMisses: number; reason: string;

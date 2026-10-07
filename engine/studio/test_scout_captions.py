@@ -300,3 +300,216 @@ def test_invalid_video_normalization_never_reaches_ocr(tmp_path, monkeypatch):
     with pytest.raises(ValueError, match="decode the complete video"):
         scout.check_in_worker({"url": "unused", "max_caption_seconds": 3}, tmp_path)
     scan.assert_not_called()
+
+
+def readings(*items):
+    return SimpleNamespace(txts=[item[0] for item in items], scores=[item[2] if len(item) > 2 else .95 for item in items],
+                           boxes=[item[1] for item in items])
+
+
+SMALL_BOX = [[120, 500], [204, 500], [204, 520], [120, 520]]
+SECOND_BOX = [[130, 540], [214, 540], [214, 560], [130, 560]]
+
+
+@pytest.mark.parametrize("reading,expected", [
+    (result("竹筒饭", SMALL_BOX), (False, True)),
+    (readings(("竹筒饭", SMALL_BOX), ("慢火", SECOND_BOX)), (False, True)),
+    (result("竹", SMALL_BOX), (False, True)),
+    (result("传统手工竹筒饭制作慢慢来", SMALL_BOX), (False, True)),  # Exactly 12 Han characters.
+    (result("传统手工竹筒饭制作慢慢来吧", SMALL_BOX), (True, False)),
+    (result("竹筒饭", [[50, 500], [300, 500], [300, 520], [50, 520]]), (True, False)),
+    (result("竹筒饭", [[120, 500], [204, 500], [204, 550], [120, 550]]), (True, False)),
+    (result("COOKING", SMALL_BOX), (True, False)),
+    (result("竹筒饭abc", SMALL_BOX), (True, False)),
+    (result("竹筒饭", SMALL_BOX, .4), (True, False)),
+    (readings(("竹筒饭", SMALL_BOX), ("字幕", SECOND_BOX), ("小字", SMALL_BOX)), (True, False)),
+    (readings(("竹筒饭", SMALL_BOX), ("FULL SENTENCE SUBTITLE", SECOND_BOX)), (True, False)),
+    (SimpleNamespace(txts=None), (False, False)),
+])
+def test_only_short_small_han_annotations_are_exempt(reading, expected):
+    assert scout.small_text_sample(reading, 360, 640) == expected
+
+
+def test_combined_annotation_area_is_bounded():
+    # Each box is within width/height limits, but together cover >3%.
+    box = [[10, 400], [150, 400], [150, 435], [10, 435]]
+    assert scout.small_text_sample(readings(("竹筒", box), ("小火", box)), 360, 640) == (True, False)
+
+
+@pytest.mark.parametrize("reading", [
+    result("竹筒饭", SMALL_BOX, float("nan")),
+    result("竹筒饭", SMALL_BOX, 1.1),
+    result("竹筒饭", [[1, 1], [2, 2]]),
+    result("竹筒饭", [[-1, 1], [20, 1], [20, 20], [-1, 20]]),
+    result("竹筒饭", [[1, 1], [20, 1], [20, float("nan")], [1, 20]]),
+    result(None, SMALL_BOX),
+    result("", SMALL_BOX),
+    SimpleNamespace(txts=""),
+    SimpleNamespace(txts=[], scores=[.9], boxes=[SMALL_BOX]),
+    readings(("FIRST SUBTITLE", SMALL_BOX), ("BROKEN", [])),
+])
+def test_malformed_ocr_never_passes_either_policy(reading):
+    with pytest.raises(ValueError, match="readings"):
+        scout.small_text_sample(reading, 360, 640)
+    with pytest.raises(ValueError, match="readings"):
+        scout.has_caption_text(reading, 360, 640)
+
+
+def speech_result(status="absent", seconds=0, duration=10):
+    return {"speech_status": status, "speech_seconds": seconds, "speech_analysis_duration": duration,
+            "speech_model": "test-local-vad", "reason": "Speech analysis completed."}
+
+
+@pytest.mark.parametrize("speech,status", [
+    (speech_result(), "clear"),
+    (speech_result("present", .5), "speech"),
+    (speech_result("unknown", None), "unknown"),
+    (speech_result(duration=7), "unknown"),
+    (speech_result(duration=100), "unknown"),
+    (speech_result("present", 0), "unknown"),
+    (speech_result(seconds=.1), "unknown"),
+    ({**speech_result(), "speech_model": ""}, "unknown"),
+    ({**speech_result(), "speech_seconds": float("nan")}, "unknown"),
+    ({**speech_result(), "speech_analysis_duration": True}, "unknown"),
+])
+def test_text_exception_requires_complete_valid_speech_absence(speech, status):
+    text = {**scout.classify_samples([False] * 20, 10, 3), "small_text_seconds": 10,
+            "policy": scout.SMALL_TEXT_POLICY}
+    assert scout.combine_speech(text, speech)["status"] == status
+
+
+def test_absent_speech_does_not_waive_other_persistent_captions():
+    text = scout.classify_samples([True] * 20, 10, 3)
+    assert scout.combine_speech(text, speech_result())["status"] == "persistent"
+
+
+def test_optional_policy_job_identity_and_failed_fields(client, monkeypatch):
+    from engine.studio import scout_speech
+    monkeypatch.setattr(scout_speech, "speech_capability", lambda: {"available": True})
+    configs = []
+    def successful(config, directory, cancel, progress):
+        configs.append(config)
+        text = {**scout.classify_samples([False] * 20, 10, 3), "small_text_seconds": 10}
+        return scout.combine_speech(text, speech_result())
+    monkeypatch.setattr(scout, "run_worker", successful)
+    payload = {"url": "https://instagram.com/reel/ABCdef123/", "policy": scout.SMALL_TEXT_POLICY}
+    response = client.post("/api/scout/caption-check", json=payload)
+    assert response.status_code == 200, response.text
+    outcome = db.get_job(response.json()["id"])["result"]
+    assert response.json()["result"]["policy"] == scout.SMALL_TEXT_POLICY
+    assert configs[0]["policy"] == scout.SMALL_TEXT_POLICY
+    assert outcome["policy"] == scout.SMALL_TEXT_POLICY
+    assert outcome["speech_status"] == "absent"
+    assert outcome["small_text_seconds"] == 10
+    monkeypatch.setattr(scout, "run_worker", Mock(side_effect=ValueError("Unreadable audio")))
+    response = client.post("/api/scout/caption-check", json=payload)
+    job = db.get_job(response.json()["id"])
+    assert job["status"] == "failed"
+    assert job["result"]["policy"] == scout.SMALL_TEXT_POLICY
+    assert job["result"]["status"] == "unknown"
+    assert job["result"]["speech_status"] == "unknown"
+    assert job["result"]["speech_analysis_duration"] is None
+    assert job["result"]["small_text_seconds"] is None
+
+
+def test_optional_policy_requires_local_speech_and_rejects_unknown_policy(client, monkeypatch):
+    from engine.studio import scout_speech
+    monkeypatch.setattr(scout_speech, "speech_capability", lambda: {"available": False, "message": "Install local speech model"})
+    payload = {"url": "https://youtu.be/tleaVXWF3YI", "policy": scout.SMALL_TEXT_POLICY}
+    response = client.post("/api/scout/caption-check", json=payload)
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Install local speech model"
+    for value in ("modern", "", None, True):
+        assert client.post("/api/scout/caption-check", json={**payload, "policy": value}).status_code == 422
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("source_codecs,selected_codec,actual_audio,accepted", [
+    (["aac", "none"], "aac", True, True),
+    (["none"], "none", False, True),
+    (["aac", "none"], "none", False, False),  # An audio track existed but was not selected.
+    (["aac"], "aac", False, False),  # The selected audio disappeared in the download.
+    (["none"], "none", True, False),
+    ([None], "none", False, False),
+    (["none", None], "none", False, False),
+    ([None], None, True, True),  # Instagram direct MP4 omits acodec; actual audio is present.
+    (["aac"], None, True, True),
+])
+def test_optional_download_verifies_source_audio_not_just_local_silence(tmp_path, monkeypatch,
+        source_codecs, selected_codec, actual_audio, accepted):
+    yt_dlp = pytest.importorskip("yt_dlp")
+    downloader = Mock()
+    downloader.__enter__ = Mock(return_value=downloader)
+    downloader.__exit__ = Mock(return_value=False)
+    downloader.extract_info.return_value = {"duration": 10, "acodec": selected_codec,
+        "formats": [{"acodec": codec} for codec in source_codecs]}
+    downloader.process_info.side_effect = lambda _: (tmp_path / "source.mp4").write_bytes(b"video")
+    constructor = Mock(return_value=downloader)
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", constructor)
+    monkeypatch.setattr(scout, "probe_media", lambda _: {"audio": actual_audio, "video": True, "duration": 10})
+    if accepted:
+        path, duration = scout.download_source("https://youtu.be/tleaVXWF3YI", tmp_path, require_audio=True)
+        assert path.name == "source.mp4" and duration == 10
+    else:
+        with pytest.raises(ValueError, match="audio"):
+            scout.download_source("https://youtu.be/tleaVXWF3YI", tmp_path, require_audio=True)
+    options = constructor.call_args.args[0]
+    assert "+ba/" in options["format"]
+    assert not any(key in options for key in ("cookiefile", "cookiesfrombrowser", "username", "password"))
+
+
+def test_optional_worker_checks_original_audio_before_discarding_it(tmp_path, monkeypatch):
+    from engine.studio import scout_speech
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"original with audio")
+    proxy = tmp_path / "ocr-proxy.mp4"
+    proxy.write_bytes(b"video without audio")
+    download = Mock(return_value=(source, 10))
+    monkeypatch.setattr(scout, "download_source", download)
+    monkeypatch.setattr(scout, "normalize_source", lambda path: proxy)
+    def inspect(path, duration):
+        assert path == source and path.read_bytes() == b"original with audio"
+        return speech_result()
+    monkeypatch.setattr(scout_speech, "inspect_speech", inspect)
+    def scan(path, duration, allowance, **kwargs):
+        assert path == proxy
+        assert not source.exists()
+        assert kwargs["policy"] == scout.SMALL_TEXT_POLICY
+        return {**scout.classify_samples([False] * 20, 10, allowance), "small_text_seconds": 10,
+                "policy": kwargs["policy"]}
+    monkeypatch.setattr(scout, "scan_video", scan)
+    outcome = scout.check_in_worker({"url": "unused", "max_caption_seconds": 3,
+                                     "policy": scout.SMALL_TEXT_POLICY}, tmp_path)
+    assert outcome["status"] == "clear" and outcome["speech_status"] == "absent"
+    download.assert_called_once_with("unused", tmp_path, require_audio=True)
+
+
+def test_real_chinese_annotations_are_allowed_but_large_captions_count(tmp_path):
+    if not scout.caption_capability()["available"]:
+        pytest.skip("Local OCR models are not installed; no downloads in tests")
+    font_path = Path("/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf")
+    if not font_path.is_file():
+        pytest.skip("No installed Chinese font for the real OCR fixture")
+    cv2 = pytest.importorskip("cv2")
+    np = pytest.importorskip("numpy")
+    Image = pytest.importorskip("PIL.Image")
+    ImageDraw = pytest.importorskip("PIL.ImageDraw")
+    ImageFont = pytest.importorskip("PIL.ImageFont")
+    path = tmp_path / "small-chinese.mp4"
+    writer = cv2.VideoWriter(str(path), cv2.VideoWriter_fourcc(*"mp4v"), 10, (360, 640))
+    if not writer.isOpened():
+        pytest.skip("No MP4 encoder in installed OpenCV")
+    try:
+        for index in range(20):
+            frame = Image.new("RGB", (360, 640), "black")
+            font = ImageFont.truetype(str(font_path), 20 if index < 10 else 52)
+            ImageDraw.Draw(frame).text((30, 500), "竹筒饭", font=font, fill="white")
+            writer.write(cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR))
+    finally:
+        writer.release()
+    outcome = scout.scan_video(path, 2, .5, policy=scout.SMALL_TEXT_POLICY)
+    assert outcome["frames_scanned"] == 4
+    assert outcome["small_text_seconds"] == 1, outcome
+    assert outcome["caption_seconds"] == 1, outcome
+    assert outcome["status"] == "persistent", outcome

@@ -47,6 +47,7 @@ async function api(path: string, body?: object) {
     response = await fetch(`${API}${path}`, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(5000) });
   } catch { throw new Error('Engine is offline. Run ShortForge, then retry. Your pending clips are kept.'); }
   const data = await response.json();
+  if (response.status === 422 && path === '/scout/caption-check' && (body as { policy?: string })?.policy === 'small-text-no-speech') throw new Error('Restart the updated ShortForge engine to use the small-text and no-speech filter.');
   if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Engine returned ${response.status}. Try again.`);
   return data;
 }
@@ -137,7 +138,7 @@ function settingsFrom(value: unknown): Settings {
   const sourceUrl = canonicalSourceUrl(String(candidate.sourceUrl || ''));
   const captionFilter = candidate.captionFilter ?? DEFAULTS.captionFilter;
   const maxCaptionSeconds = candidate.maxCaptionSeconds ?? 3;
-  if (!['off', 'brief-only'].includes(captionFilter!)) throw new Error('Choose a caption filter.');
+  if (!['off', 'brief-only', 'small-text-no-speech'].includes(captionFilter!)) throw new Error('Choose a caption filter.');
   if (!Number.isFinite(maxCaptionSeconds) || maxCaptionSeconds < 0 || maxCaptionSeconds > 10) throw new Error('Caption allowance must be between 0 and 10 seconds.');
   return { target: candidate.target, minLikes: candidate.minLikes, minViews: candidate.minViews, mode: candidate.mode, sourceUrl, captionFilter, maxCaptionSeconds };
 }
@@ -151,12 +152,26 @@ function validCandidate(value: unknown): Candidate {
 }
 async function captionDecision(clip: Candidate, jobId: unknown): Promise<{ matched: boolean; reason: string }> {
   const check = state.captionCheck;
-  if (!check || check.jobId !== jobId || check.videoId !== clip.video_id || check.sessionId !== state.sessionId || check.maxSeconds !== state.settings.maxCaptionSeconds) return { matched: false, reason: 'Skipped: captions were not checked with the current filter.' };
+  const policy = state.settings.captionFilter === 'small-text-no-speech' ? 'small-text-no-speech' : 'brief-only';
+  if (!check || check.jobId !== jobId || check.videoId !== clip.video_id || check.sessionId !== state.sessionId || check.maxSeconds !== state.settings.maxCaptionSeconds || (check.policy ?? 'brief-only') !== policy) return { matched: false, reason: 'Skipped: this video was not checked with the current filter.' };
   const job = await api(`/jobs/${encodeURIComponent(check.jobId)}`);
   const result = job.result;
   if (job.status !== 'completed' || !result || result.video_id !== clip.video_id || candidateIdFromUrl(result.url) !== clip.video_id) return { matched: false, reason: job.error || 'Skipped: caption check could not finish.' };
-  const seconds = Number(result.caption_seconds);
-  const verified = ['clear', 'brief'].includes(result.status) && Number.isFinite(seconds) && seconds >= 0 && seconds <= check.maxSeconds && result.frames_scanned > 0 && result.duration > 0;
+  if ((result.policy ?? 'brief-only') !== policy || result.max_caption_seconds !== check.maxSeconds) return { matched: false, reason: 'Skipped: the screening result does not match the current filter.' };
+  const seconds = result.caption_seconds;
+  const duration = result.duration;
+  if (policy === 'small-text-no-speech') {
+    const audioDuration = result.speech_analysis_duration;
+    const textSeconds = result.small_text_seconds;
+    if (result.speech_status === 'present') return { matched: false, reason: String(result.reason || 'Skipped: speech was detected in this video.') };
+    if (result.speech_status !== 'absent' || result.speech_seconds !== 0
+        || !Number.isFinite(audioDuration) || !Number.isFinite(duration) || audioDuration < duration - 0.1
+        || typeof result.speech_model !== 'string' || !result.speech_model
+        || !Number.isFinite(textSeconds) || textSeconds < 0 || textSeconds > duration) {
+      return { matched: false, reason: 'Skipped: small text and the absence of speech could not be verified across the whole video.' };
+    }
+  }
+  const verified = ['clear', 'brief'].includes(result.status) && Number.isFinite(seconds) && seconds >= 0 && seconds <= check.maxSeconds && result.frames_scanned > 0 && Number.isFinite(duration) && duration > 0;
   return { matched: verified, reason: String(result.reason || (verified ? `Estimated caption time: ${seconds.toFixed(1)} seconds.` : 'Skipped: persistent or unreadable on-screen captions.')) };
 }
 async function handle(message: Record<string, unknown>, sender: chrome.runtime.MessageSender): Promise<unknown> {
@@ -250,20 +265,21 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
     const eligible = matchesCandidate(clip, state.settings, state.activeMode).matched;
     if (state.settings.captionFilter === 'off' || !eligible || state.seenIds.includes(clip.video_id) || state.knownIds.includes(clip.video_id) || state.pending.some(item => item.video_id === clip.video_id)) return { running: true, skipCaptionCheck: true };
     const limit = state.settings.maxCaptionSeconds ?? 3;
+    const policy = state.settings.captionFilter === 'small-text-no-speech' ? 'small-text-no-speech' : 'brief-only';
     let check = state.captionCheck;
-    if (!check || check.videoId !== clip.video_id || check.maxSeconds !== limit || check.sessionId !== state.sessionId) {
+    if (!check || check.videoId !== clip.video_id || check.maxSeconds !== limit || check.sessionId !== state.sessionId || (check.policy ?? 'brief-only') !== policy) {
       if (check) await cancelCaptionCheck();
-      const job = await api('/scout/caption-check', { url: clip.url, max_caption_seconds: limit });
+      const job = await api('/scout/caption-check', { url: clip.url, max_caption_seconds: limit, ...(policy === 'small-text-no-speech' ? { policy } : {}) });
       if (!job.id) throw new Error('Caption screening is unavailable. Restart the updated ShortForge engine.');
-      check = state.captionCheck = { jobId: job.id, videoId: clip.video_id, maxSeconds: limit, sessionId: state.sessionId };
+      check = state.captionCheck = { jobId: job.id, videoId: clip.video_id, maxSeconds: limit, sessionId: state.sessionId, policy };
     }
-    state.reason = 'Checking on-screen captions across this video. You can pause at any time.';
+    state.reason = policy === 'small-text-no-speech' ? 'Checking text size and speech across this video. You can pause at any time.' : 'Checking on-screen captions across this video. You can pause at any time.';
     await save(); return { running: true, captionJobId: check.jobId };
   }
   if (message.type === 'captionStatus' && sender.tab?.id === state.tabId && state.status === 'running') {
     if (message.jobId !== state.captionCheck?.jobId) throw new Error('Caption check changed. Resume to check again.');
     const job = await api(`/jobs/${encodeURIComponent(String(message.jobId))}`);
-    state.reason = `Checking on-screen captions… ${Math.round(Number(job.progress) || 0)}%`;
+    state.reason = `Checking ${state.settings.captionFilter === 'small-text-no-speech' ? 'text and speech' : 'on-screen captions'}… ${Math.round(Number(job.progress) || 0)}%`;
     await save(); return { running: true, job };
   }
   if (message.type === 'scan' && sender.tab?.id === state.tabId && state.status === 'running') {

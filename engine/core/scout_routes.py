@@ -1,6 +1,7 @@
 """Background caption checks which do not create Library clips."""
 from threading import Event
 import time
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,6 +18,7 @@ class CaptionCheckRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     url: str = Field(min_length=1, max_length=2048)
     max_caption_seconds: float = Field(3, ge=0, le=10, allow_inf_nan=False)
+    policy: Literal["brief-only", "small-text-no-speech"] = "brief-only"
 
 
 @router.post("/caption-check")
@@ -25,6 +27,11 @@ def caption_check(payload: CaptionCheckRequest, background: BackgroundTasks):
     capability = scout_captions.caption_capability()
     if not capability["available"]:
         raise HTTPException(503, capability["message"])
+    if payload.policy == scout_captions.SMALL_TEXT_POLICY:
+        from engine.studio.scout_speech import speech_capability
+        capability = speech_capability()
+        if not capability["available"]:
+            raise HTTPException(503, capability["message"])
     if not scout_captions.SLOTS.acquire(blocking=False):
         raise HTTPException(409, "Scout is already checking a video's captions. Wait for it to finish or cancel that check.")
     job = None
@@ -34,9 +41,9 @@ def caption_check(payload: CaptionCheckRequest, background: BackgroundTasks):
         with scout_captions.CANCEL_LOCK:
             scout_captions.CANCEL_EVENTS[job["id"]] = cancel
         db.update_job(job["id"], result={"video_id": video_id, "url": url,
-                                       "max_caption_seconds": payload.max_caption_seconds})
+                                       "max_caption_seconds": payload.max_caption_seconds, "policy": payload.policy})
         background.add_task(scout_captions.caption_check_job, job["id"], video_id, url,
-                            payload.max_caption_seconds, cancel)
+                            payload.max_caption_seconds, cancel, payload.policy)
         return db.get_job(job["id"])
     except Exception:
         with scout_captions.CANCEL_LOCK:

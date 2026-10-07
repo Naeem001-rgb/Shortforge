@@ -8,7 +8,7 @@
 5. Open Settings to see which optional tools need setup.
 
 ## M1 — Scout and Library
-1. Run ShortForge, reload Scout in `chrome://extensions` (version 0.3.1), and refresh open social tabs.
+1. Run ShortForge, reload Scout in `chrome://extensions` (version 0.4.0), and refresh open social tabs.
 2. Open a Short or Reel, or paste a YouTube channel/Instagram account URL into Scout. Set a small target and your count limits; use 0 only for a count you want to ignore.
 3. Keep **Brief captions only**, **Max. seconds 3** enabled. Start, check that the progress says it is checking captions for candidates meeting your count limits, then try Pause/Resume during a check.
 4. Confirm matching videos appear in Library with the correct YouTube/Instagram source and original link. Persistent text and unavailable checks should show an explicit skip reason under **Last video**.
@@ -18,9 +18,19 @@
 
 Discovery preferences retain optional credits and credit-first fallback. Count-qualified mode does not verify narration or AI speech. Scout only reads, scrolls, and opens videos/description panels. It never likes, follows, comments, or posts.
 
+## Custom limits and small Chinese text
+
+1. Open Scout and enter your own **Minimum likes** and **Minimum views** at the top. Try 100 and 1,000, close/reopen Scout, and confirm both remain saved. Set either to **0** to disable that minimum.
+2. Select **Captions and speech → Small Chinese text + no speech**. Keep **Other text (sec.)** at 3, or set 0 to reject all detected text outside the small-Chinese-text exception.
+3. Start with a small target. Scout should check full-video text and speech after the video passes your count limits. Small Chinese annotations with no detected speech can pass; larger/longer captions, detected speech, and incomplete checks must be skipped.
+4. Pause and switch to **Brief captions only** to restore the ordinary total-text-time rule, or **Any captions** to turn off both text and speech checks. Resume and verify the changed filter is used.
+5. Review the saved video yourself. This estimates text and speech; it does not reliably classify caption fashion, detect every quiet voice, or distinguish narration from other speech. Music may trigger a conservative rejection.
+
+The free speech model is installed on the current machine. On a fresh installation, run `.venv/bin/python -m engine.studio.setup_scout_speech` (Windows: `.venv\Scripts\python -m engine.studio.setup_scout_speech`) from the project root. This explicitly downloads a pinned 2.33 MB model. No model downloads or paid calls happen during scouting.
+
 ## Recover a missing Scout tab
 
-1. Reload **ShortForge Scout** at `chrome://extensions` and check it says **0.3.1**.
+1. Reload **ShortForge Scout** at `chrome://extensions` and check it says **0.4.0**.
 2. For an existing account session, open that account's Reels/Shorts page and press **Resume**. Scout reconnects without resetting its counters. If the account isn't open, Resume opens it again.
 3. Pause, close the scouting tab, reopen Scout on another tab, then Resume. The account should reopen, and the unrelated page should stay unchanged. Earlier videos may be revisited but must not be saved twice.
 4. To begin scouting `https://www.instagram.com/qianxiang_guyue/reels/` from a different account or feed session, press **Stop**, paste that URL, and **Start scouting**. Existing Library clips stay saved. A video with 242 likes is correctly skipped when the minimum is 5,000.

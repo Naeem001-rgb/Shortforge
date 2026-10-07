@@ -9,16 +9,19 @@
   <main>
     <section class="intro"><h1>Find Shorts and Reels.</h1><p>Collect videos that fit your criteria.</p></section>
     <form id="settings" novalidate>
+      <div class="fields"><div><label for="minLikes">Minimum likes</label><input id="minLikes" name="minLikes" type="number" inputmode="numeric" min="0" max="1000000000000" step="1" value="5000" required aria-describedby="count-help"></div><div><label for="minViews">Minimum views</label><input id="minViews" name="minViews" type="number" inputmode="numeric" min="0" max="1000000000000" step="1" value="10000" required aria-describedby="count-help"></div></div>
+      <p id="count-help" class="hint">0 = no minimum, even for hidden counts.</p>
       <label for="sourceUrl">Account or channel URL <span class="secondary">optional</span></label>
       <input id="sourceUrl" name="sourceUrl" type="url" placeholder="YouTube channel or Instagram account" aria-describedby="source-help" autocomplete="off">
       <p id="source-help" class="hint">Leave empty to scout the current Short or Reel.</p>
-      <div class="fields"><div><label for="target">Target</label><input id="target" name="target" type="number" inputmode="numeric" min="1" max="500" step="1" value="30"></div><div><label for="minLikes">Min. likes</label><input id="minLikes" name="minLikes" type="number" inputmode="numeric" min="0" step="1" value="5000"></div><div><label for="minViews">Min. views</label><input id="minViews" name="minViews" type="number" inputmode="numeric" min="0" step="1" value="10000"></div></div>
-      <p class="hint count-help">Set a minimum to 0 to ignore it, including hidden counts.</p>
       <div class="caption-settings">
-        <div><label for="captionFilter">Burned-in captions</label><div class="select-wrap"><select id="captionFilter" name="captionFilter" aria-describedby="caption-help"><option value="brief-only">Brief captions only</option><option value="off">Any captions</option></select><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div></div>
-        <div id="caption-allowance"><label for="maxCaptionSeconds">Max. seconds</label><input id="maxCaptionSeconds" name="maxCaptionSeconds" type="number" min="0" max="10" step="0.5" value="3" aria-describedby="caption-help"></div>
+        <label for="captionFilter">Captions and speech</label><div class="select-wrap"><select id="captionFilter" name="captionFilter" aria-describedby="caption-help"><option value="brief-only">Brief captions only</option><option value="small-text-no-speech">Small Chinese text + no speech</option><option value="off">Any captions</option></select><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div>
       </div>
-      <p id="caption-help" class="hint">Allow up to 3 seconds of on-screen text in total. Local analysis takes longer; unreadable videos are skipped.</p>
+      <p id="caption-help" class="hint">Allow up to 3 seconds of visible text in total. Local estimate; unreadable clips are skipped.</p>
+      <div class="fields caption-limits">
+        <div id="caption-allowance"><label id="caption-allowance-label" for="maxCaptionSeconds">Text allowance (sec.)</label><input id="maxCaptionSeconds" name="maxCaptionSeconds" type="number" min="0" max="10" step="0.5" value="3" required aria-describedby="caption-help"></div>
+        <div><label for="target">Clips to collect</label><input id="target" name="target" type="number" inputmode="numeric" min="1" max="500" step="1" value="30" required></div>
+      </div>
       <details class="discovery"><summary>Discovery preferences</summary>
       <label for="mode">Look for</label>
       <div class="select-wrap"><select id="mode" name="mode"><option value="narrated">Count-qualified videos</option><option value="auto">Credits first, then narrated</option><option value="credits">Credited sources only</option></select><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div>

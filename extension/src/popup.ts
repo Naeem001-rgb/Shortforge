@@ -10,16 +10,65 @@ const hints: Record<Settings['mode'], string> = {
   auto: 'Starts with credited sources. After 30 misses, collects clips meeting your limits for narration review.',
   credits: 'Looks for attribution in descriptions. Credit alone does not grant permission to reuse a video.',
 };
+function numberSetting(id: string, label: string, min: number, max: number, whole = true): number {
+  const input = byId<HTMLInputElement>(id);
+  const value = input.valueAsNumber;
+  if (!Number.isFinite(value) || value < min || value > max || (whole && !Number.isInteger(value))) {
+    const message = `${label}: enter ${whole ? 'a whole number' : 'a number'} from ${min.toLocaleString()} to ${max.toLocaleString()}.`;
+    input.setAttribute('aria-invalid', 'true');
+    input.setCustomValidity(message);
+    input.reportValidity();
+    throw new Error(message);
+  }
+  input.removeAttribute('aria-invalid');
+  input.setCustomValidity('');
+  return value;
+}
 function settings(): Settings {
-  return { target: Number(byId<HTMLInputElement>('target').value), minLikes: Number(byId<HTMLInputElement>('minLikes').value), minViews: Number(byId<HTMLInputElement>('minViews').value), mode: byId<HTMLSelectElement>('mode').value as Settings['mode'], sourceUrl: byId<HTMLInputElement>('sourceUrl').value.trim(), captionFilter: byId<HTMLSelectElement>('captionFilter').value as Settings['captionFilter'], maxCaptionSeconds: Number(byId<HTMLInputElement>('maxCaptionSeconds').value) };
+  const captionFilter = byId<HTMLSelectElement>('captionFilter').value as Settings['captionFilter'];
+  const allowance = byId<HTMLInputElement>('maxCaptionSeconds');
+  let maxCaptionSeconds: number;
+  if (captionFilter === 'off') {
+    // An inactive check must not be blocked by its hidden, unfinished field.
+    const valid = (value: number | undefined): value is number => Number.isFinite(value) && value! >= 0 && value! <= 10;
+    maxCaptionSeconds = valid(allowance.valueAsNumber) ? allowance.valueAsNumber
+      : valid(current.settings.maxCaptionSeconds) ? current.settings.maxCaptionSeconds : DEFAULTS.maxCaptionSeconds!;
+    allowance.value = String(maxCaptionSeconds);
+    allowance.removeAttribute('aria-invalid');
+    allowance.setCustomValidity('');
+  } else {
+    maxCaptionSeconds = numberSetting('maxCaptionSeconds', 'Text allowance', 0, 10, false);
+  }
+  return {
+    minLikes: numberSetting('minLikes', 'Minimum likes', 0, 1e12),
+    minViews: numberSetting('minViews', 'Minimum views', 0, 1e12),
+    target: numberSetting('target', 'Clips to collect', 1, 500),
+    mode: byId<HTMLSelectElement>('mode').value as Settings['mode'],
+    sourceUrl: byId<HTMLInputElement>('sourceUrl').value.trim(),
+    captionFilter,
+    maxCaptionSeconds,
+  };
 }
 function error(message = '') { byId('error').hidden = !message; byId('error').textContent = message; }
 function captionHint() {
-  const on = byId<HTMLSelectElement>('captionFilter').value === 'brief-only';
-  byId('caption-allowance').hidden = !on;
-  byId('caption-help').textContent = on
-    ? `Allow up to ${byId<HTMLInputElement>('maxCaptionSeconds').value || '0'} seconds of on-screen text in total. Local analysis takes longer; unreadable videos are skipped.`
-    : 'Save videos without checking for burned-in captions.';
+  const policy = byId<HTMLSelectElement>('captionFilter').value;
+  const allowance = byId<HTMLInputElement>('maxCaptionSeconds').value || '0';
+  byId('caption-allowance').hidden = policy === 'off';
+  byId('caption-allowance-label').textContent = policy === 'small-text-no-speech' ? 'Other text (sec.)' : 'Text allowance (sec.)';
+  byId('caption-help').textContent = policy === 'small-text-no-speech'
+    ? `Small Chinese annotations allowed. Requires no detected speech. Other text: up to ${allowance} seconds. Local estimate; unverified clips are skipped.`
+    : policy === 'brief-only'
+      ? `Allow up to ${allowance} seconds of visible text in total. Local estimate; unreadable clips are skipped.`
+      : 'Save videos without checking for burned-in captions or speech.';
+}
+function modeHint() {
+  const mode = byId<HTMLSelectElement>('mode').value as Settings['mode'];
+  const noSpeech = byId<HTMLSelectElement>('captionFilter').value === 'small-text-no-speech';
+  byId('mode-help').textContent = noSpeech && mode !== 'credits'
+    ? mode === 'auto'
+      ? 'Starts with credited sources. After 30 misses, applies your limits without requiring credit.'
+      : 'No credits or keywords required. Your count, caption and speech limits still apply.'
+    : hints[mode];
 }
 function render(state: ScoutState, populate = false) {
   state = { ...state, settings: { ...DEFAULTS, ...state.settings } };
@@ -36,8 +85,7 @@ function render(state: ScoutState, populate = false) {
   captionHint();
   byId('settings').hidden = state.status === 'running';
   for (const input of document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('#settings input, #settings select')) input.disabled = state.status === 'running';
-  const mode = byId<HTMLSelectElement>('mode').value as Settings['mode'];
-  byId('mode-help').textContent = hints[mode];
+  modeHint();
   byId('status').textContent = state.status[0].toUpperCase() + state.status.slice(1);
   byId('status').dataset.status = state.status;
   byId('progress-label').textContent = state.status === 'idle' ? 'Ready to scout' : state.status === 'running' ? (state.activeMode === 'credits' ? 'Finding credited videos' : 'Finding matching videos') : 'Your session';
@@ -87,10 +135,19 @@ button('pause').addEventListener('click', () => action(() => command('pause')));
 button('stop').addEventListener('click', () => action(() => command('stop')));
 button('retry').addEventListener('click', () => action(() => command('retry')));
 byId('settings').addEventListener('submit', event => event.preventDefault());
+byId('settings').addEventListener('input', event => {
+  if (event.target instanceof HTMLInputElement) {
+    event.target.removeAttribute('aria-invalid');
+    event.target.setCustomValidity('');
+  }
+});
 byId('settings').addEventListener('change', () => {
   captionHint();
-  byId('mode-help').textContent = hints[settings().mode];
-  void command('saveSettings', { settings: settings() }).then(() => error()).catch(cause => error(cause.message));
+  modeHint();
+  void (async () => {
+    await command('saveSettings', { settings: settings() });
+    error();
+  })().catch(cause => error(cause.message));
 });
 const START_HINT = 'ShortForge is not running. Open the ShortForge folder, run ./start.sh (Windows: double-click start.bat), leave that window open, then click again.';
 // The editor is packaged with the extension. Only the engine must be running.
