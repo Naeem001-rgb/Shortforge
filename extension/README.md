@@ -36,8 +36,9 @@ The default limits are **30 clips**, **5,000 likes**, and **10,000 views**. Paus
 
 ## Controls and recovery
 
-- After updating Scout, click its **Reload** icon at `chrome://extensions`, refresh the YouTube or Instagram tab, then **Stop** and **Start scouting** for a fresh session. Version **0.3.0** adds Instagram, account targeting, and caption screening.
+- After updating Scout, click its **Reload** icon at `chrome://extensions`. Version **0.3.1** fixes lost-tab recovery. Press **Resume** to keep a paused session; disconnected page scripts are refreshed automatically. Use **Stop** and **Start scouting** when choosing a different account.
 - **Pause / Resume** keeps your session's progress. **Stop** ends it; a new Start begins a new session.
+- **“No tab with id…”** in an older version means Scout remembered a tab that no longer exists. Resume now finds the selected account's open profile or reopens its Shorts/Reels grid, retaining counts, filters, and saved/pending matches. It may revisit earlier tiles, but previously scanned videos and Library records are deduplicated. For a feed session with no account URL, open a Short or Reel and press **Resume**.
 - **Last video** shows the detected likes, views, and match or skip reason. **Recent activity** keeps the last eight events. Missing required counts are shown as unreadable and skipped; open the description and use **Self-test** to investigate.
 - The extension reads the current Short and or Reel and may open its Description panel. It never likes, comments, subscribes, or uploads videos.
 - It aims for 4–9 seconds between advances, with additional time for page loading, saving, or caption analysis. It stops at your target or 500 scanned videos.
@@ -61,5 +62,7 @@ Popup light/dark renders and the unsupported-tab self-test error were checked wi
 The optional `node tests/browser-fixture.mjs` browser check and `node tests/preview.mjs` visual check uses Playwright from the dashboard installation and writes screenshots in `tests/screenshots/`. Runtime dependencies are bundled locally; no CDN, paid service, or API key is required by Scout.
 
 `node tests/background-tabs.mjs` loads the built MV3 extension in an isolated Chromium profile and tests switching away after the first match, closing the popup, reaching exactly three matches, keeping the other tab selected, and restoring the original memory-discard setting. Playwright focus emulation is disabled so the source tab actually becomes hidden. YouTube markup and engine responses are fixtures; this test does not access the owner’s Library or verify every live YouTube layout.
+
+`node tests/tab-recovery.mjs` reproduces the reported stale tab ID with 21 prior scans and the `qianxiang_guyue/reels/` account URL. It checks reattachment to an existing account tab, real grid-to-Reel navigation, duplicate/low-like skips, saving eligible matches, account exhaustion, and reopening a tab closed while paused. Instagram markup and Library responses are fixtures in an isolated browser.
 
 October 2026 additions are tested with representative Instagram DOM fixtures, account queues, worker messages, and actual local OCR on generated videos. Live Instagram account scrolling and its current logged-in layouts have **not** been verified in this environment. Use Self-test if the site changes its layout.

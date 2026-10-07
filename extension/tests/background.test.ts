@@ -15,6 +15,9 @@ async function harness(existingIds: string[] = [], initial?: ScoutState, autoDis
   const created: any[] = [];
   const requests: string[] = [];
   const tabUrls = new Map<number, string>();
+  const pendingUrls = new Map<number, string>();
+  const reloads: number[] = [];
+  const disconnected = new Set<number>();
   const tabUpdates: { id: number; autoDiscardable?: boolean; active?: boolean }[] = [];
   const tabs = new Map<number, boolean>([[7, autoDiscardable], [8, true]]);
   const tabEvents: Record<string, Function> = {};
@@ -25,8 +28,13 @@ async function harness(existingIds: string[] = [], initial?: ScoutState, autoDis
     action: { setBadgeBackgroundColor: async () => {}, setBadgeText: async () => {} },
     tabs: {
       get: async (id: number) => {
-        if (!tabs.has(id)) throw new Error('No tab');
-        return { id, url: tabUrls.get(id) || 'https://www.youtube.com/shorts/tleaVXWF3YI', active: false, autoDiscardable: tabs.get(id) };
+        if (!tabs.has(id)) throw new Error(`No tab with id: ${id}.`);
+        return { id, url: tabUrls.get(id) || 'https://www.youtube.com/shorts/tleaVXWF3YI', pendingUrl: pendingUrls.get(id), active: false, autoDiscardable: tabs.get(id) };
+      },
+      query: async () => [...tabs.keys()].map(id => ({ id, url: tabUrls.get(id) || 'https://www.youtube.com/shorts/tleaVXWF3YI' })),
+      reload: async (id: number) => {
+        if (!tabs.has(id)) throw new Error(`No tab with id: ${id}.`);
+        reloads.push(id);
       },
       update: async (id: number, properties: { autoDiscardable?: boolean; active?: boolean; url?: string }) => {
         if (!tabs.has(id)) throw new Error('No tab');
@@ -35,7 +43,10 @@ async function harness(existingIds: string[] = [], initial?: ScoutState, autoDis
         if (properties.autoDiscardable !== undefined) tabs.set(id, properties.autoDiscardable);
       },
       create: async (props: any) => { const tab = { id: 9, ...props }; created.push(tab); tabs.set(9, true); tabUrls.set(9, props.url); return tab; },
-      sendMessage: async (_id: number, message: object) => { sends.push(message); },
+      sendMessage: async (id: number, message: object) => {
+        if (!tabs.has(id) || disconnected.has(id)) throw new Error('Receiving end does not exist');
+        sends.push(message);
+      },
       onRemoved: { addListener: (fn: Function) => { tabEvents.removed = fn; } },
       onUpdated: { addListener: (fn: Function) => { tabEvents.updated = fn; } },
     },
@@ -61,14 +72,14 @@ async function harness(existingIds: string[] = [], initial?: ScoutState, autoDis
     if (options.body) for (const clip of JSON.parse(options.body as string).clips) if (!known.has(clip.video_id)) { known.add(clip.video_id); added++; }
     return { ok: true, json: async () => ({ clips: [...known].map(video_id => ({ video_id })), added }) };
   } });
-  const message = (payload: object, tab = false) => new Promise<any>(resolve => handler(tab ? { sessionId: (stored.scout as ScoutState)?.sessionId || '', ...payload } : payload, tab ? { tab: { id: 7 } } : {}, resolve));
+  const message = (payload: object, tab: boolean | number = false) => new Promise<any>(resolve => handler(tab ? { sessionId: (stored.scout as ScoutState)?.sessionId || '', ...payload } : payload, tab ? { tab: { id: typeof tab === 'number' ? tab : 7 } } : {}, resolve));
   const tabEvent = async (name: string, ...args: unknown[]) => {
     if (name === 'removed') tabs.delete(args[0] as number);
     if (name === 'updated' && (args[1] as any).url) tabUrls.set(args[0] as number, (args[1] as any).url);
     tabEvents[name](...args);
     await message({ type: 'state' });
   };
-  return { message, state: () => stored.scout as ScoutState, online: (value: boolean) => { online = value; }, known, sends, tabUpdates, tabs, tabEvent, jobs, created, requests, tabUrls };
+  return { message, state: () => stored.scout as ScoutState, online: (value: boolean) => { online = value; }, known, sends, tabUpdates, tabs, tabEvent, jobs, created, requests, tabUrls, pendingUrls, reloads, disconnected };
 }
 const settings = { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated', sourceUrl: '', captionFilter: 'off', maxCaptionSeconds: 3 };
 const clip = (index: number, extra: Partial<Candidate> = {}): Candidate => ({ video_id: `test${String(index).padStart(7, '0')}`, url: `https://www.youtube.com/shorts/test${String(index).padStart(7, '0')}`, title: 'A narrated story', description: '', likes: 8000, views: 20000, credit_target: '', credit_snippet: '', channel_handle: '', channel_name: '', thumbnail_url: '', ...extra });
@@ -275,6 +286,181 @@ test('account changes require a new session even after settings were saved', asy
   await h.message({ type: 'saveSettings', settings: next });
   const response = await h.message({ type: 'resume', tabId: 7, settings: next });
   assert.match(response.error, /Stop this session/);
+});
+
+const accountUrl = 'https://www.instagram.com/qianxiang_guyue/reels/';
+function lostAccount(): ScoutState {
+  return { ...initialState(), status: 'paused', tabId: 666544235, sessionId: 'existing-account-session', sessionSourceUrl: accountUrl,
+    settings: { ...settings, mode: 'narrated', captionFilter: 'off', sourceUrl: accountUrl }, scanned: 21, matched: 2, saved: 2,
+    seenIds: [clip(1).video_id], knownIds: [clip(1).video_id] };
+}
+
+test('stale account tab reconnects to the active profile without losing session progress', async () => {
+  const initial = lostAccount();
+  const h = await harness([clip(1).video_id], initial);
+  h.tabUrls.set(7, accountUrl);
+  const response = await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  assert.equal(response.error, undefined);
+  assert.equal(h.state().status, 'running');
+  assert.equal(h.state().tabId, 7);
+  assert.equal(h.state().scanned, 21);
+  assert.equal(h.state().matched, 2);
+  assert.equal(h.state().saved, 2);
+  assert.equal(h.state().sessionId, initial.sessionId);
+  assert.deepEqual(h.state().seenIds, initial.seenIds);
+  assert.equal(h.created.length, 0);
+  assert.equal(h.tabUrls.get(7), accountUrl);
+  await h.message({ type: 'scan', clip: clip(1) }, true);
+  assert.equal(h.state().scanned, 21, 'Previously seen videos are not counted again');
+  await h.message({ type: 'scan', clip: clip(2) }, 666544235);
+  assert.equal(h.state().saved, 2, 'Late messages from the lost tab are ignored');
+});
+
+test('recovery finds the selected account in another tab and leaves unrelated tabs alone', async () => {
+  const initial = lostAccount();
+  const h = await harness([], initial);
+  h.tabUrls.set(7, 'https://www.instagram.com/another.creator/reels/');
+  h.tabUrls.set(8, 'https://instagram.com/qianxiang_guyue/?hl=en');
+  await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  assert.equal(h.state().tabId, 8);
+  assert.equal(h.tabUrls.get(8), accountUrl, 'Profile root is opened at its Reels grid');
+  assert.equal(h.created.length, 0);
+  assert.equal(h.tabUrls.get(7), 'https://www.instagram.com/another.creator/reels/');
+  assert.ok(h.tabUpdates.every(update => update.id !== 7 && !('active' in update)));
+});
+
+test('missing account tab is recreated from its grid; arbitrary Reel tabs are not adopted', async () => {
+  const initial = lostAccount();
+  const h = await harness([], initial);
+  h.tabUrls.set(7, 'https://www.instagram.com/reel/AbCde12345_/');
+  await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  assert.equal(h.state().tabId, 9);
+  assert.equal(h.state().scanned, 21);
+  assert.equal(h.state().sessionId, initial.sessionId);
+  assert.equal(h.created[0].url, 'about:blank');
+  assert.equal(h.tabUrls.get(9), accountUrl);
+  assert.equal(h.tabUrls.get(7), 'https://www.instagram.com/reel/AbCde12345_/');
+});
+
+test('closing an already-paused tab clears its ID and Resume recovers the account', async () => {
+  const initial = { ...lostAccount(), tabId: 7 };
+  const h = await harness([], initial);
+  h.tabUrls.set(7, accountUrl);
+  await h.tabEvent('removed', 7);
+  assert.equal(h.state().tabId, null);
+  assert.equal(h.state().status, 'paused');
+  assert.match(h.state().reason, /Resume to reconnect/);
+  const response = await h.message({ type: 'resume', tabId: 8, settings: initial.settings });
+  assert.equal(response.error, undefined);
+  assert.equal(h.state().tabId, 9);
+  assert.equal(h.state().scanned, 21);
+});
+
+test('a newly recovered tab does not pause on about:blank while its account is loading', async () => {
+  const initial = lostAccount();
+  const h = await harness([], initial);
+  await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  h.pendingUrls.set(9, accountUrl);
+  await h.tabEvent('updated', 9, { url: 'about:blank' });
+  assert.equal(h.state().status, 'running');
+  assert.equal(h.state().tabId, 9);
+  h.pendingUrls.delete(9);
+  await h.tabEvent('updated', 9, { url: accountUrl });
+  assert.equal(h.state().status, 'running');
+  await h.tabEvent('updated', 9, { url: 'https://example.com/' });
+  assert.equal(h.state().status, 'paused', 'Real navigation away must still pause');
+});
+
+test('unrelated URL in the remembered tab is not overwritten during recovery', async () => {
+  const initial = { ...lostAccount(), tabId: 7 };
+  const h = await harness([], initial);
+  h.tabUrls.set(7, 'https://www.instagram.com/someone.else/reels/');
+  await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  assert.equal(h.state().tabId, 9);
+  assert.equal(h.tabUrls.get(7), 'https://www.instagram.com/someone.else/reels/');
+});
+
+test('returning the original scouting tab to the account profile reopens its Reels grid', async () => {
+  const initial = { ...lostAccount(), tabId: 7 };
+  const h = await harness([], initial);
+  h.tabUrls.set(7, 'https://www.instagram.com/qianxiang_guyue/');
+  await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  assert.equal(h.state().tabId, 7);
+  assert.equal(h.tabUrls.get(7), accountUrl);
+  assert.equal(h.created.length, 0);
+  assert.equal(h.state().scanned, 21);
+});
+
+test('changing accounts still requires Stop before any stale-tab lookup or new navigation', async () => {
+  const initial = lostAccount();
+  const h = await harness([], initial);
+  const response = await h.message({ type: 'resume', tabId: 7, settings: { ...initial.settings, sourceUrl: 'https://instagram.com/another.creator/' } });
+  assert.match(response.error, /Stop this session/);
+  assert.equal(h.created.length, 0);
+  assert.equal(h.state().scanned, 21);
+});
+
+test('recovery saves pending clips first and cancels the old caption ticket', async () => {
+  const initial = lostAccount();
+  initial.pending = [clip(2)];
+  initial.matched = 3;
+  initial.captionCheck = { jobId: 'old-job', videoId: clip(3).video_id, maxSeconds: 3, sessionId: initial.sessionId };
+  const h = await harness([clip(1).video_id], initial);
+  h.jobs.set('old-job', { status: 'running' });
+  h.online(false);
+  const failed = await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  assert.match(failed.error, /offline/);
+  assert.equal(h.created.length, 0);
+  assert.equal(h.state().pending.length, 1);
+  h.online(true);
+  await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  assert.equal(h.state().saved, 3);
+  assert.equal(h.state().pending.length, 0);
+  assert.equal(h.state().captionCheck, null);
+  assert.equal(h.jobs.get('old-job').status, 'cancelled');
+});
+
+test('a completed session with a missing tab does not open a replacement', async () => {
+  const initial = lostAccount();
+  initial.scanned = 500;
+  const h = await harness([], initial);
+  await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  assert.equal(h.state().status, 'complete');
+  assert.equal(h.created.length, 0);
+});
+
+test('lost feed session resumes in an open player or explains which page to open', async () => {
+  const initial = { ...lostAccount(), sessionSourceUrl: '', settings: { ...lostAccount().settings, sourceUrl: '' } };
+  const h = await harness([], initial);
+  h.tabUrls.set(7, 'https://example.com/');
+  const failed = await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  assert.match(failed.error, /Open a YouTube Short or Instagram Reel/);
+  assert.doesNotMatch(failed.error, /No tab with id/);
+  assert.equal(h.created.length, 0);
+  h.tabUrls.set(7, 'https://www.instagram.com/reel/AbCde12345_/');
+  const result = await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+  assert.equal(result.error, undefined);
+  assert.equal(h.state().tabId, 7);
+  assert.equal(h.state().scanned, 21);
+  assert.deepEqual(h.reloads, [7]);
+});
+
+test('after extension reload, disconnected content scripts reload and resume automatically', async () => {
+  for (const sourceUrl of ['', accountUrl]) {
+    const initial = { ...lostAccount(), tabId: 7, sessionSourceUrl: sourceUrl, settings: { ...lostAccount().settings, sourceUrl } };
+    const h = await harness([], initial);
+    if (sourceUrl) h.tabUrls.set(7, sourceUrl);
+    h.disconnected.add(7);
+    const response = await h.message({ type: 'resume', tabId: 7, settings: initial.settings });
+    assert.equal(response.error, undefined);
+    assert.equal(h.state().status, 'running');
+    assert.equal(h.state().scanned, 21);
+    if (sourceUrl) assert.ok(h.tabUpdates.some(update => (update as any).url === accountUrl));
+    else assert.deepEqual(h.reloads, [7]);
+    const hello = await h.message({ type: 'hello' }, true);
+    assert.equal(hello.running, true);
+    assert.equal(hello.sessionId, initial.sessionId);
+  }
 });
 
 test('Instagram ids save independently and candidate URL mismatches are rejected', async () => {

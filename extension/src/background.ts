@@ -54,8 +54,51 @@ async function tellTab(command: 'run' | 'halt') {
   if (state.tabId === null) return;
   try { await chrome.tabs.sendMessage(state.tabId, { type: command, sourceUrl: state.sessionSourceUrl || '', sessionId: state.sessionId }); }
   catch {
-    if (command === 'run') throw new Error('Reload your Shorts or Reels tab once, then press Start again.');
+    if (command === 'run') {
+      // Reloading the extension disconnects content scripts in existing pages.
+      // The fresh page's hello message starts Scout after its state is saved.
+      if (state.sessionSourceUrl) await chrome.tabs.update(state.tabId, { url: state.sessionSourceUrl });
+      else await chrome.tabs.reload(state.tabId);
+    }
   }
+}
+async function existingTab(id: unknown): Promise<chrome.tabs.Tab | null> {
+  if (typeof id !== 'number' || !Number.isSafeInteger(id) || id < 0) return null;
+  try { return await chrome.tabs.get(id); }
+  catch { return null; }
+}
+function tabUrl(tab: chrome.tabs.Tab): string { return tab.pendingUrl || tab.url || ''; }
+function atAccount(tab: chrome.tabs.Tab, source: string): boolean {
+  try { return canonicalSourceUrl(tabUrl(tab)) === source; }
+  catch { return false; }
+}
+function feedUrl(url: string): boolean {
+  return isScoutUrl(url) && (Boolean(candidateIdFromUrl(url)) || /^https:\/\/(?:www\.)?instagram\.com\/reels\/?(?:[?#].*)?$/.test(url));
+}
+async function resumeTab(activeId: unknown): Promise<{ tab: chrome.tabs.Tab; reconnect: boolean }> {
+  const source = state.sessionSourceUrl;
+  const previous = await existingTab(state.tabId);
+  if (previous) {
+    const url = tabUrl(previous);
+    if (source && atAccount(previous, source)) {
+      return { tab: previous, reconnect: new URL(url).pathname.replace(/\/$/, '') !== new URL(source).pathname.replace(/\/$/, '') };
+    }
+    // The original tab retains the queue that proves a player belongs to the
+    // selected account. The content script still enforces that allowlist.
+    if (feedUrl(url) && (!source || new URL(url).hostname === new URL(source).hostname)) {
+      return { tab: previous, reconnect: false };
+    }
+  }
+  const active = await existingTab(activeId);
+  if (source) {
+    // A replacement tab has no trusted per-tab queue. Rejoin only at the
+    // account grid, never at an arbitrary Reel or a different creator's page.
+    const tab = active && atAccount(active, source) ? active
+      : (await chrome.tabs.query({})).find(candidate => atAccount(candidate, source));
+    return { tab: tab || await chrome.tabs.create({ url: 'about:blank', active: true }), reconnect: true };
+  }
+  if (active && feedUrl(tabUrl(active))) return { tab: active, reconnect: true };
+  throw new Error('Your previous scouting tab is no longer available. Open a YouTube Short or Instagram Reel, then press Resume. To scout an account, press Stop and start with its URL.');
 }
 async function flush(): Promise<boolean> {
   if (!state.pending.length) return true;
@@ -141,45 +184,51 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
   }
   if (message.type === 'start' || message.type === 'resume') {
     const settings = settingsFrom(message.settings);
-    let tab: chrome.tabs.Tab;
-    if (message.type === 'resume') {
-      if (state.tabId === null) throw new Error('Start a new scouting session.');
-      tab = await chrome.tabs.get(state.tabId);
-      if (settings.sourceUrl !== state.sessionSourceUrl) throw new Error('Stop this session before scouting another account.');
-    } else if (settings.sourceUrl) {
-      // Check the engine before opening the chosen account.
-      await api('/health');
-      tab = await chrome.tabs.create({ url: 'about:blank', active: true });
-    } else {
-      tab = await chrome.tabs.get(Number(message.tabId));
-      if (!tab.url || !isScoutUrl(tab.url) || (!candidateIdFromUrl(tab.url) && !/^https:\/\/(?:www\.)?instagram\.com\/reels\/?(?:[?#].*)?$/.test(tab.url))) throw new Error('Open a YouTube Short or Instagram Reel, or paste an account URL.');
-    }
+    if (message.type === 'resume' && settings.sourceUrl !== state.sessionSourceUrl) throw new Error('Stop this session before scouting another account.');
+    // Verify the engine and save pending matches before opening/reloading tabs.
     const existing = await api('/clips');
     const known = new Set<string>((existing.clips || []).map((clip: Candidate) => clip.video_id).filter(Boolean));
     state.knownIds = [...known];
     state.pending = state.pending.filter(clip => !known.has(clip.video_id));
     if (!(await flush())) return { state };
+    if (message.type === 'resume' && (state.matched >= settings.target || state.scanned >= 500)) {
+      state.settings = settings;
+      state.status = 'complete'; state.reason = state.scanned >= 500 ? 'Reached the 500-video session limit. Start a new session to continue.' : 'Target reached. Your clips are in the Library.';
+      await save(); return { state };
+    }
+    let tab: chrome.tabs.Tab;
+    let reconnect = false;
+    if (message.type === 'resume') {
+      ({ tab, reconnect } = await resumeTab(message.tabId));
+    } else if (settings.sourceUrl) {
+      tab = await chrome.tabs.create({ url: 'about:blank', active: true });
+    } else {
+      const active = await existingTab(message.tabId);
+      if (!active || !feedUrl(tabUrl(active))) throw new Error('Open a YouTube Short or Instagram Reel, or paste an account URL.');
+      tab = active;
+    }
     if (message.type === 'start') {
       await cancelCaptionCheck();
       state = { ...initialState(), tabProtection: state.tabProtection, knownIds: state.knownIds, settings, sessionSourceUrl: settings.sourceUrl || '', sessionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`, tabId: tab.id!, activeMode: settings.mode === 'narrated' ? 'narrated' : 'credits' };
     } else {
-      if (state.tabId !== tab.id) throw new Error('Resume in the same scouting tab, or Stop and start a new session.');
+      if (reconnect) await cancelCaptionCheck();
+      state.tabId = tab.id!;
       if (filtersChanged(state.settings, settings)) state.seenIds = [];
       if (settings.mode !== state.settings.mode) { state.activeMode = settings.mode === 'narrated' ? 'narrated' : 'credits'; state.creditMisses = 0; }
       state.settings = settings;
     }
-    if (state.matched >= settings.target || state.scanned >= 500) {
-      state.status = 'complete'; state.reason = state.scanned >= 500 ? 'Reached the 500-video session limit. Start a new session to continue.' : 'Target reached. Your clips are in the Library.';
-      await save(); return { state };
-    }
     state.status = 'running'; state.reason = `Looking for ${state.activeMode === 'credits' ? 'credited' : 'narrated'} Shorts and Reels.`;
-    log(message.type === 'start' ? 'Scout started. Keep the scouting tab open; you can switch tabs.' : 'Scout resumed.');
+    log(message.type === 'start' ? 'Scout started. Keep the scouting tab open; you can switch tabs.' : reconnect ? 'Scout reconnected. Your session progress was kept.' : 'Scout resumed.');
     await save();
     try {
-      if (message.type === 'start' && settings.sourceUrl) await chrome.tabs.update(tab.id!, { url: settings.sourceUrl });
+      if ((message.type === 'start' || reconnect) && settings.sourceUrl) await chrome.tabs.update(tab.id!, { url: settings.sourceUrl });
+      else if (reconnect) await chrome.tabs.reload(tab.id!);
       else await tellTab('run');
     }
-    catch (error) { state.status = 'paused'; state.reason = (error as Error).message; await save(); throw error; }
+    catch {
+      state.status = 'paused'; state.reason = 'Could not reconnect to the scouting tab. Press Resume to try again, or reopen the selected account first.';
+      await cancelCaptionCheck(); await save(); throw new Error(state.reason);
+    }
     return { state };
   }
   if (message.type === 'pause' || message.type === 'stop') {
@@ -269,15 +318,25 @@ chrome.alarms.onAlarm.addListener(alarm => {
   serial = serial.then(async () => { await load(); if (state.pending.length) await flush(); }).catch(() => {});
 });
 chrome.tabs.onRemoved.addListener(tabId => {
-  serial = serial.then(async () => { await load(); if (state.tabId === tabId && state.status === 'running') { state.status = 'paused'; state.reason = 'Your scouting tab was closed. Stop this session and start in another tab.'; await cancelCaptionCheck(); await save(); } }).catch(() => {});
+  serial = serial.then(async () => {
+    await load();
+    if (state.tabId !== tabId) return;
+    state.tabId = null;
+    if (state.status === 'running' || state.status === 'paused') {
+      state.status = 'paused';
+      state.reason = state.sessionSourceUrl ? 'Your scouting tab was closed. Press Resume to reconnect to this account and keep your progress.' : 'Your scouting tab was closed. Open a Short or Reel, then press Resume to keep your progress.';
+    }
+    await cancelCaptionCheck(); await save();
+  }).catch(() => {});
 });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   if (!change.url || isScoutUrl(change.url)) return;
   serial = serial.then(async () => {
     await load();
     if (state.tabId === tabId && state.status === 'running') {
-      // A queued about:blank/redirect event may precede the account navigation.
-      try { const currentTab = await chrome.tabs.get(tabId); if (currentTab.url && isScoutUrl(currentTab.url)) return; }
+      // Chrome may still report about:blank as the committed URL while the
+      // selected account is loading in pendingUrl. Ignore that queued event.
+      try { const currentTab = await chrome.tabs.get(tabId); if (isScoutUrl(tabUrl(currentTab))) return; }
       catch { /* The removed-tab handler also releases this session. */ }
       state.status = 'paused';
       state.reason = 'This tab left Shorts or Reels. Handle any prompt, return to a video, then resume.';
