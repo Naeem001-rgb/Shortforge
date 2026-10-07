@@ -163,11 +163,13 @@ function advance(): void {
     let container = video?.parentElement || null;
     while (container && container !== document.body) {
       if (/(auto|scroll)/.test(getComputedStyle(container).overflowY) && container.scrollHeight > container.clientHeight) {
-        container.scrollBy({ top: container.clientHeight, behavior: 'smooth' }); return;
+        // Must stay instant: Chrome does not animate a smooth scroll in a hidden
+        // tab, so a backgrounded feed would move 0px and stall the whole session.
+        container.scrollBy({ top: container.clientHeight, behavior: 'instant' }); return;
       }
       container = container.parentElement;
     }
-    window.scrollBy({ top: innerHeight, behavior: 'smooth' });
+    window.scrollBy({ top: innerHeight, behavior: 'instant' });
     return;
   }
   const next = first(document, SELECTORS.next);
