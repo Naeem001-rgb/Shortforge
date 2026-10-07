@@ -7,14 +7,30 @@ await mkdir('tests/screenshots', { recursive: true });
 for (const scheme of ['light', 'dark']) {
   const page = await browser.newPage({ viewport: { width: 392, height: 600 }, colorScheme: scheme });
   await page.addInitScript(() => {
-    const initial = { status: 'idle', settings: { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated' }, activeMode: 'narrated', tabId: null, scanned: 0, matched: 0, saved: 0, creditMisses: 0, reason: 'Open a YouTube Short, then start scouting.', pending: [], knownIds: [], seenIds: [], logs: [], lastScan: null };
+    const initial = { status: 'idle', settings: { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated' }, activeMode: 'narrated', tabId: null, scanned: 0, matched: 0, saved: 0, creditMisses: 0, reason: 'Open a Short or Reel, or paste an account above.', pending: [], knownIds: [], seenIds: [], logs: [], lastScan: null };
     globalThis.fixture = { state: initial, storageListeners: [] };
     globalThis.chrome = { runtime: { sendMessage: async () => ({ state: fixture.state }) }, storage: { onChanged: { addListener(listener) { fixture.storageListeners.push(listener); } } }, tabs: { query: async () => [] } };
   });
   await page.goto('file://' + resolve('dist/popup.html'));
   await page.getByText('Idle', { exact: true }).waitFor();
+  assert.ok((await page.locator('#start').boundingBox()).y + (await page.locator('#start').boundingBox()).height <= 600, 'primary controls stay inside Chrome popup viewport');
   assert.equal(await page.locator('#last-scan').isVisible(), false);
-  assert.match(await page.locator('#mode-help').innerText(), /No credits or keywords required/);
+  assert.match(await page.locator('#mode-help').textContent(), /No credits or keywords required/);
+  // Keyboard traversal must scroll focused controls above the separate action row.
+  for (let index = 0; index < 14; index++) {
+    await page.keyboard.press('Tab');
+    const focused = await page.evaluate(() => {
+      const node = document.activeElement;
+      const r = node.getBoundingClientRect();
+      const main = document.querySelector('main').getBoundingClientRect();
+      return { tag: node.tagName, top: r.top, bottom: r.bottom, inMain: document.querySelector('main').contains(node), mainTop: main.top, mainBottom: main.bottom };
+    });
+    if (focused.tag !== 'BODY') {
+      assert.ok(focused.top >= 0 && focused.bottom <= 600, 'focused control fits popup viewport');
+      if (focused.inMain) assert.ok(focused.top >= focused.mainTop && focused.bottom <= focused.mainBottom, 'focused control is not under the dock');
+    }
+  }
+  await page.evaluate(() => { document.querySelector('main').scrollTop = 0; document.activeElement.blur(); });
   await page.screenshot({ path: `tests/screenshots/popup-${scheme}.png`, fullPage: true });
   console.log(scheme, await page.evaluate(() => ({ width: document.body.scrollWidth, height: document.body.scrollHeight, startBottom: document.getElementById('start').getBoundingClientRect().bottom, font: getComputedStyle(document.body).fontSize })));
   await page.evaluate(() => {
@@ -30,8 +46,8 @@ for (const scheme of ['light', 'dark']) {
   assert.equal(await page.locator('#matched').innerText(), '0 / 30');
   assert.equal(await page.getByRole('button', { name: 'Resume', exact: true }).isEnabled(), true);
   assert.equal(await page.locator('#last-scan').isVisible(), true);
-  assert.equal(await page.locator('#last-scan').innerText(), 'Last Short: 6,200 likes · unreadable views. Skipped — Could not read views. Open the description and run Self-test.');
-  assert.match(await page.locator('#mode-help').innerText(), /No credits or keywords required/);
+  assert.equal(await page.locator('#last-scan').innerText(), 'Last video: 6,200 likes · unreadable views. Skipped — Could not read views. Open the description and run Self-test.');
+  assert.match(await page.locator('#mode-help').textContent(), /No credits or keywords required/);
   await page.locator('#activity summary').click();
   assert.equal(await page.locator('#logs').isVisible(), true);
   assert.match(await page.locator('#logs').innerText(), /6,200 likes · unreadable views/);
@@ -44,17 +60,18 @@ for (const scheme of ['light', 'dark']) {
     };
     for (const listener of fixture.storageListeners) listener({ scout: { newValue: fixture.state } }, 'local');
   });
+  assert.equal(await page.locator('#settings').isHidden(), true, 'running session exposes progress above the fold');
   assert.equal(await page.locator('#scanned').innerText(), '37');
   assert.equal(await page.locator('#matched').innerText(), '1 / 30');
   assert.equal(await page.locator('#progress').evaluate(element => element.value), 1);
   assert.equal(await page.locator('#saved-count').innerText(), '1 saved');
   assert.equal(await page.locator('#last-scan').isVisible(), true);
-  assert.equal(await page.locator('#last-scan').innerText(), 'Last Short: 8,500 likes · 24,300 views. Matched — Meets your limits; review narration in Library');
+  assert.equal(await page.locator('#last-scan').innerText(), 'Last video: 8,500 likes · 24,300 views. Matched — Meets your limits; review narration in Library');
   assert.equal(await page.locator('#logs li').count(), 2);
   assert.equal(await page.evaluate(() => document.body.scrollWidth <= innerWidth), true);
   await page.screenshot({ path: `tests/screenshots/popup-${scheme}-matched.png`, fullPage: true });
   await page.getByRole('button', { name: 'Self-test', exact: true }).click();
-  await page.getByText('Open a YouTube Short first, then run Self-test.').waitFor();
+  await page.getByText('Open a YouTube Short, Instagram Reel, or account page first, then run Self-test.').waitFor();
   await page.close();
 }
 await browser.close();

@@ -46,7 +46,7 @@ export function detectCredit(description: string, ownHandle = ''): { target: str
     const marked = line.match(/(?:\bcredits?\s*(?:to|for|by|:|-)\s*|\bcr\s*:\s*|\bvia\s*:?\s+|\bsource\s*[:\-]\s*|\boriginal\s+(?:video|creator|footage)\s*(?:by|from|:|-)\s*|\ball rights\s+(?:go|belong)\s+to\s*)(.+)/i);
     const rest = marked?.[1]?.trim() || '';
     const handle = (rest || line).match(/(?:^|[^\w])@([\w.-]{2,})/);
-    const url = (rest || line).match(/https?:\/\/(?:www\.)?(?:youtube\.com\/(?:@[^\s]+|shorts\/[^\s]+|watch\?v=[^\s]+)|youtu\.be\/[^\s]+)/i);
+    const url = (rest || line).match(/https?:\/\/(?:www\.)?(?:instagram\.com\/[^\s]+|youtube\.com\/(?:@[^\s]+|shorts\/[^\s]+|watch\?v=[^\s]+)|youtu\.be\/[^\s]+)/i);
     let target = url?.[0] || (handle ? `@${handle[1]}` : marked ? rest.split(/[|•]/)[0].trim() : '');
     target = target.replace(/[.,!;]+$/, '').slice(0, 180);
     if (!target || /^(?:me|myself|us|my channel|our channel|unknown|none|n\/?a|owner|the (?:respective |original )?owners?)[.!\s]*$/i.test(target)) continue;
@@ -64,9 +64,11 @@ export function hasNarrationHints(text: string): boolean {
 
 export function matchesCandidate(clip: Candidate, settings: Settings, mode: 'credits' | 'narrated'): { matched: boolean; reason: string } {
   const unreadable = (value: number | null) => !Number.isSafeInteger(value) || value === null || value < 0;
-  if (unreadable(clip.likes) || unreadable(clip.views)) {
-    const missing = [unreadable(clip.likes) ? 'likes' : '', unreadable(clip.views) ? 'views' : ''].filter(Boolean).join(' and ');
-    return { matched: false, reason: `Could not read ${missing}. Open the description and run Self-test.` };
+  const missingLikes = settings.minLikes > 0 && unreadable(clip.likes);
+  const missingViews = settings.minViews > 0 && unreadable(clip.views);
+  if (missingLikes || missingViews) {
+    const missing = [missingLikes ? 'likes' : '', missingViews ? 'views' : ''].filter(Boolean).join(' and ');
+    return { matched: false, reason: `Could not read ${missing}. Run Self-test, or set that minimum to 0 to ignore it.` };
   }
   if (clip.likes! < settings.minLikes || clip.views! < settings.minViews) {
     const below = [clip.likes! < settings.minLikes ? `likes ${clip.likes!.toLocaleString('en-US')} < ${settings.minLikes.toLocaleString('en-US')}` : '', clip.views! < settings.minViews ? `views ${clip.views!.toLocaleString('en-US')} < ${settings.minViews.toLocaleString('en-US')}` : ''].filter(Boolean).join('; ');

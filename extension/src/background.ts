@@ -1,5 +1,7 @@
-import { initialState, type Candidate, type ScoutState, type Settings } from './types';
+import { DEFAULTS, initialState, type Candidate, type ScoutState, type Settings } from './types';
 import { matchesCandidate } from './parsers';
+
+import { canonicalSourceUrl, candidateIdFromUrl, isScoutUrl } from './sources';
 
 const API = 'http://127.0.0.1:8787/api';
 let state: ScoutState;
@@ -8,6 +10,7 @@ async function load() {
   if (!state) {
     const stored = await chrome.storage.local.get('scout');
     state = { ...initialState(), ...stored.scout };
+    state.settings = { ...DEFAULTS, ...state.settings };
     // Only Auto has a separate phase. Explicit choices always win over a
     // stale phase saved by an older extension worker.
     if (state.settings.mode !== 'auto') state.activeMode = state.settings.mode;
@@ -49,9 +52,9 @@ async function api(path: string, body?: object) {
 }
 async function tellTab(command: 'run' | 'halt') {
   if (state.tabId === null) return;
-  try { await chrome.tabs.sendMessage(state.tabId, { type: command }); }
+  try { await chrome.tabs.sendMessage(state.tabId, { type: command, sourceUrl: state.sessionSourceUrl || '', sessionId: state.sessionId }); }
   catch {
-    if (command === 'run') throw new Error('Reload your YouTube Shorts tab once, then press Start again.');
+    if (command === 'run') throw new Error('Reload your Shorts or Reels tab once, then press Start again.');
   }
 }
 async function flush(): Promise<boolean> {
@@ -74,78 +77,159 @@ async function flush(): Promise<boolean> {
     return false;
   }
 }
+async function cancelCaptionCheck() {
+  const check = state.captionCheck;
+  state.captionCheck = null;
+  if (check) {
+    try { await api(`/scout/caption-check/${encodeURIComponent(check.jobId)}/cancel`, {}); }
+    catch { /* A disconnected engine cannot be cancelled; never save its unverified result. */ }
+  }
+}
 function settingsFrom(value: unknown): Settings {
   const candidate = value as Settings;
   if (!candidate || !['narrated', 'credits', 'auto'].includes(candidate.mode)) throw new Error('Choose a discovery mode.');
   for (const [name, max] of [['target', 500], ['minLikes', 1e12], ['minViews', 1e12]] as const) {
     if (!Number.isSafeInteger(candidate[name]) || candidate[name] < (name === 'target' ? 1 : 0) || candidate[name] > max) throw new Error(name === 'target' ? 'Target must be a whole number from 1 to 500.' : 'Enter a valid whole-number minimum.');
   }
-  return { target: candidate.target, minLikes: candidate.minLikes, minViews: candidate.minViews, mode: candidate.mode };
+  const sourceUrl = canonicalSourceUrl(String(candidate.sourceUrl || ''));
+  const captionFilter = candidate.captionFilter ?? DEFAULTS.captionFilter;
+  const maxCaptionSeconds = candidate.maxCaptionSeconds ?? 3;
+  if (!['off', 'brief-only'].includes(captionFilter!)) throw new Error('Choose a caption filter.');
+  if (!Number.isFinite(maxCaptionSeconds) || maxCaptionSeconds < 0 || maxCaptionSeconds > 10) throw new Error('Caption allowance must be between 0 and 10 seconds.');
+  return { target: candidate.target, minLikes: candidate.minLikes, minViews: candidate.minViews, mode: candidate.mode, sourceUrl, captionFilter, maxCaptionSeconds };
 }
 function filtersChanged(previous: Settings, next: Settings): boolean {
-  return previous.mode !== next.mode || previous.minLikes !== next.minLikes || previous.minViews !== next.minViews;
+  return previous.mode !== next.mode || previous.minLikes !== next.minLikes || previous.minViews !== next.minViews || previous.captionFilter !== next.captionFilter || previous.maxCaptionSeconds !== next.maxCaptionSeconds || previous.sourceUrl !== next.sourceUrl;
+}
+function validCandidate(value: unknown): Candidate {
+  const clip = value as Candidate;
+  if (!clip || !clip.url || candidateIdFromUrl(clip.url) !== clip.video_id) throw new Error('Could not read this video’s source link. Reload the page and try again.');
+  return clip;
+}
+async function captionDecision(clip: Candidate, jobId: unknown): Promise<{ matched: boolean; reason: string }> {
+  const check = state.captionCheck;
+  if (!check || check.jobId !== jobId || check.videoId !== clip.video_id || check.sessionId !== state.sessionId || check.maxSeconds !== state.settings.maxCaptionSeconds) return { matched: false, reason: 'Skipped: captions were not checked with the current filter.' };
+  const job = await api(`/jobs/${encodeURIComponent(check.jobId)}`);
+  const result = job.result;
+  if (job.status !== 'completed' || !result || result.video_id !== clip.video_id || candidateIdFromUrl(result.url) !== clip.video_id) return { matched: false, reason: job.error || 'Skipped: caption check could not finish.' };
+  const seconds = Number(result.caption_seconds);
+  const verified = ['clear', 'brief'].includes(result.status) && Number.isFinite(seconds) && seconds >= 0 && seconds <= check.maxSeconds && result.frames_scanned > 0 && result.duration > 0;
+  return { matched: verified, reason: String(result.reason || (verified ? `Estimated caption time: ${seconds.toFixed(1)} seconds.` : 'Skipped: persistent or unreadable on-screen captions.')) };
 }
 async function handle(message: Record<string, unknown>, sender: chrome.runtime.MessageSender): Promise<unknown> {
   await load();
   if (message.type === 'state') return { state };
-  if (message.type === 'hello') return { running: state.status === 'running' && state.tabId === sender.tab?.id };
+  if (['prepareScan', 'captionStatus', 'scan', 'problem', 'exhausted'].includes(String(message.type))
+      && (sender.tab?.id !== state.tabId || message.sessionId !== state.sessionId)) return { running: false, skipCaptionCheck: true };
+  if (message.type === 'hello') return { running: state.status === 'running' && state.tabId === sender.tab?.id, sourceUrl: state.sessionSourceUrl || '', sessionId: state.sessionId };
   if (message.type === 'saveSettings') {
     const previous = state.settings;
     state.settings = settingsFrom(message.settings);
     // Re-read the current Short after changing filters; otherwise a prior skip
     // would remain cached even when the video meets the newly chosen criteria.
-    if (filtersChanged(previous, state.settings)) state.seenIds = [];
+    if (filtersChanged(previous, state.settings)) {
+      state.seenIds = [];
+      if (state.status === 'running') {
+        state.status = 'paused';
+        state.reason = 'Filters changed. Resume to apply them, or Stop to choose another account.';
+        await tellTab('halt');
+        await cancelCaptionCheck();
+      }
+    }
     if (previous.mode !== state.settings.mode) { state.activeMode = state.settings.mode === 'narrated' ? 'narrated' : 'credits'; state.creditMisses = 0; }
     await save(); return { state };
   }
   if (message.type === 'start' || message.type === 'resume') {
     const settings = settingsFrom(message.settings);
-    const tab = await chrome.tabs.get(Number(message.tabId));
-    if (!tab.url?.startsWith('https://www.youtube.com/shorts/')) throw new Error('Open a YouTube Short in this tab first.');
+    let tab: chrome.tabs.Tab;
+    if (message.type === 'resume') {
+      if (state.tabId === null) throw new Error('Start a new scouting session.');
+      tab = await chrome.tabs.get(state.tabId);
+      if (settings.sourceUrl !== state.sessionSourceUrl) throw new Error('Stop this session before scouting another account.');
+    } else if (settings.sourceUrl) {
+      // Check the engine before opening the chosen account.
+      await api('/health');
+      tab = await chrome.tabs.create({ url: 'about:blank', active: true });
+    } else {
+      tab = await chrome.tabs.get(Number(message.tabId));
+      if (!tab.url || !isScoutUrl(tab.url) || (!candidateIdFromUrl(tab.url) && !/^https:\/\/(?:www\.)?instagram\.com\/reels\/?(?:[?#].*)?$/.test(tab.url))) throw new Error('Open a YouTube Short or Instagram Reel, or paste an account URL.');
+    }
     const existing = await api('/clips');
     const known = new Set<string>((existing.clips || []).map((clip: Candidate) => clip.video_id).filter(Boolean));
     state.knownIds = [...known];
     state.pending = state.pending.filter(clip => !known.has(clip.video_id));
     if (!(await flush())) return { state };
     if (message.type === 'start') {
-      state = { ...initialState(), tabProtection: state.tabProtection, knownIds: state.knownIds, settings, tabId: tab.id!, activeMode: settings.mode === 'narrated' ? 'narrated' : 'credits' };
+      await cancelCaptionCheck();
+      state = { ...initialState(), tabProtection: state.tabProtection, knownIds: state.knownIds, settings, sessionSourceUrl: settings.sourceUrl || '', sessionId: `${Date.now()}-${Math.random().toString(36).slice(2)}`, tabId: tab.id!, activeMode: settings.mode === 'narrated' ? 'narrated' : 'credits' };
     } else {
-      if (state.tabId !== tab.id) throw new Error('Resume in the same YouTube tab, or Stop and start a new session.');
+      if (state.tabId !== tab.id) throw new Error('Resume in the same scouting tab, or Stop and start a new session.');
       if (filtersChanged(state.settings, settings)) state.seenIds = [];
       if (settings.mode !== state.settings.mode) { state.activeMode = settings.mode === 'narrated' ? 'narrated' : 'credits'; state.creditMisses = 0; }
       state.settings = settings;
     }
     if (state.matched >= settings.target || state.scanned >= 500) {
-      state.status = 'complete'; state.reason = state.scanned >= 500 ? 'Reached the 500-Short session limit. Start a new session to continue.' : 'Target reached. Your clips are in the Library.';
+      state.status = 'complete'; state.reason = state.scanned >= 500 ? 'Reached the 500-video session limit. Start a new session to continue.' : 'Target reached. Your clips are in the Library.';
       await save(); return { state };
     }
-    state.status = 'running'; state.reason = `Looking for ${state.activeMode === 'credits' ? 'credited' : 'narrated'} Shorts.`;
-    log(message.type === 'start' ? 'Scout started. Keep this YouTube tab open; you can switch tabs.' : 'Scout resumed.');
+    state.status = 'running'; state.reason = `Looking for ${state.activeMode === 'credits' ? 'credited' : 'narrated'} Shorts and Reels.`;
+    log(message.type === 'start' ? 'Scout started. Keep the scouting tab open; you can switch tabs.' : 'Scout resumed.');
     await save();
-    try { await tellTab('run'); }
+    try {
+      if (message.type === 'start' && settings.sourceUrl) await chrome.tabs.update(tab.id!, { url: settings.sourceUrl });
+      else await tellTab('run');
+    }
     catch (error) { state.status = 'paused'; state.reason = (error as Error).message; await save(); throw error; }
     return { state };
   }
   if (message.type === 'pause' || message.type === 'stop') {
     state.status = message.type === 'pause' ? 'paused' : 'stopped';
     state.reason = message.type === 'pause' ? 'Paused. Resume when you are ready.' : 'Stopped. Your collected clips stay in the Library.';
-    log(state.reason); await save(); await tellTab('halt'); return { state };
+    log(state.reason); await save(); await tellTab('halt'); await cancelCaptionCheck(); await save(); return { state };
   }
   if (message.type === 'retry') { const ok = await flush(); if (ok) { state.reason = 'Pending clips saved. You can resume scouting.'; await save(); } return { state }; }
   if (message.type === 'problem' && sender.tab?.id === state.tabId && state.status === 'running') {
     state.status = 'paused'; state.reason = String(message.reason).slice(0, 400); log(state.reason);
-    await save(); await tellTab('halt'); return { state };
+    await save(); await tellTab('halt'); await cancelCaptionCheck(); await save(); return { state };
+  }
+  if (message.type === 'exhausted' && sender.tab?.id === state.tabId && state.status === 'running' && state.sessionSourceUrl && message.sourceUrl === state.sessionSourceUrl) {
+    state.status = 'complete'; state.reason = 'Finished this account’s available Shorts or Reels. Your matches are in the Library.';
+    log(state.reason); await save(); await tellTab('halt'); await cancelCaptionCheck(); await save(); return { running: false, state };
+  }
+  if (message.type === 'prepareScan' && sender.tab?.id === state.tabId && state.status === 'running') {
+    const clip = validCandidate(message.clip);
+    const eligible = matchesCandidate(clip, state.settings, state.activeMode).matched;
+    if (state.settings.captionFilter === 'off' || !eligible || state.seenIds.includes(clip.video_id) || state.knownIds.includes(clip.video_id) || state.pending.some(item => item.video_id === clip.video_id)) return { running: true, skipCaptionCheck: true };
+    const limit = state.settings.maxCaptionSeconds ?? 3;
+    let check = state.captionCheck;
+    if (!check || check.videoId !== clip.video_id || check.maxSeconds !== limit || check.sessionId !== state.sessionId) {
+      if (check) await cancelCaptionCheck();
+      const job = await api('/scout/caption-check', { url: clip.url, max_caption_seconds: limit });
+      if (!job.id) throw new Error('Caption screening is unavailable. Restart the updated ShortForge engine.');
+      check = state.captionCheck = { jobId: job.id, videoId: clip.video_id, maxSeconds: limit, sessionId: state.sessionId };
+    }
+    state.reason = 'Checking on-screen captions across this video. You can pause at any time.';
+    await save(); return { running: true, captionJobId: check.jobId };
+  }
+  if (message.type === 'captionStatus' && sender.tab?.id === state.tabId && state.status === 'running') {
+    if (message.jobId !== state.captionCheck?.jobId) throw new Error('Caption check changed. Resume to check again.');
+    const job = await api(`/jobs/${encodeURIComponent(String(message.jobId))}`);
+    state.reason = `Checking on-screen captions… ${Math.round(Number(job.progress) || 0)}%`;
+    await save(); return { running: true, job };
   }
   if (message.type === 'scan' && sender.tab?.id === state.tabId && state.status === 'running') {
-    const clip = message.clip as Candidate;
-    if (!clip || !/^[A-Za-z0-9_-]{11}$/.test(clip.video_id)) throw new Error('Could not read this Short’s video ID.');
+    const clip = validCandidate(message.clip);
     if (state.seenIds.includes(clip.video_id)) return { running: true, repeat: true };
-    state.seenIds.push(clip.video_id); state.scanned += 1;
     const duplicate = state.knownIds.includes(clip.video_id) || state.pending.some(item => item.video_id === clip.video_id);
     if (state.settings.mode !== 'auto') state.activeMode = state.settings.mode;
     const decision = matchesCandidate(clip, state.settings, state.activeMode);
+    if (!duplicate && decision.matched && state.settings.captionFilter !== 'off') {
+      const caption = await captionDecision(clip, message.captionJobId);
+      decision.matched = caption.matched; decision.reason = caption.reason;
+    }
     const reason = duplicate ? 'Already in your Library or waiting to save' : decision.reason;
     const matched = !duplicate && decision.matched;
+    state.seenIds.push(clip.video_id); state.scanned += 1;
     state.lastScan = { video_id: clip.video_id, title: clip.title, likes: clip.likes, views: clip.views, mode: state.activeMode, matched, reason };
     const counts = `${clip.likes?.toLocaleString('en-US') ?? 'unreadable'} likes; ${clip.views?.toLocaleString('en-US') ?? 'unreadable'} views`;
     log(`${matched ? 'Matched' : 'Skipped'}: ${clip.title.slice(0, 70) || clip.video_id} — ${counts}. ${reason}`);
@@ -162,37 +246,42 @@ async function handle(message: Record<string, unknown>, sender: chrome.runtime.M
       }
     }
     if (state.status === 'running' && (state.matched >= state.settings.target || state.scanned >= 500)) {
-      state.status = 'complete'; state.reason = state.matched >= state.settings.target ? 'Target reached. Your clips are in the Library.' : 'Reached the 500-Short session limit.'; log(state.reason);
+      state.status = 'complete'; state.reason = state.matched >= state.settings.target ? 'Target reached. Your clips are in the Library.' : 'Reached the 500-video session limit.'; log(state.reason);
     }
+    state.captionCheck = null;
+    if (state.status === 'running') state.reason = reason;
     await save(); return { running: state.status === 'running', reason };
   }
-  return { state };
+  return { state, running: false, skipCaptionCheck: true };
 }
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
-  // Content-only commands are handled inside the YouTube tab.
+  // Content-only commands are handled inside the scouting tab.
   if (['run', 'halt', 'selftest'].includes(message.type)) return;
   serial = serial.then(() => handle(message, sender)).then(respond, error => respond({ error: error instanceof Error ? error.message : 'Something went wrong. Try again.' }));
   return true;
 });
 chrome.runtime.onInstalled.addListener(() => { chrome.alarms.create('retry-pending', { periodInMinutes: 1 }); });
 chrome.runtime.onStartup.addListener(() => {
-  serial = serial.then(async () => { await load(); if (state.status === 'running') { state.status = 'paused'; state.reason = 'Browser restarted. Open your Shorts tab and resume.'; await save(); } });
+  serial = serial.then(async () => { await load(); if (state.status === 'running') { state.status = 'paused'; state.reason = 'Browser restarted. Open your scouting tab and resume.'; await cancelCaptionCheck(); await save(); } });
 });
 chrome.alarms.onAlarm.addListener(alarm => {
   if (alarm.name !== 'retry-pending') return;
   serial = serial.then(async () => { await load(); if (state.pending.length) await flush(); }).catch(() => {});
 });
 chrome.tabs.onRemoved.addListener(tabId => {
-  serial = serial.then(async () => { await load(); if (state.tabId === tabId && state.status === 'running') { state.status = 'paused'; state.reason = 'Your Shorts tab was closed. Stop this session and start in another tab.'; await save(); } }).catch(() => {});
+  serial = serial.then(async () => { await load(); if (state.tabId === tabId && state.status === 'running') { state.status = 'paused'; state.reason = 'Your scouting tab was closed. Stop this session and start in another tab.'; await cancelCaptionCheck(); await save(); } }).catch(() => {});
 });
 chrome.tabs.onUpdated.addListener((tabId, change) => {
-  if (!change.url || change.url.startsWith('https://www.youtube.com/shorts/')) return;
+  if (!change.url || isScoutUrl(change.url)) return;
   serial = serial.then(async () => {
     await load();
     if (state.tabId === tabId && state.status === 'running') {
+      // A queued about:blank/redirect event may precede the account navigation.
+      try { const currentTab = await chrome.tabs.get(tabId); if (currentTab.url && isScoutUrl(currentTab.url)) return; }
+      catch { /* The removed-tab handler also releases this session. */ }
       state.status = 'paused';
-      state.reason = 'This tab left YouTube Shorts. Handle any prompt, return to a Short, then resume.';
-      log(state.reason); await save(); await tellTab('halt');
+      state.reason = 'This tab left Shorts or Reels. Handle any prompt, return to a video, then resume.';
+      log(state.reason); await save(); await tellTab('halt'); await cancelCaptionCheck(); await save();
     }
   }).catch(() => {});
 });

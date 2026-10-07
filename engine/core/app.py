@@ -99,7 +99,7 @@ async def validation_error(request: Request, exc: RequestValidationError):
 
 
 app.include_router(router)
-for module_name in ("engine.ai.routes", "engine.studio.routes", "engine.studio.editor_routes", "engine.studio.separation_routes", "engine.studio.inpainting"):
+for module_name in ("engine.core.scout_routes", "engine.ai.routes", "engine.studio.routes", "engine.studio.editor_routes", "engine.studio.separation_routes", "engine.studio.inpainting"):
     try:
         module = importlib.import_module(module_name)
     except ModuleNotFoundError as exc:

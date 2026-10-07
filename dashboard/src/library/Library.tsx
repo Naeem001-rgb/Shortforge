@@ -42,7 +42,9 @@ const sourceLabel = (clip: Clip) =>
     ? "Project"
     : clip.discovery_mode === "upload"
       ? "Your footage"
-      : "YouTube";
+      : clip.video_id?.startsWith("ig:")
+        ? "Instagram"
+        : "YouTube";
 
 function ClipArtwork({ clip, eager = false }: { clip: Clip; eager?: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -730,12 +732,14 @@ export function ImportDialog({
     try {
       if (tab === "link") {
         if (!url.trim())
-          throw new Error("Paste a YouTube Shorts link to continue.");
+          throw new Error(
+            "Paste a YouTube Short or Instagram Reel link to continue.",
+          );
         await post("/clips", {
           clips: [
             {
               url: url.trim(),
-              title: title.trim() || "YouTube Short",
+              title: title.trim(),
               discovery_mode: "manual",
             },
           ],
@@ -759,7 +763,7 @@ export function ImportDialog({
   return (
     <Modal title="Bring your next idea in" onClose={onClose}>
       <p className="modal-description">
-        Add your own footage or save a Short to your library.
+        Add your own footage or save a Short or Reel to your library.
       </p>
       <div className="segmented import-tabs">
         <button
@@ -777,7 +781,7 @@ export function ImportDialog({
       </div>
       {tab === "link" ? (
         <label className="field">
-          YouTube URL
+          YouTube or Instagram URL
           <input
             autoFocus
             placeholder="https://youtube.com/shorts/…"
@@ -894,7 +898,9 @@ function ClipDetail({
       )}
       <div className="detail-description">
         {clip.description ||
-          "No description yet. If you have a YouTube API key, fetch the latest details below."}
+          (clip.video_id?.startsWith("ig:")
+            ? "No description was available when this Reel was collected."
+            : "No description yet. If you have a YouTube API key, fetch the latest details below.")}
       </div>
       {clip.credit_snippet && <blockquote>{clip.credit_snippet}</blockquote>}
       {clip.license_status === "unknown" && (
@@ -936,7 +942,7 @@ function ClipDetail({
       {task.error && <Notice>{task.error}</Notice>}
       <JobProgress job={task.job} />
       <div className="detail-actions">
-        {clip.video_id && (
+        {clip.video_id && !clip.video_id.startsWith("ig:") && (
           <button
             className="button secondary"
             onClick={async () => {

@@ -1,13 +1,11 @@
-"""The public core API. YouTube URLs are the only remote imports accepted."""
+"""The public core API for local footage, YouTube videos and Instagram Reels."""
 
 import asyncio
 import json
 import mimetypes
 from pathlib import Path
-import re
 import shutil
 import subprocess
-from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Body, File, Form, HTTPException, Request, UploadFile
@@ -17,51 +15,24 @@ from starlette.concurrency import run_in_threadpool
 
 from . import db, media, runtime, script_extraction
 from .models import ClipBatch, ClipDeleteInput, ClipPatch, ExtractScriptInput, ProjectInput, SettingsPatch, TranscribeInput, TranscriptInput
+from .source_urls import canonical_clip_url, canonical_youtube_url, instagram_thumbnail_url, is_youtube_clip
 
 
 router = APIRouter(prefix="/api")
 MAX_UPLOAD = 500 * 1024 * 1024
 
 
-def canonical_youtube_url(url: str, video_id: str | None = None) -> tuple[str, str]:
-    if not url and video_id:
-        url = f"https://www.youtube.com/shorts/{video_id}"
-    if url.startswith(("youtube.com/", "www.youtube.com/", "youtu.be/", "m.youtube.com/")):
-        url = "https://" + url
-    parsed = urlparse(url)
-    if parsed.scheme not in {"https", "http"} or parsed.username or parsed.password:
-        raise HTTPException(422, "Paste a public YouTube video or Shorts link.")
-    try:
-        if parsed.port is not None:
-            raise HTTPException(422, "YouTube links cannot contain a custom port.")
-    except ValueError as exc:
-        raise HTTPException(422, "Invalid YouTube link.") from exc
-    host = (parsed.hostname or "").lower()
-    parts = parsed.path.strip("/").split("/")
-    found = None
-    if host in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
-        if parsed.path.rstrip("/") == "/watch":
-            found = parse_qs(parsed.query).get("v", [None])[0]
-        elif len(parts) == 2 and parts[0] in {"shorts", "embed", "live"}:
-            found = parts[1]
-    elif host == "youtu.be" and len(parts) == 1:
-        found = parts[0]
-    if not found or not re.fullmatch(r"[A-Za-z0-9_-]{11}", found):
-        raise HTTPException(422, "This is not a valid YouTube video link (the video ID must be 11 characters).")
-    if video_id and found != video_id:
-        raise HTTPException(422, "The video ID does not match the YouTube link.")
-    return found, f"https://www.youtube.com/shorts/{found}"
-
-
 def enrich_clips(clip_ids: list[str], *, strict: bool = False):
+    clips = [db.get_clip(clip_id) for clip_id in clip_ids]
+    external = {clip["video_id"]: clip for clip in clips if is_youtube_clip(clip)}
+    if not external:
+        return
     settings = db.get_settings()
     key = settings.get("youtube_api_key")
     if not key:
         if strict:
             raise HTTPException(400, "Add a free YouTube Data API key in Settings to check video statistics and license labels.")
         return
-    clips = [db.get_clip(clip_id) for clip_id in clip_ids]
-    external = {clip["video_id"]: clip for clip in clips if clip.get("video_id")}
     ids = list(external)
     for offset in range(0, len(ids), 50):
         try:
@@ -131,7 +102,7 @@ def list_clips(q: str = "", license_status: str | None = None, workflow_status: 
 @router.post("/clips")
 def import_clips(batch: ClipBatch, background_tasks: BackgroundTasks):
     # Validate every URL first so a bad batch never leaves a partial import.
-    prepared = [(item, canonical_youtube_url(item.url, item.video_id)) for item in batch.clips]
+    prepared = [(item, canonical_clip_url(item.url, item.video_id)) for item in batch.clips]
     output, created = [], []
     with db.connect() as conn:
         for item, (video_id, url) in prepared:
@@ -139,10 +110,11 @@ def import_clips(batch: ClipBatch, background_tasks: BackgroundTasks):
             if old:
                 output.append(dict(old))
                 continue
+            instagram = video_id.startswith("ig:")
             clip = {**item.model_dump(), "id": str(uuid4()), "video_id": video_id, "url": url,
-                    "title": item.title or f"YouTube Short · {video_id}", "license_status": "unknown",
+                    "title": item.title or (f"Instagram Reel · {video_id[3:]}" if instagram else f"YouTube Short · {video_id}"), "license_status": "unknown",
                     "permission_note": "", "workflow_status": "collected", "created_at": db.now(),
-                    "thumbnail_url": f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"}
+                    "thumbnail_url": instagram_thumbnail_url(item.thumbnail_url) if instagram else f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg"}
             if clip["discovery_mode"] == "upload":
                 clip["discovery_mode"] = "manual"
             inserted = conn.execute(f"INSERT INTO clips ({','.join(clip)}) VALUES ({','.join('?' for _ in clip)}) ON CONFLICT(video_id) DO NOTHING", tuple(clip.values()))
@@ -385,6 +357,8 @@ def enrich_clip(clip_id: str):
     clip = db.get_clip(clip_id)
     if not clip["video_id"]:
         raise HTTPException(400, "Your own uploaded footage does not need a YouTube license lookup.")
+    if not is_youtube_clip(clip):
+        raise HTTPException(400, "YouTube statistics and license lookup is available only for YouTube clips. Instagram keeps the statistics collected by Scout.")
     enrich_clips([clip_id], strict=True)
     return db.get_clip(clip_id)
 
@@ -428,7 +402,7 @@ def download(clip_id: str, background_tasks: BackgroundTasks):
         else:
             if not clip["url"]:
                 raise HTTPException(400, "Import footage into this project to start editing.")
-            canonical_youtube_url(clip["url"], clip["video_id"])
+            canonical_clip_url(clip["url"], clip["video_id"])
             if not media.tool_available("yt_dlp"):
                 raise HTTPException(503, "Install yt-dlp in the engine environment to download source videos.")
             if not media.find_ffmpeg():

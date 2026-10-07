@@ -8,13 +8,15 @@
 5. Open Settings to see which optional tools need setup.
 
 ## M1 — Scout and Library
-1. Open `chrome://extensions` in Chrome; enable Developer mode.
-2. Click Load unpacked; select ShortForge's `extension/dist` folder.
-3. Open a YouTube Short. Use its three-dot menu → Description, then run Scout's Self-test to check readable likes and views. During scouting this panel opens automatically.
-4. Choose Narrated Shorts (credits optional) or Auto (credits first, fallback after 30 misses). Set your thresholds and click Start.
-5. Check the Library for matches. Pause if YouTube requires verification. Unknown counts are skipped, so collecting 30 is not guaranteed.
+1. Run ShortForge, reload Scout in `chrome://extensions` (version 0.3.0), and refresh open social tabs.
+2. Open a Short or Reel, or paste a YouTube channel/Instagram account URL into Scout. Set a small target and your count limits; use 0 only for a count you want to ignore.
+3. Keep **Brief captions only**, **Max. seconds 3** enabled. Start, check that the progress says it is checking captions for candidates meeting your count limits, then try Pause/Resume during a check.
+4. Confirm matching videos appear in Library with the correct YouTube/Instagram source and original link. Persistent text and unavailable checks should show an explicit skip reason under **Last video**.
+5. With an account URL, verify navigation stays among videos from that account. Stop to switch accounts. Use **Self-test** if likes/views cannot be read; Instagram can hide counts.
 
-Narrated mode collects clips meeting both count limits without requiring credits or narration keywords. It cannot verify narration or prove a voice is AI generated. Check **Last Short** and **Recent activity** for the extracted counts and any skip reason. Selector diagnostics are provided because YouTube changes its layout. It never likes, subscribes, comments, or posts.
+**Caption accuracy:** screening samples the full video frame every 0.5 seconds with local OCR. It allows at most the selected total text time, not that amount per caption. Text appearing only in the final seconds must still be checked. Scene signs/title cards can cause false rejections; small or very brief captions may be missed. Test both clean footage and a known captioned video yourself before a long session. Public videos requiring login to download, videos over 180 seconds/80 MB, and incomplete analysis must not pass the filter. With **Any captions**, normal count/credit scouting remains available.
+
+Discovery preferences retain optional credits and credit-first fallback. Count-qualified mode does not verify narration or AI speech. Scout only reads, scrolls, and opens videos/description panels. It never likes, follows, comments, or posts.
 
 ## Select all and delete
 1. In Library, tick **Select all** next to the search box. The bar should read the full count and every visible card should be checked.

@@ -1,4 +1,5 @@
-import { initialState, type ScoutState, type SelectorCheck, type Settings } from './types';
+import { DEFAULTS, initialState, type ScoutState, type SelectorCheck, type Settings } from './types';
+import { isScoutUrl } from './sources';
 
 const byId = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const button = (id: string) => byId<HTMLButtonElement>(id);
@@ -10,22 +11,36 @@ const hints: Record<Settings['mode'], string> = {
   credits: 'Looks for attribution in descriptions. Credit alone does not grant permission to reuse a video.',
 };
 function settings(): Settings {
-  return { target: Number(byId<HTMLInputElement>('target').value), minLikes: Number(byId<HTMLInputElement>('minLikes').value), minViews: Number(byId<HTMLInputElement>('minViews').value), mode: byId<HTMLSelectElement>('mode').value as Settings['mode'] };
+  return { target: Number(byId<HTMLInputElement>('target').value), minLikes: Number(byId<HTMLInputElement>('minLikes').value), minViews: Number(byId<HTMLInputElement>('minViews').value), mode: byId<HTMLSelectElement>('mode').value as Settings['mode'], sourceUrl: byId<HTMLInputElement>('sourceUrl').value.trim(), captionFilter: byId<HTMLSelectElement>('captionFilter').value as Settings['captionFilter'], maxCaptionSeconds: Number(byId<HTMLInputElement>('maxCaptionSeconds').value) };
 }
 function error(message = '') { byId('error').hidden = !message; byId('error').textContent = message; }
+function captionHint() {
+  const on = byId<HTMLSelectElement>('captionFilter').value === 'brief-only';
+  byId('caption-allowance').hidden = !on;
+  byId('caption-help').textContent = on
+    ? `Allow up to ${byId<HTMLInputElement>('maxCaptionSeconds').value || '0'} seconds of on-screen text in total. Local analysis takes longer; unreadable videos are skipped.`
+    : 'Save videos without checking for burned-in captions.';
+}
 function render(state: ScoutState, populate = false) {
+  state = { ...state, settings: { ...DEFAULTS, ...state.settings } };
   current = state;
   if (populate) {
     byId<HTMLInputElement>('target').value = String(state.settings.target);
     byId<HTMLInputElement>('minLikes').value = String(state.settings.minLikes);
     byId<HTMLInputElement>('minViews').value = String(state.settings.minViews);
     byId<HTMLSelectElement>('mode').value = state.settings.mode;
+    byId<HTMLInputElement>('sourceUrl').value = state.settings.sourceUrl || '';
+    byId<HTMLSelectElement>('captionFilter').value = state.settings.captionFilter!;
+    byId<HTMLInputElement>('maxCaptionSeconds').value = String(state.settings.maxCaptionSeconds);
   }
+  captionHint();
+  byId('settings').hidden = state.status === 'running';
+  for (const input of document.querySelectorAll<HTMLInputElement | HTMLSelectElement>('#settings input, #settings select')) input.disabled = state.status === 'running';
   const mode = byId<HTMLSelectElement>('mode').value as Settings['mode'];
   byId('mode-help').textContent = hints[mode];
   byId('status').textContent = state.status[0].toUpperCase() + state.status.slice(1);
   byId('status').dataset.status = state.status;
-  byId('progress-label').textContent = state.status === 'idle' ? 'Ready to scout' : state.status === 'running' ? (state.activeMode === 'credits' ? 'Finding credited Shorts' : 'Finding narrated Shorts') : 'Your session';
+  byId('progress-label').textContent = state.status === 'idle' ? 'Ready to scout' : state.status === 'running' ? (state.activeMode === 'credits' ? 'Finding credited videos' : 'Finding matching videos') : 'Your session';
   byId<HTMLProgressElement>('progress').max = state.settings.target;
   byId<HTMLProgressElement>('progress').value = state.matched;
   byId('scanned').textContent = state.scanned.toLocaleString();
@@ -37,7 +52,7 @@ function render(state: ScoutState, populate = false) {
   if (state.lastScan) {
     const scan = state.lastScan;
     const count = (value: number | null) => value?.toLocaleString() ?? 'unreadable';
-    lastScan.textContent = `Last Short: ${count(scan.likes)} likes · ${count(scan.views)} views. ${scan.matched ? 'Matched' : 'Skipped'} — ${scan.reason}`;
+    lastScan.textContent = `Last video: ${count(scan.likes)} likes · ${count(scan.views)} views. ${scan.matched ? 'Matched' : 'Skipped'} — ${scan.reason}`;
   }
   byId('start-label').textContent = busy ? 'Connecting…' : state.status === 'paused' ? 'Resume' : state.status === 'running' ? 'Scouting…' : 'Start scouting';
   button('start').disabled = busy || state.status === 'running';
@@ -73,6 +88,7 @@ button('stop').addEventListener('click', () => action(() => command('stop')));
 button('retry').addEventListener('click', () => action(() => command('retry')));
 byId('settings').addEventListener('submit', event => event.preventDefault());
 byId('settings').addEventListener('change', () => {
+  captionHint();
   byId('mode-help').textContent = hints[settings().mode];
   void command('saveSettings', { settings: settings() }).then(() => error()).catch(cause => error(cause.message));
 });
@@ -92,10 +108,10 @@ button('dashboard').addEventListener('click', async () => {
   }
 });
 button('selftest').addEventListener('click', async () => {
-  error(); const target = byId('checks'); target.hidden = false; target.textContent = 'Checking this YouTube tab…';
+  error(); const target = byId('checks'); target.hidden = false; target.textContent = 'Checking this Shorts or Reels tab…';
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id || !tab.url?.startsWith('https://www.youtube.com/shorts/')) throw new Error('Open a YouTube Short first, then run Self-test.');
+    if (!tab?.id || !tab.url || !isScoutUrl(tab.url)) throw new Error('Open a YouTube Short, Instagram Reel, or account page first, then run Self-test.');
     const result = await chrome.tabs.sendMessage(tab.id, { type: 'selftest' });
     target.replaceChildren();
     for (const check of result.checks as SelectorCheck[]) {
@@ -103,7 +119,7 @@ button('selftest').addEventListener('click', async () => {
       const indicator = document.createElement('strong'); indicator.textContent = check.found ? 'OK' : check.required ? 'Fail' : 'Note';
       row.append(indicator, document.createTextNode(check.name)); target.append(row);
     }
-    const note = document.createElement('p'); note.className = 'hint'; note.textContent = 'This reads the current page without clicking. Open the Short’s three-dot menu → Description to check views, then run Self-test again. Scouting opens that panel automatically.'; target.append(note);
+    const note = document.createElement('p'); note.className = 'hint'; note.textContent = 'This reads the current page without clicking. For YouTube, open the Short’s menu → Description to check views. Instagram layouts may hide counts; required unreadable counts are skipped.'; target.append(note);
   } catch (cause) { target.textContent = cause instanceof Error ? cause.message : 'Reload the YouTube tab and try again.'; }
 });
 chrome.storage.onChanged.addListener((changes, area) => { if (area === 'local' && changes.scout) render(changes.scout.newValue); });

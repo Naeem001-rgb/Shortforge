@@ -289,6 +289,10 @@ test("cross-track dragging, trimming, captions and Web Audio preview cleanup wor
         ),
       )
       .toBe(true);
+    // The three-second timeline can finish while the deletion assertions run.
+    // Restart deliberately so the pause-cleanup assertion always tests a pause.
+    await page.getByLabel("Playhead", { exact: true }).fill("0");
+    await page.getByRole("button", { name: "Play preview", exact: true }).click();
     await page
       .getByRole("button", { name: "Pause preview", exact: true })
       .click();

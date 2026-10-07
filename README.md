@@ -22,7 +22,7 @@ Windows: install Node.js LTS and Python (3.11 recommended for optional speech to
 5. Use **Export → Export MP4**, select a resolution, and download the completed video. Edits autosave locally; **Save project** saves immediately.
 6. Optional: generate a **Publish kit** from your finished external script or video summary, then upload manually in YouTube Studio.
 
-For Scout, load `extension/dist` as an unpacked Chrome extension. See [the extension guide](extension/README.md).
+Scout collects YouTube Shorts and Instagram Reels, optionally from a pasted creator account. Its local caption filter allows brief text (three seconds by default) and skips persistent or unchecked captions. For Scout, load `extension/dist` as an unpacked Chrome extension. See [the extension guide](extension/README.md).
 
 ## The Studio editor
 

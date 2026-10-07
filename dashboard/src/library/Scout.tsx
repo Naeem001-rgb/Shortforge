@@ -8,28 +8,32 @@ import {
   Settings2,
 } from "lucide-react";
 import { CopyButton } from "../ui";
-export function ScoutPage({
-  onImport,
-}: {
-  onImport: () => void;
-}) {
+export function ScoutPage({ onImport }: { onImport: () => void }) {
   return (
     <>
       <div className="page-heading">
         <div>
           <h1>A little curiosity goes a long way.</h1>
-          <p>
-            Find promising Shorts while you browse. Bring the good ones home.
-          </p>
+          <p>Find YouTube Shorts and Instagram Reels that fit your criteria.</p>
         </div>
-        <a
-          className="button primary"
-          href="https://www.youtube.com/shorts/"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open YouTube <ArrowUpRight size={17} />
-        </a>
+        <div className="library-heading-actions">
+          <a
+            className="button primary"
+            href="https://www.youtube.com/shorts/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open YouTube <ArrowUpRight size={17} />
+          </a>
+          <a
+            className="button secondary"
+            href="https://www.instagram.com/reels/"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open Instagram <ArrowUpRight size={17} />
+          </a>
+        </div>
       </div>
       <div className="scout-feature">
         <div className="scout-mark">
@@ -38,8 +42,8 @@ export function ScoutPage({
         <div>
           <h2>Your next story is a scroll away.</h2>
           <p>
-            Scout lives in your browser. It reads a Short’s public details,
-            checks your limits, and adds matches to this library.
+            Scout lives in your browser. It reads Shorts and Reels, checks your
+            limits, and adds matches to this library.
           </p>
           <div className="scout-chips">
             <span>
@@ -92,8 +96,9 @@ export function ScoutPage({
               <div>
                 <strong>Find your starting point</strong>
                 <p>
-                  Open any YouTube Short, click Scout’s extension icon, choose a
-                  mode, and press Start.
+                  Open a Short or Reel, or paste a creator’s YouTube channel or
+                  Instagram account URL in Scout. Set your criteria and press
+                  Start.
                 </p>
               </div>
             </li>
@@ -104,21 +109,21 @@ export function ScoutPage({
           <div className="feature-row">
             <ScanLine size={22} />
             <div>
-              <h3>Narrated Shorts</h3>
+              <h3>Choose an account or a feed</h3>
               <p>
-                Collect videos meeting your likes and views limits, without
-                requiring credits or keywords. Review the results to confirm
-                narration.
+                Paste an account URL in the extension to collect only its Shorts
+                or Reels. Leave it empty to scout the current video feed.
               </p>
             </div>
           </div>
           <div className="feature-row">
             <Link2 size={22} />
             <div>
-              <h3>Credit-first, with a fallback</h3>
+              <h3>Skip persistent captions</h3>
               <p>
-                Auto mode looks for creator credits first. After 30 misses, it
-                switches to candidates for narration review.
+                Brief captions only allows up to three seconds of on-screen text
+                by default. Adjust the allowance in Scout. Local video analysis
+                takes longer and is an estimate; unreadable videos are skipped.
               </p>
             </div>
           </div>
@@ -128,13 +133,15 @@ export function ScoutPage({
               <h3>Your pace. Your criteria.</h3>
               <p>
                 Start with 5,000 likes, 10,000 views, and 30 matches. Adjust
-                these in the extension popup.
+                these in the extension popup. Set a minimum to zero to ignore
+                it, including hidden counts. Credits remain optional under
+                Discovery preferences.
               </p>
             </div>
           </div>
           <p className="muted">
-            YouTube changes its layout. Run Scout’s Self-test if it stops
-            finding videos.
+            YouTube and Instagram change their layouts. Run Scout’s Self-test if
+            it stops finding videos.
           </p>
           <button className="button secondary" onClick={onImport}>
             Already have a link? Add it <ArrowRight size={16} />

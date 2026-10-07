@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ShortForge Scout",
-  "version": "0.2.0",
-  "description": "Discover YouTube Shorts and edit them in the bundled ShortForge Studio with your local engine.",
+  "version": "0.3.0",
+  "description": "Discover YouTube Shorts and Instagram Reels and edit them in the bundled ShortForge Studio with your local engine.",
   "permissions": [
     "storage",
     "tabs",
@@ -22,7 +22,10 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.youtube.com/*"
+        "https://www.youtube.com/*",
+        "https://youtube.com/*",
+        "https://www.instagram.com/*",
+        "https://instagram.com/*"
       ],
       "js": [
         "content.js"
@@ -31,6 +34,6 @@
     }
   ],
   "content_security_policy": {
-    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://i.ytimg.com http://127.0.0.1:8787 http://localhost:8787; media-src 'self' blob: http://127.0.0.1:8787 http://localhost:8787; connect-src 'self' http://127.0.0.1:8787 http://localhost:8787; worker-src 'self'; base-uri 'self'; form-action 'self'"
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https://i.ytimg.com https://*.cdninstagram.com https://*.fbcdn.net http://127.0.0.1:8787 http://localhost:8787; media-src 'self' blob: http://127.0.0.1:8787 http://localhost:8787; connect-src 'self' http://127.0.0.1:8787 http://localhost:8787; worker-src 'self'; base-uri 'self'; form-action 'self'"
   }
 }

@@ -11,7 +11,8 @@ class StrictModel(BaseModel):
 class ClipInput(BaseModel):
     # The extension may send additional metadata; privilege fields are ignored.
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
-    video_id: str | None = Field(default=None, max_length=11)
+    # YouTube IDs stay unchanged; Instagram is namespaced as ig:{shortcode}.
+    video_id: str | None = Field(default=None, max_length=67)
     url: str = Field(default="", max_length=2048)
     channel_name: str = Field(default="", max_length=300)
     channel_handle: str = Field(default="", max_length=300)

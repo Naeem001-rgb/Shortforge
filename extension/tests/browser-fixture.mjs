@@ -17,6 +17,7 @@ try {
       onMessage: { addListener: fn => fixture.listeners.push(fn) },
       sendMessage: async message => {
         fixture.messages.push(message);
+        if (message.type === 'prepareScan') return { running: true, skipCaptionCheck: true };
         if (message.type === 'hello') return { running: false };
         if (message.type === 'scan') return { running: fixture.messages.filter(m => m.type === 'scan').length < 2 };
         return { ok: true };
@@ -67,7 +68,7 @@ try {
         globalThis.fixture = { messages: [], listeners: [] };
         globalThis.chrome = { runtime: {
           onMessage: { addListener: fn => fixture.listeners.push(fn) },
-          sendMessage: async message => { fixture.messages.push(message); return { running: false }; },
+          sendMessage: async message => { fixture.messages.push(message); return message.type === 'prepareScan' ? { running: true, skipCaptionCheck: true } : { running: false }; },
         } };
       });
       await countPage.goto('https://www.youtube.com/shorts/test0000002');

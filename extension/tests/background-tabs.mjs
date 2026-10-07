@@ -84,7 +84,7 @@ try {
   }, sourceTab.id), 'content script ready');
   await worker.evaluate(id => chrome.tabs.update(id, { active: true }), sourceTab.id);
   const response = await controller.evaluate(tabId => chrome.runtime.sendMessage({
-    type: 'start', tabId, settings: { target: 3, minLikes: 5000, minViews: 10000, mode: 'narrated' },
+    type: 'start', tabId, settings: { target: 3, minLikes: 5000, minViews: 10000, mode: 'narrated', captionFilter: 'off' },
   }), sourceTab.id);
   assert.equal(response.error, undefined);
   const state = () => worker.evaluate(async () => (await chrome.storage.local.get('scout')).scout);

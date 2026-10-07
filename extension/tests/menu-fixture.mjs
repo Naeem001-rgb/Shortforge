@@ -31,7 +31,7 @@ export async function checkDescriptionMenus(browser) {
         globalThis.fixture = { messages: [], listeners: [], clicks: [] };
         globalThis.chrome = { runtime: {
           onMessage: { addListener: fn => fixture.listeners.push(fn) },
-          sendMessage: async message => { fixture.messages.push(message); return { running: false }; },
+          sendMessage: async message => { fixture.messages.push(message); return message.type === 'prepareScan' ? { running: true, skipCaptionCheck: true } : { running: false }; },
         } };
       });
       await page.goto('https://www.youtube.com/shorts/test0000003');

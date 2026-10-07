@@ -18,6 +18,33 @@ export const SELECTORS = {
   video: ['video'],
   challenges: ['iframe[src*="recaptcha"]', 'iframe[src*="captcha"]', 'ytd-consent-bump-v2-lightbox', 'tp-yt-paper-dialog[opened]', 'yt-player-error-message-renderer', 'ytd-enforcement-message-view-model'],
   descriptionClose: ['#header button[aria-label="Close"]', '#header yt-icon-button#close-button', 'button[aria-label="Close"]'],
+  accountGrid: ['ytd-browse[page-subtype="channels"] ytd-rich-grid-renderer', 'ytd-rich-grid-renderer', 'ytd-section-list-renderer ytd-grid-renderer'],
+  accountVideos: ['a[href*="/shorts/"]'],
+};
+/** Semantic Instagram selectors; unknown or changed markup fails closed. */
+export const INSTAGRAM = {
+  video: ['video'],
+  reelRoot: ['article', '[role="dialog"]'],
+  main: ['main', '[role="main"]'],
+  channel: ['header a[href]', 'a[role="link"][href]', 'a[href]'],
+  description: ['h1', '[data-testid="post-caption"]', '[data-testid="reel-caption"]', 'div[role="button"] > span[dir="auto"]'],
+  title: ['h1', '[data-testid="reel-caption"]'],
+  permalink: ['a[href*="/reel/"]', 'a[href*="/reels/"]'],
+  stats: ['a[href*="/liked_by/"]', 'a[href*="/likes/"]', '[aria-label*=" likes" i]', '[aria-label*=" views" i]', '[aria-label*=" plays" i]', '[data-testid="like-count"]', '[data-testid="view-count"]'],
+  statText: ['span'],
+  comments: ['ul'],
+  likeIcon: ['svg[aria-label="Like"]', 'svg[aria-label="Unlike"]'],
+  viewIcon: ['svg[aria-label="View count"]', 'svg[aria-label="View Count"]', 'svg[aria-label="Views"]', 'svg[aria-label="Play count"]', 'svg[aria-label="Play"]'],
+  controls: ['button', '[role="button"]'],
+  likeControl: ['button[aria-label="Like"]', '[role="button"][aria-label="Like"]', 'button[aria-label="Unlike"]', '[role="button"][aria-label="Unlike"]'],
+  next: ['button[aria-label="Next"]', '[role="button"][aria-label="Next"]', 'button[aria-label="Next reel"]', '[role="button"][aria-label="Next reel"]'],
+  nextIcon: ['svg[aria-label="Next"]', 'svg[aria-label="Next reel"]'],
+  accountGrid: ['main article', 'main [role="tabpanel"]', '[role="main"] article', '[role="main"] [role="tabpanel"]'],
+  accountTabs: ['[role="tablist"]'],
+  accountVideos: ['a[href*="/reel/"]', 'a[href*="/reels/"]'],
+  excludedGrid: ['aside', 'nav', '[role="navigation"]', '[aria-label*="suggested" i]', '[aria-label*="recommended" i]'],
+  challenges: ['iframe[src*="captcha"]', 'iframe[src*="challenge"]', '[role="dialog"]', 'form[action*="login"]', 'input[name="username"]', 'input[name="password"]'],
+  loading: ['[role="progressbar"]', '[aria-busy="true"]'],
 };
 export function first(root: ParentNode, selectors: readonly string[]): HTMLElement | null {
   for (const selector of selectors) {

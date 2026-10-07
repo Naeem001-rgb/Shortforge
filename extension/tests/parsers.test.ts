@@ -53,7 +53,10 @@ test('mode and thresholds require known counts while narration does not require 
   const clip: Candidate = { video_id: 'tleaVXWF3YI', url: '', title: 'A strange story', description: '', channel_name: '', channel_handle: '', likes: 5000, views: 10000, credit_target: '', credit_snippet: '', thumbnail_url: '' };
   assert.ok(matchesCandidate(clip, DEFAULTS, 'narrated').matched);
   assert.equal(matchesCandidate(clip, DEFAULTS, 'credits').matched, false);
-  assert.equal(matchesCandidate({ ...clip, likes: null }, { ...DEFAULTS, minLikes: 0 }, 'narrated').matched, false);
+  assert.equal(matchesCandidate({ ...clip, likes: null }, DEFAULTS, 'narrated').matched, false);
+  assert.equal(matchesCandidate({ ...clip, likes: null }, { ...DEFAULTS, minLikes: 0 }, 'narrated').matched, true);
+  assert.equal(matchesCandidate({ ...clip, views: null }, { ...DEFAULTS, minViews: 0 }, 'narrated').matched, true);
+  assert.equal(matchesCandidate({ ...clip, likes: null, views: null }, { ...DEFAULTS, minLikes: 0, minViews: 0 }, 'narrated').matched, true);
   assert.equal(matchesCandidate({ ...clip, views: 9999 }, DEFAULTS, 'narrated').matched, false);
   assert.ok(matchesCandidate({ ...clip, credit_target: '@creator' }, DEFAULTS, 'credits').matched);
 });

@@ -10,6 +10,7 @@ from fastapi import HTTPException
 import httpx
 
 from . import db, media
+from .source_urls import is_youtube_clip
 
 
 CAPTION_LIMIT = 2 * 1024 * 1024
@@ -282,18 +283,20 @@ def extract_script_job(job_id: str, clip_id: str, provider: str = "auto", replac
             result = {"text": original, "words": [], "source": "saved-script", "language": None, "original_updated": False}
         else:
             if provider == "gemini":
-                if not clip.get("video_id"):
-                    raise ValueError("Gemini link extraction needs a public YouTube clip. Use local transcription for uploaded footage.")
+                if not is_youtube_clip(clip):
+                    raise ValueError("Gemini link extraction needs a public YouTube clip. For Instagram or uploaded footage, use local transcription or paste the narration.")
                 result = gemini_transcript(clip["video_id"], db.get_settings())
             elif transcript and transcript["text"].strip() and not replace_existing:
                 result = {"text": transcript["text"], "words": json.loads(transcript["words"]), "source": "saved-transcript", "language": None}
             else:
                 result, caption_error = None, None
-                if clip.get("video_id"):
+                if is_youtube_clip(clip):
                     try:
                         result = youtube_captions(clip["video_id"])
                     except ValueError as exc:
                         caption_error = str(exc)
+                elif (clip.get("video_id") or "").startswith("ig:"):
+                    caption_error = "Instagram does not provide public YouTube caption tracks. Download the Reel and use local transcription, or paste the original narration."
                 if result is None and clip["license_status"] in {"owned", "permission", "cc_by"}:
                     try:
                         _, path = media.get_source(clip_id)

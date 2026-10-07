@@ -10,10 +10,11 @@ const manifest = JSON.parse(await readFile(resolve(dist, 'manifest.json'), 'utf8
 assert.match(manifest.content_security_policy.extension_pages, /script-src 'self';/);
 assert.doesNotMatch(manifest.content_security_policy.extension_pages, /unsafe-eval|script-src[^;]*https?:/);
 assert.deepEqual(manifest.host_permissions, ['http://127.0.0.1:8787/*', 'http://localhost:8787/*']);
+assert.ok(manifest.content_scripts.some(script => script.matches.includes('https://www.instagram.com/*')));
 const html = await readFile(resolve(dist, 'studio/index.html'), 'utf8');
 assert.doesNotMatch(html, /<script>([\s\S]*?)<\/script>/);
 assert.match(html, /src="\.\/assets\//);
-const clip = { id: 'extension-fixture', video_id: 'testEntry01', url: 'https://youtube.com/shorts/testEntry01', title: 'Packaged Studio fixture', channel_name: 'Fixture', channel_handle: '', description: '', license_status: 'unknown', permission_note: '', thumbnail_url: '', workflow_status: 'collected', created_at: '2026-10-02', assets: [], script: null, transcript: null };
+const clip = { id: 'extension-fixture', video_id: 'ig:Packaged123', url: 'https://www.instagram.com/reel/Packaged123/', title: 'Packaged Studio fixture', channel_name: 'Fixture', channel_handle: '', description: '', license_status: 'unknown', permission_note: '', thumbnail_url: '', workflow_status: 'collected', created_at: '2026-10-02', assets: [], script: null, transcript: null };
 const project = { version: 1, width: 1080, height: 1920, fps: 30, background: '#000000', items: [], tracks: [], markers: [], script: '', source_seeded: false };
 const context = await chromium.launchPersistentContext(profile, { headless: true, channel: 'chromium', args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`, '--no-sandbox'], viewport: { width: 1440, height: 960 } });
 const errors = [];
@@ -40,7 +41,8 @@ try {
   const id = new URL(worker.url()).hostname;
   const page = await context.newPage();
   await page.goto(`chrome-extension://${id}/studio/index.html`);
-  await page.getByRole('heading', { name: 'Your library.' }).waitFor();
+  await page.getByRole('heading', { name: 'Your library', exact: true }).waitFor();
+  assert.equal(await page.locator('.source-pill').textContent(), 'Instagram');
   const opened = context.waitForEvent('page');
   await page.getByRole('button', { name: `Edit ${clip.title} in a new tab` }).click();
   const studio = await opened;

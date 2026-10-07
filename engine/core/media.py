@@ -10,6 +10,7 @@ import subprocess
 from fastapi import HTTPException
 
 from . import db
+from .source_urls import canonical_clip_url
 
 
 def tool_available(module: str) -> bool:
@@ -128,6 +129,7 @@ def download_job(job_id: str, clip_id: str):
         import yt_dlp
         from engine.studio.editor_media import normalize_browser_video, probe_media
         clip = db.require_editable(clip_id)
+        _, source_url = canonical_clip_url(clip["url"], clip["video_id"])
         db.update_job(job_id, status="running", progress=1)
         output = db.DATA_DIR / "downloads" / clip_id / job_id
         output.mkdir(parents=True, exist_ok=True)
@@ -149,12 +151,12 @@ def download_job(job_id: str, clip_id: str):
             "restrictfilenames": True,
         }
         with yt_dlp.YoutubeDL(options) as downloader:
-            info = downloader.extract_info(clip["url"], download=True)
+            info = downloader.extract_info(source_url, download=True)
             proposed = Path(downloader.prepare_filename(info))
         candidates = [proposed.with_suffix(".mp4"), proposed, *output.glob("source.*")]
         path = next((p for p in candidates if p.is_file() and p.suffix in {".mp4", ".mkv", ".webm", ".mov"}), None)
         if path is None:
-            raise RuntimeError("YouTube did not produce a downloadable video. Update yt-dlp or upload footage you own.")
+            raise RuntimeError("The source did not produce a downloadable video. Update yt-dlp or upload footage you own.")
         playable = normalize_browser_video(path)
         probe_media(playable)
         if playable != path:
@@ -172,5 +174,5 @@ def download_job(job_id: str, clip_id: str):
         if isinstance(exc, HTTPException):
             message = str(exc.detail)
         elif not isinstance(exc, (RuntimeError, ValueError)):
-            message = "Download failed. YouTube may require a browser session or a newer yt-dlp. Try again after updating yt-dlp, or upload your own video."
+            message = "Download failed. The source may be private, require login, or need a newer yt-dlp. Try a public clip after updating yt-dlp, or upload your own video."
         db.update_job(job_id, status="failed", error=message)

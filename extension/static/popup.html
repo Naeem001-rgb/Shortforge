@@ -7,28 +7,39 @@
     <button type="button" class="icon-link" id="dashboard" aria-label="Open ShortForge dashboard" title="Open dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M15 3h6v6m-11 5L21 3M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/></svg></button>
   </header>
   <main>
-    <section class="intro"><h1>Find your next Short.</h1><p>Collect promising videos while you browse.</p></section>
+    <section class="intro"><h1>Find Shorts and Reels.</h1><p>Collect videos that fit your criteria.</p></section>
     <form id="settings" novalidate>
-      <label for="mode">Look for</label>
-      <div class="select-wrap"><select id="mode" name="mode"><option value="narrated">Narrated Shorts</option><option value="auto">Credits first, then narrated</option><option value="credits">Credited sources only</option></select><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div>
-      <p id="mode-help" class="hint">Saves clips meeting your limits. No credits or keywords required. Review narration in Library.</p>
+      <label for="sourceUrl">Account or channel URL <span class="secondary">optional</span></label>
+      <input id="sourceUrl" name="sourceUrl" type="url" placeholder="YouTube channel or Instagram account" aria-describedby="source-help" autocomplete="off">
+      <p id="source-help" class="hint">Leave empty to scout the current Short or Reel.</p>
       <div class="fields"><div><label for="target">Target</label><input id="target" name="target" type="number" inputmode="numeric" min="1" max="500" step="1" value="30"></div><div><label for="minLikes">Min. likes</label><input id="minLikes" name="minLikes" type="number" inputmode="numeric" min="0" step="1" value="5000"></div><div><label for="minViews">Min. views</label><input id="minViews" name="minViews" type="number" inputmode="numeric" min="0" step="1" value="10000"></div></div>
+      <p class="hint count-help">Set a minimum to 0 to ignore it, including hidden counts.</p>
+      <div class="caption-settings">
+        <div><label for="captionFilter">Burned-in captions</label><div class="select-wrap"><select id="captionFilter" name="captionFilter" aria-describedby="caption-help"><option value="brief-only">Brief captions only</option><option value="off">Any captions</option></select><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div></div>
+        <div id="caption-allowance"><label for="maxCaptionSeconds">Max. seconds</label><input id="maxCaptionSeconds" name="maxCaptionSeconds" type="number" min="0" max="10" step="0.5" value="3" aria-describedby="caption-help"></div>
+      </div>
+      <p id="caption-help" class="hint">Allow up to 3 seconds of on-screen text in total. Local analysis takes longer; unreadable videos are skipped.</p>
+      <details class="discovery"><summary>Discovery preferences</summary>
+      <label for="mode">Look for</label>
+      <div class="select-wrap"><select id="mode" name="mode"><option value="narrated">Count-qualified videos</option><option value="auto">Credits first, then narrated</option><option value="credits">Credited sources only</option></select><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div>
+      <p id="mode-help" class="hint">Saves clips meeting your limits. No credits or keywords required. Review narration in Library.</p>
+      </details>
     </form>
     <section class="session" aria-label="Scout progress">
       <div class="progress-heading"><strong id="progress-label">Ready to scout</strong><span id="status" class="status">Idle</span></div>
       <progress id="progress" max="30" value="0" aria-labelledby="progress-label"></progress>
       <div class="numbers"><span>Scanned <b id="scanned">0</b></span><span>Matched <b id="matched">0 / 30</b></span></div>
-      <p id="reason" aria-live="polite">Open a YouTube Short, then start scouting.</p>
-      <div class="actions"><button id="start" class="primary" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m8 4 13 8-13 8V4Z"/></svg><span id="start-label">Start scouting</span></button><button id="pause" type="button" disabled>Pause</button><button id="stop" type="button" disabled>Stop</button></div>
+      <p id="reason" aria-live="polite">Open a Short or Reel, or paste an account above.</p>
       <p id="last-scan" class="hint" hidden></p>
       <div id="pending-row" class="pending" hidden><span id="pending-text"></span><button id="retry" type="button">Retry</button></div>
     </section>
     <p id="error" role="alert" hidden></p>
     <details id="activity"><summary>Recent activity <span id="saved-count"></span></summary><ol id="logs"><li>Your scouting activity will appear here.</li></ol></details>
-    <footer><button id="selftest" class="text-button" type="button">Self-test</button><span>Read-only · 4–9 sec pace</span></footer>
+    <footer><button id="selftest" class="text-button" type="button">Self-test</button><span>Read-only scouting</span></footer>
     <div id="checks" role="status" hidden></div>
-    <p class="footnote">Hidden counts are skipped. Collected clips are inspiration until reuse rights are confirmed in your Library.</p>
+    <p class="footnote">Required hidden counts are skipped. Check reuse rights in your Library.</p>
   </main>
+  <div class="actions"><button id="start" class="primary" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m8 4 13 8-13 8V4Z"/></svg><span id="start-label">Start scouting</span></button><button id="pause" type="button" disabled>Pause</button><button id="stop" type="button" disabled>Stop</button></div>
   <script src="popup.js"></script>
 </body>
 </html>

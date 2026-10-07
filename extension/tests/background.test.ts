@@ -11,6 +11,10 @@ async function harness(existingIds: string[] = [], initial?: ScoutState, autoDis
   let online = true;
   const known = new Set(existingIds);
   const sends: object[] = [];
+  const jobs = new Map<string, any>();
+  const created: any[] = [];
+  const requests: string[] = [];
+  const tabUrls = new Map<number, string>();
   const tabUpdates: { id: number; autoDiscardable?: boolean; active?: boolean }[] = [];
   const tabs = new Map<number, boolean>([[7, autoDiscardable], [8, true]]);
   const tabEvents: Record<string, Function> = {};
@@ -22,35 +26,52 @@ async function harness(existingIds: string[] = [], initial?: ScoutState, autoDis
     tabs: {
       get: async (id: number) => {
         if (!tabs.has(id)) throw new Error('No tab');
-        return { id, url: 'https://www.youtube.com/shorts/tleaVXWF3YI', active: false, autoDiscardable: tabs.get(id) };
+        return { id, url: tabUrls.get(id) || 'https://www.youtube.com/shorts/tleaVXWF3YI', active: false, autoDiscardable: tabs.get(id) };
       },
-      update: async (id: number, properties: { autoDiscardable?: boolean; active?: boolean }) => {
+      update: async (id: number, properties: { autoDiscardable?: boolean; active?: boolean; url?: string }) => {
         if (!tabs.has(id)) throw new Error('No tab');
         tabUpdates.push({ id, ...properties });
+        if (properties.url) tabUrls.set(id, properties.url);
         if (properties.autoDiscardable !== undefined) tabs.set(id, properties.autoDiscardable);
       },
+      create: async (props: any) => { const tab = { id: 9, ...props }; created.push(tab); tabs.set(9, true); tabUrls.set(9, props.url); return tab; },
       sendMessage: async (_id: number, message: object) => { sends.push(message); },
       onRemoved: { addListener: (fn: Function) => { tabEvents.removed = fn; } },
       onUpdated: { addListener: (fn: Function) => { tabEvents.updated = fn; } },
     },
     alarms: { create() {}, onAlarm: { addListener() {} } },
   };
-  vm.runInNewContext(code.outputFiles[0].text, { chrome, console, AbortSignal, setTimeout, Date, fetch: async (url: string, options: RequestInit) => {
+  vm.runInNewContext(code.outputFiles[0].text, { chrome, console, AbortSignal, setTimeout, Date, URL, fetch: async (url: string, options: RequestInit) => {
     if (!online) throw new Error('network');
+    requests.push(url);
+    if (url.endsWith('/scout/caption-check')) {
+      const body = JSON.parse(options.body as string);
+      const path = new URL(body.url).pathname.split('/');
+      const video_id = body.url.includes('instagram.com') ? `ig:${path[2]}` : path[2];
+      const job = { id: `job-${jobs.size + 1}`, status: 'running', progress: 10, result: { video_id, url: body.url, max_caption_seconds: body.max_caption_seconds } };
+      jobs.set(job.id, job); return { ok: true, json: async () => structuredClone(job) };
+    }
+    if (url.endsWith('/cancel')) {
+      const job = jobs.get(url.split('/').at(-2)!);
+      if (job) job.status = 'cancelled';
+      return { ok: true, json: async () => job };
+    }
+    if (url.includes('/jobs/')) return { ok: true, json: async () => structuredClone(jobs.get(url.split('/').at(-1)!)) };
     let added = 0;
     if (options.body) for (const clip of JSON.parse(options.body as string).clips) if (!known.has(clip.video_id)) { known.add(clip.video_id); added++; }
     return { ok: true, json: async () => ({ clips: [...known].map(video_id => ({ video_id })), added }) };
   } });
-  const message = (payload: object, tab = false) => new Promise<any>(resolve => handler(payload, tab ? { tab: { id: 7 } } : {}, resolve));
+  const message = (payload: object, tab = false) => new Promise<any>(resolve => handler(tab ? { sessionId: (stored.scout as ScoutState)?.sessionId || '', ...payload } : payload, tab ? { tab: { id: 7 } } : {}, resolve));
   const tabEvent = async (name: string, ...args: unknown[]) => {
     if (name === 'removed') tabs.delete(args[0] as number);
+    if (name === 'updated' && (args[1] as any).url) tabUrls.set(args[0] as number, (args[1] as any).url);
     tabEvents[name](...args);
     await message({ type: 'state' });
   };
-  return { message, state: () => stored.scout as ScoutState, online: (value: boolean) => { online = value; }, known, sends, tabUpdates, tabs, tabEvent };
+  return { message, state: () => stored.scout as ScoutState, online: (value: boolean) => { online = value; }, known, sends, tabUpdates, tabs, tabEvent, jobs, created, requests, tabUrls };
 }
-const settings = { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated' };
-const clip = (index: number, extra: Partial<Candidate> = {}): Candidate => ({ video_id: `test${String(index).padStart(7, '0')}`, url: 'https://www.youtube.com/shorts/tleaVXWF3YI', title: 'A narrated story', description: '', likes: 8000, views: 20000, credit_target: '', credit_snippet: '', channel_handle: '', channel_name: '', thumbnail_url: '', ...extra });
+const settings = { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated', sourceUrl: '', captionFilter: 'off', maxCaptionSeconds: 3 };
+const clip = (index: number, extra: Partial<Candidate> = {}): Candidate => ({ video_id: `test${String(index).padStart(7, '0')}`, url: `https://www.youtube.com/shorts/test${String(index).padStart(7, '0')}`, title: 'A narrated story', description: '', likes: 8000, views: 20000, credit_target: '', credit_snippet: '', channel_handle: '', channel_name: '', thumbnail_url: '', ...extra });
 
 test('new collection dedupes engine records and stops exactly at target', async () => {
   const h = await harness([clip(0).video_id]);
@@ -131,7 +152,7 @@ test('narrated mode saves a full target without credits or narration keywords', 
   assert.equal(h.state().lastScan?.mode, 'narrated');
 });
 test('explicit narrated mode overrides a stale saved credits phase after a worker reload', async () => {
-  const h = await harness([], { ...initialState(), status: 'running', activeMode: 'credits', tabId: 7 });
+  const h = await harness([], { ...initialState(), settings: { ...initialState().settings, captionFilter: 'off' }, status: 'running', activeMode: 'credits', tabId: 7 });
   await h.message({ type: 'scan', clip: clip(1, { title: 'Wait for the ending' }) }, true);
   assert.equal(h.state().activeMode, 'narrated');
   assert.equal(h.state().saved, 1);
@@ -217,8 +238,137 @@ test('navigation and closed-tab recovery release tab protection', async () => {
   await h.tabEvent('updated', 7, { url: 'https://example.com/' });
   assert.equal(h.state().status, 'paused');
   assert.equal(h.tabs.get(7), true);
+  h.tabUrls.set(7, 'https://www.youtube.com/shorts/tleaVXWF3YI');
   await h.message({ type: 'resume', tabId: 7, settings });
   await h.tabEvent('removed', 7);
   assert.equal(h.state().status, 'paused');
   assert.equal(h.state().tabProtection, null);
+});
+
+
+test('legacy stored settings gain the caption filter and account defaults', async () => {
+  const h = await harness([], { ...initialState(), settings: { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated' } });
+  const result = await h.message({ type: 'state' });
+  assert.equal(result.state.settings.captionFilter, 'brief-only');
+  assert.equal(result.state.settings.maxCaptionSeconds, 3);
+  assert.equal(result.state.settings.sourceUrl, '');
+});
+
+test('account start opens the canonical account and resume keeps its scouting tab', async () => {
+  const h = await harness();
+  const account = { ...settings, sourceUrl: 'https://instagram.com/example.creator/' };
+  await h.message({ type: 'start', tabId: 7, settings: account });
+  assert.equal(h.state().status, 'running');
+  assert.equal(h.state().tabId, 9);
+  assert.equal(h.tabUrls.get(9), 'https://www.instagram.com/example.creator/reels/');
+  await h.message({ type: 'pause' });
+  await h.message({ type: 'resume', tabId: 7, settings: account });
+  assert.equal(h.state().status, 'running');
+  assert.equal(h.created.length, 1);
+});
+
+test('account changes require a new session even after settings were saved', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings });
+  await h.message({ type: 'pause' });
+  const next = { ...settings, sourceUrl: 'https://www.youtube.com/@example/shorts' };
+  await h.message({ type: 'saveSettings', settings: next });
+  const response = await h.message({ type: 'resume', tabId: 7, settings: next });
+  assert.match(response.error, /Stop this session/);
+});
+
+test('Instagram ids save independently and candidate URL mismatches are rejected', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings });
+  await h.message({ type: 'scan', clip: clip(1, { video_id: 'ig:AbCde12345_', url: 'https://www.instagram.com/reel/AbCde12345_/' }) }, true);
+  assert.equal(h.state().saved, 1);
+  const bad = await h.message({ type: 'scan', clip: clip(2, { url: 'https://evil.example/shorts/test0000002' }) }, true);
+  assert.match(bad.error, /source link/);
+});
+
+async function captionHarness() {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings: { ...settings, captionFilter: 'brief-only' } });
+  return h;
+}
+function finishCaption(h: Awaited<ReturnType<typeof harness>>, jobId: string, seconds: number, extra: object = {}) {
+  const job = h.jobs.get(jobId);
+  job.status = 'completed';
+  job.result = { ...job.result, status: seconds <= 3 ? 'brief' : 'persistent', duration: 30, caption_seconds: seconds, frames_scanned: 60, reason: 'Caption check', ...extra };
+}
+
+test('brief checked captions save; persistent, unchecked and wrong-video results never save', async () => {
+  const h = await captionHarness();
+  const first = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+  assert.ok(first.captionJobId);
+  finishCaption(h, first.captionJobId, 3);
+  await h.message({ type: 'scan', clip: clip(1), captionJobId: first.captionJobId }, true);
+  assert.equal(h.state().saved, 1);
+  const second = await h.message({ type: 'prepareScan', clip: clip(2) }, true);
+  finishCaption(h, second.captionJobId, 24);
+  await h.message({ type: 'scan', clip: clip(2), captionJobId: second.captionJobId }, true);
+  await h.message({ type: 'scan', clip: clip(3) }, true);
+  const fourth = await h.message({ type: 'prepareScan', clip: clip(4) }, true);
+  finishCaption(h, fourth.captionJobId, 0, { video_id: clip(1).video_id });
+  await h.message({ type: 'scan', clip: clip(4), captionJobId: fourth.captionJobId }, true);
+  assert.equal(h.state().saved, 1);
+  assert.equal(h.state().scanned, 4);
+});
+
+test('metadata failures and duplicates avoid caption downloads', async () => {
+  const h = await captionHarness();
+  const result = await h.message({ type: 'prepareScan', clip: clip(1, { likes: 20 }) }, true);
+  assert.equal(result.skipCaptionCheck, true);
+  assert.equal(h.jobs.size, 0);
+});
+
+test('pause cancels a running caption check and ignores late results', async () => {
+  const h = await captionHarness();
+  const prepared = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+  const check = await h.message({ type: 'captionStatus', jobId: prepared.captionJobId }, true);
+  assert.equal(check.job.status, 'running');
+  await h.message({ type: 'pause' });
+  assert.equal(h.jobs.get(prepared.captionJobId).status, 'cancelled');
+  finishCaption(h, prepared.captionJobId, 0);
+  await h.message({ type: 'scan', clip: clip(1), captionJobId: prepared.captionJobId }, true);
+  assert.equal(h.state().saved, 0);
+  const stopped = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+  assert.equal(stopped.running, false);
+});
+
+
+test('challenge and closed-tab pauses cancel their outstanding caption check', async () => {
+  for (const event of ['challenge', 'closed']) {
+    const h = await captionHarness();
+    const prepared = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+    if (event === 'challenge') await h.message({ type: 'problem', reason: 'Please sign in' }, true);
+    else await h.tabEvent('removed', 7);
+    assert.equal(h.state().status, 'paused');
+    assert.equal(h.jobs.get(prepared.captionJobId).status, 'cancelled');
+    assert.equal(h.state().captionCheck, null);
+  }
+});
+
+test('network failure while checking a completed result keeps the video retryable', async () => {
+  const h = await captionHarness();
+  const prepared = await h.message({ type: 'prepareScan', clip: clip(1) }, true);
+  finishCaption(h, prepared.captionJobId, 0);
+  h.online(false);
+  const failed = await h.message({ type: 'scan', clip: clip(1), captionJobId: prepared.captionJobId }, true);
+  assert.match(failed.error, /offline/);
+  h.online(true);
+  const state = await h.message({ type: 'state' });
+  assert.equal(state.state.scanned, 0);
+  assert.deepEqual([...state.state.seenIds], []);
+});
+
+
+test('messages from an old scouting session cannot save or finish the current session', async () => {
+  const h = await harness();
+  await h.message({ type: 'start', tabId: 7, settings });
+  await h.message({ type: 'scan', clip: clip(1), sessionId: 'old-session' }, true);
+  await h.message({ type: 'problem', reason: 'old problem', sessionId: 'old-session' }, true);
+  await h.message({ type: 'exhausted', sessionId: 'old-session', sourceUrl: 'https://www.instagram.com/previous/reels/' }, true);
+  assert.equal(h.state().status, 'running');
+  assert.equal(h.state().saved, 0);
 });
