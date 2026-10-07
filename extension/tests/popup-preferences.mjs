@@ -122,6 +122,12 @@ try {
   assert.equal(await page.locator('#captionFilter').isDisabled(), false, 'leaving the preset unlocks caption filters');
   assert.equal(await page.locator('#maxCaptionSeconds').isDisabled(), false);
   assert.match(await page.locator('#mode-help').textContent(), /narration is not verified/);
+  // The redesigned two-column selector keeps native radio keyboard navigation.
+  await page.locator('input[name="mode"][value="narrated"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await until(async () => (await preferences())?.mode === 'credits', 'arrow-key mode choice persists');
+  await page.keyboard.press('ArrowLeft');
+  await until(async () => (await preferences())?.mode === 'narrated', 'arrow-key mode choice returns');
   await policy('brief-only');
   assert.equal(await page.locator('#caption-allowance').isHidden(), false);
   assert.match(await page.locator('#caption-help').textContent(), /2 seconds of visible text/);

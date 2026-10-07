@@ -49,13 +49,13 @@ Then:
 2. Choose **Load unpacked** and select this project's `extension/dist` folder.
 3. Open a YouTube Short or Instagram Reel. Refresh an already-open tab after loading/reloading the extension.
 4. Open Scout, set your criteria, and press **Start scouting**. Keep that tab open; you can switch to other tabs while Scout continues.
-5. Choose **Open dashboard** in Scout to open the bundled Library. **Edit** opens a full Studio tab and automatically fetches a saved video’s source. The local engine on `127.0.0.1:8787` must be running; the Vite dashboard server is not required.
+5. Choose **Library** in Scout to open the bundled Library. **Edit** opens a full Studio tab and automatically fetches a saved video’s source. The local engine on `127.0.0.1:8787` must be running; the Vite dashboard server is not required.
 
 The default limits are **30 clips**, **5,000 likes**, and **10,000 views**. All three are customizable and saved between popup openings. Pause to change them. Unknown counts are skipped when their minimum is greater than zero.
 
 ## Controls and recovery
 
-- After updating Scout, click its **Reload** icon at `chrome://extensions`. Version **0.4.1** exposes the discovery modes and adds **Credited, any captions/voiceover**, while retaining the small-text/no-speech filter and lost-tab recovery. Press **Resume** to keep a paused session; disconnected page scripts are refreshed automatically. Use **Stop** and **Start scouting** when choosing a different account.
+- After updating Scout, click its **Reload** icon at `chrome://extensions`. Version **0.5.0** redesigns Scout with a two-column mode selector, grouped criteria, light/dark themes and visible errors above the session controls. All discovery modes, custom limits, small-text/no-speech filtering and lost-tab recovery remain available. Press **Resume** to keep a paused session; disconnected page scripts are refreshed automatically. Use **Stop** and **Start scouting** when choosing a different account.
 - **Pause / Resume** keeps your session's progress. **Stop** ends it; a new Start begins a new session.
 - **“No tab with id…”** in an older version means Scout remembered a tab that no longer exists. Resume now finds the selected account's open profile or reopens its Shorts/Reels grid, retaining counts, filters, and saved/pending matches. It may revisit earlier tiles, but previously scanned videos and Library records are deduplicated. For a feed session with no account URL, open a Short or Reel and press **Resume**.
 - **Last video** shows the detected likes, views, and match or skip reason. **Recent activity** keeps the last eight events. Missing required counts are shown as unreadable and skipped; open the description and use **Self-test** to investigate.

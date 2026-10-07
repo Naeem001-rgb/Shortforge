@@ -1,29 +1,36 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ShortForge Scout</title><link rel="stylesheet" href="popup.css"></head>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ShortForge Scout</title><link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="popup.css"></head>
 <body>
-  <header>
-    <div class="brand"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="8" fill="currentColor"/><path d="m12 8 7 6-7 6V8Z" fill="var(--surface)"/></svg><span>ShortForge <span class="secondary">Scout</span></span></div>
-    <button type="button" class="icon-link" id="dashboard" aria-label="Open ShortForge dashboard" title="Open dashboard"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M15 3h6v6m-11 5L21 3M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5"/></svg></button>
+  <header class="app-header">
+    <div class="brand"><svg class="brand-mark" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect width="28" height="28" rx="9" fill="currentColor"/><path d="m11 8 8 6-8 6V8Z" fill="white"/></svg><span>ShortForge <span class="brand-context">Scout</span></span></div>
+    <button type="button" class="library-link" id="dashboard" aria-label="Open ShortForge Library" title="Open Library"><span>Library</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6m-10 4L20 4M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></button>
   </header>
   <main>
-    <section class="intro"><h1>Find Shorts and Reels.</h1><p>Collect videos that fit your criteria.</p></section>
+    <section class="intro"><h1>Find Shorts &amp; Reels</h1></section>
     <form id="settings" novalidate>
+      <section class="settings-group discovery-group" aria-label="Discovery settings">
       <fieldset class="discovery" aria-describedby="mode-help">
         <legend>Look for</legend>
         <div class="mode-options">
           <label class="mode-choice"><input type="radio" name="mode" value="narrated" checked><span>Narrated candidates</span></label>
           <label class="mode-choice"><input type="radio" name="mode" value="credits"><span>Credited only</span></label>
           <label class="mode-choice"><input type="radio" name="mode" value="auto"><span>Credits first, then narrated</span></label>
-          <label class="mode-choice"><input type="radio" name="mode" value="credits-any"><span>Credited, any captions/voiceover</span></label>
+          <label class="mode-choice"><input type="radio" name="mode" value="credits-any"><span>Credited, any captions/<wbr>voiceover</span></label>
         </div>
       </fieldset>
       <p id="mode-help" class="hint">Matches your limits; narration is not verified. No credits or keywords required.</p>
-      <div class="fields"><div><label for="minLikes">Minimum likes</label><input id="minLikes" name="minLikes" type="number" inputmode="numeric" min="0" max="1000000000000" step="1" value="5000" required aria-describedby="count-help"></div><div><label for="minViews">Minimum views</label><input id="minViews" name="minViews" type="number" inputmode="numeric" min="0" max="1000000000000" step="1" value="10000" required aria-describedby="count-help"></div></div>
+      </section>
+      <section class="settings-group count-group" aria-label="Engagement minimums">
+      <div class="fields count-fields"><div class="count-field"><label for="minLikes">Minimum likes</label><input id="minLikes" name="minLikes" type="number" inputmode="numeric" min="0" max="1000000000000" step="1" value="5000" required aria-describedby="count-help"></div><div class="count-field"><label for="minViews">Minimum views</label><input id="minViews" name="minViews" type="number" inputmode="numeric" min="0" max="1000000000000" step="1" value="10000" required aria-describedby="count-help"></div></div>
       <p id="count-help" class="hint">0 = no minimum, even for hidden counts.</p>
+      </section>
+      <section class="settings-group account-group" aria-label="Account source">
       <label for="sourceUrl">Account or channel URL <span class="secondary">optional</span></label>
       <input id="sourceUrl" name="sourceUrl" type="url" placeholder="YouTube channel or Instagram account" aria-describedby="source-help" autocomplete="off">
       <p id="source-help" class="hint">Leave empty to scout the current Short or Reel.</p>
+      </section>
+      <section class="settings-group caption-group" aria-label="Caption and collection settings">
       <div class="caption-settings">
         <label for="captionFilter">Captions and speech</label><div class="select-wrap"><select id="captionFilter" name="captionFilter" aria-describedby="caption-help"><option value="brief-only">Brief captions only</option><option value="small-text-no-speech">Small Chinese text + no speech</option><option value="off">Any captions</option></select><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div>
       </div>
@@ -32,6 +39,7 @@
         <div id="caption-allowance"><label id="caption-allowance-label" for="maxCaptionSeconds">Text allowance (sec.)</label><input id="maxCaptionSeconds" name="maxCaptionSeconds" type="number" min="0" max="10" step="0.5" value="3" required aria-describedby="caption-help"></div>
         <div><label for="target">Clips to collect</label><input id="target" name="target" type="number" inputmode="numeric" min="1" max="500" step="1" value="30" required></div>
       </div>
+      </section>
     </form>
     <section class="session" aria-label="Scout progress">
       <div class="progress-heading"><strong id="progress-label">Ready to scout</strong><span id="status" class="status">Idle</span></div>
@@ -41,12 +49,12 @@
       <p id="last-scan" class="hint" hidden></p>
       <div id="pending-row" class="pending" hidden><span id="pending-text"></span><button id="retry" type="button">Retry</button></div>
     </section>
-    <p id="error" role="alert" hidden></p>
     <details id="activity"><summary>Recent activity <span id="saved-count"></span></summary><ol id="logs"><li>Your scouting activity will appear here.</li></ol></details>
-    <footer><button id="selftest" class="text-button" type="button">Self-test</button><span>Read-only scouting</span></footer>
+    <footer class="diagnostics"><button id="selftest" class="text-button" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 12 3 3 5-6"/><circle cx="12" cy="12" r="9"/></svg>Self-test</button><span>Read-only scouting</span></footer>
     <div id="checks" role="status" hidden></div>
     <p class="footnote">Required hidden counts are skipped. Check reuse rights in your Library.</p>
   </main>
+  <p id="error" role="alert" hidden></p>
   <div class="actions"><button id="start" class="primary" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m8 4 13 8-13 8V4Z"/></svg><span id="start-label">Start scouting</span></button><button id="pause" type="button" disabled>Pause</button><button id="stop" type="button" disabled>Stop</button></div>
   <script src="popup.js"></script>
 </body>

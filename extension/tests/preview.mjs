@@ -3,17 +3,25 @@ import { chromium } from '../../dashboard/node_modules/playwright/index.mjs';
 import { resolve } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 const browser = await chromium.launch({ headless: true });
-await mkdir('tests/screenshots', { recursive: true });
+const screenshots = resolve('../.impeccable/review/scout-redesign');
+await mkdir(screenshots, { recursive: true });
 for (const scheme of ['light', 'dark']) {
-  const page = await browser.newPage({ viewport: { width: 392, height: 600 }, colorScheme: scheme });
+  const page = await browser.newPage({ viewport: { width: 392, height: 600 }, colorScheme: scheme, reducedMotion: 'reduce' });
   await page.addInitScript(() => {
     const initial = { status: 'idle', settings: { target: 30, minLikes: 5000, minViews: 10000, mode: 'narrated' }, activeMode: 'narrated', tabId: null, scanned: 0, matched: 0, saved: 0, creditMisses: 0, reason: 'Open a Short or Reel, or paste an account above.', pending: [], knownIds: [], seenIds: [], logs: [], lastScan: null };
     globalThis.fixture = { state: initial, storageListeners: [] };
     globalThis.chrome = { runtime: { sendMessage: async () => ({ state: fixture.state }) }, storage: { onChanged: { addListener(listener) { fixture.storageListeners.push(listener); } } }, tabs: { query: async () => [] } };
   });
   await page.goto('file://' + resolve('dist/popup.html'));
+  await page.evaluate(() => document.fonts.ready);
   await page.getByText('Idle', { exact: true }).waitFor();
   assert.ok((await page.locator('#start').boundingBox()).y + (await page.locator('#start').boundingBox()).height <= 600, 'primary controls stay inside Chrome popup viewport');
+  const dock = await page.locator('.actions').boundingBox();
+  for (const control of [...await page.locator('.mode-choice').all(), page.locator('#minLikes'), page.locator('#minViews')]) {
+    const box = await control.boundingBox();
+    assert.ok(box.y >= 60 && box.y + box.height <= dock.y, 'all modes and count controls appear before scrolling');
+    assert.ok(box.height >= 40, 'primary targets remain comfortably sized');
+  }
   assert.equal(await page.locator('#last-scan').isVisible(), false);
   assert.match(await page.locator('#mode-help').textContent(), /No credits or keywords required/);
   // Keyboard traversal must scroll focused controls above the separate action row.
@@ -31,7 +39,9 @@ for (const scheme of ['light', 'dark']) {
     }
   }
   await page.evaluate(() => { document.querySelector('main').scrollTop = 0; document.activeElement.blur(); });
-  await page.screenshot({ path: `tests/screenshots/popup-${scheme}.png`, fullPage: true });
+  await page.screenshot({ path: resolve(screenshots, `idle-${scheme}.png`), fullPage: true });
+  await page.locator('.account-group').evaluate(element => element.scrollIntoView({ block: 'start' }));
+  await page.screenshot({ path: resolve(screenshots, `criteria-${scheme}.png`), fullPage: true });
   console.log(scheme, await page.evaluate(() => ({ width: document.body.scrollWidth, height: document.body.scrollHeight, startBottom: document.getElementById('start').getBoundingClientRect().bottom, font: getComputedStyle(document.body).fontSize })));
   await page.evaluate(() => {
     fixture.state = {
@@ -51,7 +61,8 @@ for (const scheme of ['light', 'dark']) {
   await page.locator('#activity summary').click();
   assert.equal(await page.locator('#logs').isVisible(), true);
   assert.match(await page.locator('#logs').innerText(), /6,200 likes · unreadable views/);
-  await page.screenshot({ path: `tests/screenshots/popup-${scheme}-skipped.png`, fullPage: true });
+  await page.locator('.session').evaluate(element => element.scrollIntoView({ block: 'start' }));
+  await page.screenshot({ path: resolve(screenshots, `paused-${scheme}.png`), fullPage: true });
   await page.evaluate(() => {
     fixture.state = {
       ...fixture.state, status: 'running', scanned: 37, matched: 1, saved: 1, reason: 'Scouting…',
@@ -69,9 +80,22 @@ for (const scheme of ['light', 'dark']) {
   assert.equal(await page.locator('#last-scan').innerText(), 'Last video: 8,500 likes · 24,300 views. Matched — Meets your limits; review narration in Library');
   assert.equal(await page.locator('#logs li').count(), 2);
   assert.equal(await page.evaluate(() => document.body.scrollWidth <= innerWidth), true);
-  await page.screenshot({ path: `tests/screenshots/popup-${scheme}-matched.png`, fullPage: true });
+  await page.locator('main').evaluate(element => { element.scrollTop = 0; });
+  assert.equal(await page.locator('body').getAttribute('data-status'), 'running');
+  await page.screenshot({ path: resolve(screenshots, `running-${scheme}.png`), fullPage: true });
   await page.getByRole('button', { name: 'Self-test', exact: true }).click();
   await page.getByText('Open a YouTube Short, Instagram Reel, or account page first, then run Self-test.').waitFor();
+  await page.evaluate(() => {
+    fixture.state = { ...fixture.state, status: 'paused', reason: 'Paused. Resume when you are ready.' };
+    for (const listener of fixture.storageListeners) listener({ scout: { newValue: fixture.state } }, 'local');
+  });
+  await page.locator('#minViews').fill('-1');
+  await page.locator('#minViews').dispatchEvent('change');
+  await page.getByRole('alert').waitFor();
+  const alert = await page.locator('#error').boundingBox();
+  const actions = await page.locator('.actions').boundingBox();
+  assert.ok(alert.y >= 0 && alert.y + alert.height <= actions.y, 'error stays visible above the action dock');
+  await page.screenshot({ path: resolve(screenshots, `error-${scheme}.png`), fullPage: true });
   await page.close();
 }
 await browser.close();

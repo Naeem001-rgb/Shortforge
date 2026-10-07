@@ -84,6 +84,7 @@ function modeHint() {
 function render(state: ScoutState, populate = false) {
   state = { ...state, settings: { ...DEFAULTS, ...state.settings } };
   current = state;
+  document.body.dataset.status = state.status;
   if (populate) {
     byId<HTMLInputElement>('target').value = String(state.settings.target);
     byId<HTMLInputElement>('minLikes').value = String(state.settings.minLikes);

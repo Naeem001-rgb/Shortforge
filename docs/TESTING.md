@@ -8,7 +8,7 @@
 5. Open Settings to see which optional tools need setup.
 
 ## M1 — Scout and Library
-1. Run ShortForge, reload Scout in `chrome://extensions` (version 0.4.1), and refresh open social tabs.
+1. Run ShortForge, reload Scout in `chrome://extensions` (version 0.5.0), and refresh open social tabs.
 2. Open a Short or Reel, or paste a YouTube channel/Instagram account URL into Scout. Set a small target and your count limits; use 0 only for a count you want to ignore.
 3. Keep **Brief captions only**, **Max. seconds 3** enabled. Start, check that the progress says it is checking captions for candidates meeting your count limits, then try Pause/Resume during a check.
 4. Confirm matching videos appear in Library with the correct YouTube/Instagram source and original link. Persistent text and unavailable checks should show an explicit skip reason under **Last video**.
@@ -18,9 +18,17 @@
 
 The visible **Look for** choices retain credited-only and credit-first fallback modes. **Narrated candidates** does not verify narration or identify AI voices. Scout only reads, scrolls, and opens videos/description panels. It never likes, follows, comments, or posts.
 
+## Scout popup design
+
+1. Reload Scout at `chrome://extensions` and confirm **0.5.0**. Check the redesigned popup in both your system's light and dark themes.
+2. Confirm all four **Look for** modes and both editable count limits are visible above Start without scrolling. Use Tab and the arrow keys to change the selected mode.
+3. Scroll to the account and caption controls. Change a value, close/reopen Scout, and check it is retained. The small Chinese text/no-speech and credited-any options must still work.
+4. Start a short session, then Pause/Resume and Stop. Counts, last-video decisions and Recent activity must remain readable, with session buttons always reachable.
+5. Enter an invalid minimum or run Self-test on an unsupported page. The error must appear immediately above the action buttons. Correct it and confirm you can continue.
+
 ## Credited videos with captions and voiceover
 
-1. Reload Scout and confirm **0.4.1**. All four **Look for** modes should be visible without expanding a section.
+1. Reload Scout and confirm **0.5.0**. All four **Look for** modes should be visible without expanding a section.
 2. Choose **Credited, any captions/voiceover**, then set your likes/views minimums and an account URL or current feed.
 3. Confirm **Captions and speech** shows **Any captions** and is disabled for this mode. Start or Resume: credited clips meeting your count limits should save without a caption download or speech check, including captioned or narrated videos.
 4. Confirm clips without attribution and clips below your limits are still skipped. This mode must remain credit-only after 30 misses.
@@ -38,7 +46,7 @@ The free speech model is installed on the current machine. On a fresh installati
 
 ## Recover a missing Scout tab
 
-1. Reload **ShortForge Scout** at `chrome://extensions` and check it says **0.4.1**.
+1. Reload **ShortForge Scout** at `chrome://extensions` and check it says **0.5.0**.
 2. For an existing account session, open that account's Reels/Shorts page and press **Resume**. Scout reconnects without resetting its counters. If the account isn't open, Resume opens it again.
 3. Pause, close the scouting tab, reopen Scout on another tab, then Resume. The account should reopen, and the unrelated page should stay unchanged. Earlier videos may be revisited but must not be saved twice.
 4. To begin scouting `https://www.instagram.com/qianxiang_guyue/reels/` from a different account or feed session, press **Stop**, paste that URL, and **Start scouting**. Existing Library clips stay saved. A video with 242 likes is correctly skipped when the minimum is 5,000.

@@ -7,14 +7,14 @@ import { resolve } from 'node:path';
 import { chromium } from '../../dashboard/node_modules/playwright/index.mjs';
 
 const dist = resolve(import.meta.dirname, '../dist');
-const types = ['text/html', 'text/javascript', 'text/css', 'application/json'];
+const types = { html: 'text/html', js: 'text/javascript', css: 'text/css', json: 'application/json', woff2: 'font/woff2' };
 
 async function openPopup(browser, { engineUp, dashboardUp }) {
   const page = await browser.newPage();
   await page.route('https://scout.test/**', async route => {
     const file = route.request().url().replace('https://scout.test/', '');
     const body = await readFile(resolve(dist, file || 'popup.html'));
-    const type = types[file.split('.').pop().replace('html', 0)] ?? 'text/html';
+    const type = types[file.split('.').pop()] ?? 'application/octet-stream';
     await route.fulfill({ contentType: type, body });
   });
   await page.addInitScript(
@@ -44,7 +44,7 @@ async function openPopup(browser, { engineUp, dashboardUp }) {
     { engineUp, dashboardUp },
   );
   await page.goto('https://scout.test/popup.html');
-  await page.getByLabel('Open ShortForge dashboard').click();
+  await page.getByLabel('Open ShortForge Library').click();
   await page.waitForTimeout(400);
   return page;
 }
