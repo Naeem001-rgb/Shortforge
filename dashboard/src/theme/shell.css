@@ -105,57 +105,6 @@
   flex-direction: column;
   margin-top: 24px;
   padding-top: 0;
-  flex: 1;
-}
-
-.sidebar-device {
-  margin-top: auto;
-  padding: 18px 15px 13px;
-  border-radius: 12px;
-  background: var(--device-bg);
-  color: var(--device-ink);
-}
-
-.sidebar-bottom > .nav-item {
-  margin-bottom: 28px;
-}
-
-.sidebar-device > svg {
-  margin-bottom: 12px;
-  color: var(--device-muted);
-}
-
-.sidebar-device strong {
-  display: block;
-  font-size: 13px;
-  font-weight: 550;
-  letter-spacing: -0.015em;
-}
-
-.sidebar-device p {
-  margin-top: 6px;
-  font-size: 11px;
-  line-height: 1.65;
-  color: var(--device-muted);
-}
-
-.sidebar-device button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  min-height: 37px;
-  margin-top: 13px;
-  padding: 9px 0 0;
-  border-top: 1px solid color-mix(in srgb, var(--device-muted) 24%, transparent);
-  color: var(--device-ink);
-  font-size: 11px;
-}
-
-.sidebar-device button:hover {
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 
 .app-shell .app-body {
@@ -310,24 +259,6 @@
   .sidebar .sidebar-bottom {
     margin-top: 14px;
   }
-
-  .sidebar-bottom > .nav-item {
-    margin-bottom: 14px;
-  }
-
-  .sidebar-device {
-    padding: 12px;
-  }
-
-  .sidebar-device > svg,
-  .sidebar-device p {
-    display: none;
-  }
-
-  .sidebar-device button {
-    min-height: 30px;
-    margin-top: 8px;
-  }
 }
 
 @media (max-width: 1200px) {
@@ -456,10 +387,6 @@
   .app-shell .main-content {
     padding: 20px 16px;
     border-radius: 12px;
-  }
-
-  .sidebar-device button {
-    min-height: 44px;
   }
 }
 

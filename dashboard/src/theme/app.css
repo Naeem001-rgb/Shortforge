@@ -584,7 +584,6 @@ input[type="file"]::file-selector-button {
   font-variant-numeric: tabular-nums;
 }
 .sidebar-bottom {
-  margin-top: auto;
   padding-top: 28px;
 }
 .profile-avatar {

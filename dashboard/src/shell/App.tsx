@@ -4,7 +4,6 @@ import {
   Clapperboard,
   Compass,
   FolderOpen,
-  HardDrive,
   Library,
   Menu,
   Monitor,
@@ -257,14 +256,6 @@ export function App() {
             <Settings2 size={16} aria-hidden="true" />
             <span>Settings</span>
           </button>
-          <div className="sidebar-device">
-            <HardDrive size={22} aria-hidden="true" />
-            <strong>A space of your own.</strong>
-            <p>Your videos and projects are saved on this device.</p>
-            <button onClick={() => navigate("settings")}>
-              Workspace settings <ArrowUpRight size={14} />
-            </button>
-          </div>
         </div>
       </aside>
       <div className="app-body" inert={mobile && menu}>

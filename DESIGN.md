@@ -34,9 +34,6 @@ colors:
   feature-bg: "#f2c94c"
   feature-ink: "#1a1a17"
   feature-muted: "#62500f"
-  device-bg: "#1a1a17"
-  device-ink: "#faf7ee"
-  device-muted: "#a8a395"
   hero-bg: "#e9e6f7"
   hero-ink: "#26243a"
   hero-muted: "#5d5a72"
@@ -80,9 +77,6 @@ colors:
   dark-feature-bg: "#f2c94c"
   dark-feature-ink: "#1a1a17"
   dark-feature-muted: "#62500f"
-  dark-device-bg: "#242420"
-  dark-device-ink: "#faf7ee"
-  dark-device-muted: "#b3aea0"
   dark-hero-bg: "#2b2937"
   dark-hero-ink: "#efedfa"
   dark-hero-muted: "#aca8c4"
@@ -351,7 +345,7 @@ The frontmatter preserves runtime color values and custom-property names without
 
 **frame-bg** is the outer application frame. **bg**, **sidebar-bg**, and **topbar-bg** form the warm inset work regions; **surface** and **surface-raised** separate content and controls. **elevated** is the warm hover/control fill. **text** (ink), **muted** (stone), and **border** (warm hairline) establish the reading hierarchy and fine rules.
 
-**media-card-bg/border** define compact footage cards. **media-chip-bg/border/ink/shadow** and **media-scrim/scrim-strong** are theme-constant materials that sit over video imagery: warm-white chips (checkboxes, more-menus) and warm-ink scrims (source pills, play buttons). **backdrop** warms modal scrims. **device-bg/ink/muted** keep the sidebar's local-workspace panel dark in light theme and ink-toned in dark theme. **hero-bg/ink/muted** are the lavender-sky wash reserved for shared tool introductions. **workspace-gradient** and **library-gradient** resolve to var(--bg).
+**media-card-bg/border** define compact footage cards. **media-chip-bg/border/ink/shadow** and **media-scrim/scrim-strong** are theme-constant materials that sit over video imagery: warm-white chips (checkboxes, more-menus) and warm-ink scrims (source pills, play buttons). **backdrop** warms modal scrims. **hero-bg/ink/muted** are the lavender-sky wash reserved for shared tool introductions. **workspace-gradient** and **library-gradient** resolve to var(--bg).
 
 **The Gold Action Rule.** Gold owns actions, the brand tile, progress, and underline accents — always as a surface with ink labels, never as small text on light ground. Ink-on-gold is the only primary pairing in both themes.
 
@@ -387,7 +381,7 @@ The local variable font is registered as **Inter Scout**. The task heading uses 
 
 The desktop application has a solid 16px outer inset. Its fixed sidebar is 212px wide, inset 16px from the top, bottom, and left, with 15px 13px internal padding and 16px corners. The body starts 228px from the inside edge of the frame. The utility bar is 64px high, with 20px horizontal padding and 16px corners. Main content begins 16px below it, has 24px padding and 16px corners, and has no fixed maximum width.
 
-The rail groups Workspace and Preferences. It includes the workspace selector, navigation, and a local-device information panel (ink in light theme, ink-toned surface in dark). At desktop heights of 800px or less, the lower rail tightens spacing and hides the device panel's supporting icon and paragraph.
+The rail groups navigation and Preferences; it starts directly at Library with no workspace selector or promotional device panel. At desktop heights of 800px or less, the lower rail tightens spacing.
 
 The Library's heading and two actions precede four overview controls: All videos, Archived, Exported, and Inspiration. Wide-screen overview tiles have 14px gaps, 16px padding, and 14px corners. All videos is the featured gold tile with serif numerals; the applied overview filter also shows as an active state — an ink ring around the gold tile, an inner ring plus aria-pressed on the others. Clicking any tab resets the rights filter so the tab state never contradicts the results. Tabs, grid/table choice, selection, search, rights, and sort controls sit directly above the collection.
 
