@@ -37,7 +37,9 @@ On a fresh installation, run `.venv/bin/python -m engine.studio.setup_scout_spee
 
 ## Build and load
 
-Start the ShortForge engine first. In a terminal inside this folder:
+The build and the browser checks reuse the dashboard's own installation, so install
+the dashboard once first (`cd ../dashboard && npm install`). Then, in a terminal
+inside this folder:
 
 ```sh
 npm install
@@ -51,7 +53,7 @@ Then:
 2. Choose **Load unpacked** and select this project's `extension/dist` folder.
 3. Open a YouTube Short or Instagram Reel. Refresh an already-open tab after loading/reloading the extension.
 4. Open Scout, set your criteria, and press **Start scouting**. Keep that tab open; you can switch to other tabs while Scout continues.
-5. Choose **Library** in Scout to open the bundled Library. **Edit** opens a full Studio tab and automatically fetches a saved video’s source. The local engine on `127.0.0.1:8787` must be running; the Vite dashboard server is not required.
+5. Choose **Library** in Scout to open the bundled Library. **Edit** shows launch progress in that tab, fetches a saved video's source when needed, and opens it in Concat's desktop window. Normal ShortForge setup installs Concat automatically on supported platforms. The local engine on `127.0.0.1:8787` must be running; the Vite dashboard server is not required.
 
 The default limits are **30 clips**, **5,000 likes**, and **10,000 views**. All three are customizable and saved between popup openings. Pause to change them. Unknown counts are skipped when their minimum is greater than zero.
 
@@ -71,7 +73,7 @@ The default limits are **30 clips**, **5,000 likes**, and **10,000 views**. All 
 
 Credit is discovery metadata, not reuse permission. External clips keep unknown rights while local editing is enabled. Record source permissions before publishing reused footage.
 
-The build packages React, fonts, styles, and all executable code locally under `dist/studio`. Manifest V3 uses a strict `script-src 'self'` policy with no remote code or eval. Engine requests use loopback host permissions; content scripts run on YouTube and Instagram. Scout also uses storage, tabs, and alarms permissions. Long media jobs run in the local engine and remain available when the popup closes or a Studio tab reloads.
+The build packages the dashboard's React code, fonts and styles locally under `dist/studio`. The Concat native runtime is installed separately by ShortForge's automatic setup and is not bundled into the extension. Manifest V3 uses a strict `script-src 'self'` policy with no remote code or eval. Engine requests use loopback host permissions; content scripts run on YouTube and Instagram. Scout also uses storage, tabs, and alarms permissions. Long media jobs run in the local engine and remain available when the popup closes or the dashboard reloads.
 
 ## Tested and remaining limits
 
@@ -81,7 +83,7 @@ The loaded Manifest V3 extension was tested against live YouTube on September 29
 
 Popup light/dark renders and the unsupported-tab self-test error were checked with Chromium using a mocked Chrome API. Browser regressions cover the observed three-dot menu and factoid markup, delayed menus/panels/counts, preserving an already-open panel, opening failures, hidden stats, missing views, navigation, and avoiding social actions. YouTube frequently changes its page. Current accessible labels and credit/count grammar primarily support English; compact K/M/B counts and common European separators are handled. Localized count labels may be missed. Count-qualified discovery has no title or description language requirement. Optional caption screening runs local OCR; the small-text option also runs local speech detection.
 
-The optional `node tests/browser-fixture.mjs` browser check and `node tests/preview.mjs` visual check uses Playwright from the dashboard installation and writes screenshots in `tests/screenshots/`. Runtime dependencies are bundled locally; no CDN, paid service, or API key is required by Scout.
+The optional `node tests/browser-fixture.mjs` browser check and `node tests/preview.mjs` visual check use Playwright from the dashboard installation. `preview.mjs` writes popup renders to `.impeccable/review/scout-redesign/`, and `node tests/popup-preferences.mjs` writes its own to `.impeccable/review/` (only that one accepts `--no-screenshots` to skip them). Live-browser evidence captured by hand stays in `tests/screenshots/`. Runtime dependencies are bundled locally; no CDN, paid service, or API key is required by Scout.
 
 `node tests/background-tabs.mjs` loads the built MV3 extension in an isolated Chromium profile and tests switching away after the first match, closing the popup, reaching exactly three matches, keeping the other tab selected, and restoring the original memory-discard setting. Playwright focus emulation is disabled so the source tab actually becomes hidden. YouTube markup and engine responses are fixtures; this test does not access the owner’s Library or verify every live YouTube layout.
 

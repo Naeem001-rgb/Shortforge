@@ -1,0 +1,15 @@
+{
+  "name": "shortforge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Repo-wide formatting and Python linting for ShortForge. The apps live in extension/, dashboard/ and engine/ and each has its own package.json or requirements file.",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:py": "node scripts/ruff.mjs check .",
+    "format:py": "node scripts/ruff.mjs format ."
+  },
+  "devDependencies": {
+    "prettier": "^3.9.9"
+  }
+}

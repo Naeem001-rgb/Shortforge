@@ -15,7 +15,9 @@ from . import db
 from .routes import router
 
 
-LOCAL_ORIGIN = re.compile(r"^(?:https?://(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?|chrome-extension://[a-p]{32})$")
+LOCAL_ORIGIN = re.compile(
+    r"^(?:https?://(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?|chrome-extension://[a-p]{32})$"
+)
 
 
 class BodyLimitMiddleware:
@@ -50,42 +52,78 @@ async def lifespan(app: FastAPI):
     # A terminated process cannot resume in-memory jobs. Show a useful failure
     # rather than keeping the progress indicator running forever after restart.
     with db.connect() as conn:
-        conn.execute("UPDATE jobs SET status='failed',error='ShortForge restarted before this job finished. Please run it again.' WHERE status IN ('queued','running')")
+        conn.execute(
+            "UPDATE jobs SET status='failed',error='ShortForge restarted before this job finished. Please run it again.' WHERE status IN ('queued','running')"
+        )
+    from .youtube_uploads import recover_uploads
+
+    recover_uploads()
     yield
 
 
 app = FastAPI(title="ShortForge local engine", version="0.1.0", lifespan=lifespan)
 app.add_middleware(BodyLimitMiddleware)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]"])
+app.add_middleware(
+    TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "[::1]"]
+)
 
 
 @app.middleware("http")
 async def protect_local_engine(request: Request, call_next):
     origin = request.headers.get("origin")
+    # Google's top-level OAuth redirect is the one cross-site entry point.
+    # The callback consumes a single-use expiring state and PKCE verifier.
+    oauth_callback = (
+        request.method == "GET" and request.url.path == "/api/youtube/oauth/callback"
+    )
     # CORS alone does not stop a website from sending a form POST to localhost.
     # Block the request itself before any state or files can change.
-    if origin and not LOCAL_ORIGIN.fullmatch(origin):
-        return JSONResponse({"detail": "ShortForge only accepts requests from its local dashboard and Chrome extension."}, status_code=403)
-    if request.headers.get("sec-fetch-site") == "cross-site" and not origin:
-        return JSONResponse({"detail": "Cross-site requests to the local engine are blocked."}, status_code=403)
+    if origin and not LOCAL_ORIGIN.fullmatch(origin) and not oauth_callback:
+        return JSONResponse(
+            {
+                "detail": "ShortForge only accepts requests from its local dashboard and Chrome extension."
+            },
+            status_code=403,
+        )
+    if (
+        request.headers.get("sec-fetch-site") == "cross-site"
+        and not origin
+        and not oauth_callback
+    ):
+        return JSONResponse(
+            {"detail": "Cross-site requests to the local engine are blocked."},
+            status_code=403,
+        )
     raw_length = request.headers.get("content-length")
     if raw_length:
         try:
             size = int(raw_length)
         except ValueError:
             return JSONResponse({"detail": "Invalid content length."}, status_code=400)
-        limit = 501 * 1024 * 1024 if "multipart/form-data" in request.headers.get("content-type", "") else 2 * 1024 * 1024
+        limit = (
+            501 * 1024 * 1024
+            if "multipart/form-data" in request.headers.get("content-type", "")
+            else 2 * 1024 * 1024
+        )
         if size < 0 or size > limit:
-            return JSONResponse({"detail": "This upload is too large (videos: 500 MB; JSON: 2 MB)."}, status_code=413)
+            return JSONResponse(
+                {"detail": "This upload is too large (videos: 500 MB; JSON: 2 MB)."},
+                status_code=413,
+            )
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     return response
 
 
-app.add_middleware(CORSMiddleware, allow_origin_regex=LOCAL_ORIGIN.pattern, allow_credentials=False,
-                   allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-                   allow_headers=["Content-Type"], expose_headers=["Content-Disposition"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=LOCAL_ORIGIN.pattern,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type"],
+    expose_headers=["Content-Disposition"],
+)
 
 
 @app.exception_handler(RequestValidationError)
@@ -99,7 +137,13 @@ async def validation_error(request: Request, exc: RequestValidationError):
 
 
 app.include_router(router)
-for module_name in ("engine.core.scout_routes", "engine.ai.routes", "engine.studio.routes", "engine.studio.editor_routes", "engine.studio.separation_routes", "engine.studio.inpainting"):
+for module_name in (
+    "engine.core.concat",
+    "engine.core.youtube_auth",
+    "engine.core.youtube_uploads",
+    "engine.core.scout_routes",
+    "engine.ai.routes",
+):
     try:
         module = importlib.import_module(module_name)
     except ModuleNotFoundError as exc:

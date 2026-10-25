@@ -1,0 +1,39 @@
+# Files Prettier must never rewrite.
+# Same syntax as .gitignore. Run `npm run format:check` after editing this.
+
+# Installed packages and build output - never ours to format.
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.tsbuildinfo
+
+# Downloads, exports, the SQLite database and the on-demand model runtimes.
+data/
+vendor/concat/
+
+# Tool caches and generated reports.
+.impeccable/
+test-results/
+playwright-report/
+.ruff_cache/
+.pytest_cache/
+
+# Lock files are written by the package managers.
+package-lock.json
+**/package-lock.json
+*.lock
+
+# Vendored fonts and the licence texts that ship with them. Reformatting someone
+# else's licence or font manifest would misrepresent it.
+dashboard/public/fonts/
+dashboard/public/licenses/
+dashboard/public/audio/LICENSE.txt
+engine/studio/fonts/
+extension/static/fonts/
+docs/licenses/
+
+# Markdown is hand-written prose: the spec sheets, the design notes and the
+# progress log. Prettier reflows lists and tables, which would bury a real edit in
+# hundreds of cosmetic lines. Format a Markdown file deliberately, not in bulk.
+*.md

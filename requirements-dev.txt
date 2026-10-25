@@ -1,0 +1,2 @@
+# Formatting and linting only; not needed to run ShortForge.
+ruff==0.15.7

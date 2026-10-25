@@ -2,17 +2,17 @@
 
 Checked 6 October 2026. The inspected file timestamps support retaining the previous passing build and targeted tests for the current dashboard. No implementation change or validation rerun was necessary in this pass.
 
-The implementation handoff reports a passing production build and **eight passing Playwright tests** on 5 October. The dashboard's declared build command is `npm run build` (`tsc -b && vite build`). The reported test command, run from `dashboard/`, was:
+The implementation handoff reports a passing production build and **eight passing Playwright tests** on 5 October. The reported test command, run from `dashboard/`, was:
 
 ```sh
 npx playwright test tests/workspace.spec.ts tests/library-layout.spec.ts tests/studio-entry.spec.ts tests/dashboard-redesign.spec.ts
 ```
 
-These cover workspace/navigation/theme/settings behavior, selection and deletion, compact responsive library layout, Studio entry, unavailable-library truth, keyboard filters, and persistent views. This is the targeted four-file suite, not the entire test suite.
+These cover workspace/navigation/theme/settings behavior, selection and deletion, compact responsive library layout, Studio entry, unavailable-library truth, keyboard filters, and persistent views. This is the targeted four-file suite, not the entire test suite. The whole suite is now 36 tests across 12 spec files, of which 2 skip unless the optional licensed clip is supplied. The dashboard's build command today is `npm run build`, meaning `tsc --noEmit -p tsconfig.json && vite build`; the `tsc -b` form recorded during this pass was changed later. That change does not weaken or strengthen what was verified here: both forms type-check this project identically, as confirmed by running each against a deliberate type error.
 
 New checks in this pass:
 
-- [Saved Playwright status](../../dashboard/test-results/.last-run.json) contains `"status": "passed"` and `"failedTests": []`. It does not store the command, test count, or source revision; those execution details come from the handoff. The current four files declare eight tests.
+- The saved Playwright status file read during this pass, `dashboard/test-results/.last-run.json`, contained `"status": "passed"` and `"failedTests": []`. It does not store the command, test count, or source revision; those execution details come from the handoff. The current four files still declare eight tests. That status file is regenerated output in an ignored directory, so it is named here rather than linked and is not present in a fresh checkout.
 - All 49 files under `dashboard/src`, 53 public assets, six dashboard configuration/entry/package files, 11 test/support files, 47 engine Python files, and the imported DejaVu font predate the build and test artifacts below. No inspected input was newer than the saved detector, measurements, or finish review either.
 - The production HTML's referenced JavaScript, CSS, and favicon exist. All 14 saved review PNGs have PNG headers and the recorded dimensions. Screenshots were not visually reviewed again.
 
@@ -29,6 +29,6 @@ New checks in this pass:
 
 The [saved measurements](../../.impeccable/review/pinterest-dashboard/measurements.json), read again here, contain ten capture states, document widths equal to viewport widths at 1440, 1261, 390, and 320px, and an empty page-error array. Desktop cards measure about 314px at 1440 and 298px at 1261; these are recorded measurements, not new browser observations. Desktop populated captures contain 32 clips and mobile captures use two. The [saved detector](../../.impeccable/review/pinterest-dashboard/detector.json) is `[]`; its recorded `--no-design-system` scope does not validate design documentation.
 
-The [independent finish review](../../.impeccable/review/pinterest-dashboard/finish-review.md) records **ship**, with no material findings. Its visual judgment is inherited. See the [15-reference research](pinterest-dashboard-research.md) and representative [desktop](../../.impeccable/review/pinterest-dashboard/desktop-viewport.png), [dark desktop](../../.impeccable/review/pinterest-dashboard/desktop-dark-viewport.png), [1261px](../../.impeccable/review/pinterest-dashboard/user-1261-viewport.png), [table](../../.impeccable/review/pinterest-dashboard/table-viewport.png), [mobile](../../.impeccable/review/pinterest-dashboard/mobile.png), [320px](../../.impeccable/review/pinterest-dashboard/mobile-320.png), [empty](../../.impeccable/review/pinterest-dashboard/empty.png), and [unavailable](../../.impeccable/review/pinterest-dashboard/offline.png) captures.
+The [independent finish review](../../.impeccable/review/pinterest-dashboard/finish-review.md) records **ship**, with no material findings. Its visual judgment is inherited. See the [15-reference research](pinterest-dashboard-research.md). The pass also produced eight representative captures — desktop, dark desktop, 1261px, table, mobile, 320px, empty and unavailable — as `desktop-viewport.png`, `desktop-dark-viewport.png`, `user-1261-viewport.png`, `table-viewport.png`, `mobile.png`, `mobile-320.png`, `empty.png` and `offline.png` in `.impeccable/review/pinterest-dashboard/`. Those images are regenerable Playwright output and are deliberately not version-controlled, so they are named here rather than linked; re-run the browser suite to recreate them.
 
 File modification times support continuity but are not a content-addressed execution record. This pass did not re-execute the build, tests, detector, or browser review, verify installed dependency contents, or conduct a screen-reader or exhaustive accessibility audit. The saved last-run status and generated assets corroborate the handoff; they do not replace a full original execution log.

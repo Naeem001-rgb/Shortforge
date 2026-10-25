@@ -20,7 +20,7 @@ Custom installations can set `SHORTFORGE_SEPARATION_PYTHON` and `SHORTFORGE_SEPA
 
 One audio job runs at a time, using two CPU threads in a subprocess. Four-second windows with 25% overlap are normalized and overlap-added, then written incrementally; the server does not retain the model or the full four-source output in memory. Sources are limited to ten minutes for these tools. Short clips may still take several minutes on a modest laptop. A worker exceeding one hour is stopped with an error. No source files are overwritten, and deleting a timeline item does not delete imported media.
 
-Endpoints follow `docs/editor-contract.md`. Audio ownership, source existence, soundtrack presence, duration, and the existing editable-rights gate are checked before work is queued. The rights gate is checked again before saving finished assets. Errors clean up partial output files and asset rows. Tests use temporary projects, not the user's library.
+Endpoints follow `engine/studio/EDITOR_BACKEND.md`. Audio ownership, source existence, soundtrack presence, and duration are checked before work is queued. License status is recorded metadata only and never blocks local processing, so there is no rights gate on this path. Errors clean up partial output files and asset rows. Tests use temporary projects, not the user's library.
 
 ## Verification
 

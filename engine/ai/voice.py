@@ -31,15 +31,35 @@ def elevenlabs_voices(settings: dict) -> list[dict]:
     cached = VOICE_CACHE.get(cache_key)
     if cached and time.monotonic() - cached[0] < 300:
         return cached[1]
-    req = request.Request("https://api.elevenlabs.io/v1/voices", headers={"xi-api-key": key, "Accept": "application/json"})
+    req = request.Request(
+        "https://api.elevenlabs.io/v1/voices",
+        headers={"xi-api-key": key, "Accept": "application/json"},
+    )
     try:
         with request.urlopen(req, timeout=15) as response:
             payload = json.load(response)
-        rows = [{"id": row["voice_id"], "name": row.get("name") or row["voice_id"], "provider": "elevenlabs", "language": row.get("labels", {}).get("language", "Multilingual"), "description": row.get("description") or "Uses your ElevenLabs account credits.", "available": True, "cloned": row.get("category") in {"cloned", "professional"}} for row in payload["voices"] if re.fullmatch(r"[A-Za-z0-9_-]{8,80}", row.get("voice_id", ""))]
+        rows = [
+            {
+                "id": row["voice_id"],
+                "name": row.get("name") or row["voice_id"],
+                "provider": "elevenlabs",
+                "language": row.get("labels", {}).get("language", "Multilingual"),
+                "description": row.get("description")
+                or "Uses your ElevenLabs account credits.",
+                "available": True,
+                "cloned": row.get("category") in {"cloned", "professional"},
+            }
+            for row in payload["voices"]
+            if re.fullmatch(r"[A-Za-z0-9_-]{8,80}", row.get("voice_id", ""))
+        ]
     except error.HTTPError as exc:
-        raise ValueError(f"ElevenLabs voices could not load (HTTP {exc.code}). Check your key and voice access in Settings, then refresh.") from None
+        raise ValueError(
+            f"ElevenLabs voices could not load (HTTP {exc.code}). Check your key and voice access in Settings, then refresh."
+        ) from None
     except (OSError, ValueError, KeyError, TypeError):
-        raise ValueError("ElevenLabs voices could not load. Check your connection and refresh the voice list.") from None
+        raise ValueError(
+            "ElevenLabs voices could not load. Check your connection and refresh the voice list."
+        ) from None
     VOICE_CACHE.clear()
     VOICE_CACHE[cache_key] = (time.monotonic(), rows)
     return rows
@@ -51,12 +71,24 @@ def alignment_words(alignment: dict) -> list[dict]:
     starts = alignment.get("character_start_times_seconds", [])
     ends = alignment.get("character_end_times_seconds", [])
     if not chars or len(chars) != len(starts) or len(chars) != len(ends):
-        raise ValueError("ElevenLabs returned incomplete word timing. Try generating this line again.")
+        raise ValueError(
+            "ElevenLabs returned incomplete word timing. Try generating this line again."
+        )
     words, current = [], None
     previous = 0.0
     for char, start, end in zip(chars, starts, ends):
-        if not isinstance(char, str) or not isinstance(start, (int, float)) or not isinstance(end, (int, float)) or not math.isfinite(start) or not math.isfinite(end) or start < previous or end < start:
-            raise ValueError("ElevenLabs returned invalid word timing. Try generating this line again.")
+        if (
+            not isinstance(char, str)
+            or not isinstance(start, (int, float))
+            or not isinstance(end, (int, float))
+            or not math.isfinite(start)
+            or not math.isfinite(end)
+            or start < previous
+            or end < start
+        ):
+            raise ValueError(
+                "ElevenLabs returned invalid word timing. Try generating this line again."
+            )
         previous = start
         if char.isspace():
             if current:
@@ -70,7 +102,9 @@ def alignment_words(alignment: dict) -> list[dict]:
     if current:
         words.append(current)
     if not words:
-        raise ValueError("ElevenLabs returned empty word timing. Try generating this line again.")
+        raise ValueError(
+            "ElevenLabs returned empty word timing. Try generating this line again."
+        )
     return words
 
 
@@ -82,109 +116,328 @@ def installed(name: str) -> bool:
 
 
 def clone_readiness(settings: dict) -> tuple[bool, str]:
-    model_dir = Path(settings.get("clone_model_path") or "__not_configured__").expanduser()
+    model_dir = Path(
+        settings.get("clone_model_path") or "__not_configured__"
+    ).expanduser()
     common = ["ve.safetensors", "tokenizer.json"]
     nano = (model_dir / "t3_nano_v1.safetensors").is_file()
-    required = common + (["t3_nano_v1.safetensors", "s3gen_meanflow.safetensors", "tokenizer_config.json"] if nano else ["t3_cfg.safetensors", "s3gen.safetensors"])
+    required = common + (
+        [
+            "t3_nano_v1.safetensors",
+            "s3gen_meanflow.safetensors",
+            "tokenizer_config.json",
+        ]
+        if nano
+        else ["t3_cfg.safetensors", "s3gen.safetensors"]
+    )
     if not all((model_dir / item).is_file() for item in required):
-        return False, "Reference saved. Set the local Chatterbox model folder in Settings to enable generation; no model is downloaded automatically."
+        return (
+            False,
+            "Reference saved. Set the local Chatterbox model folder in Settings to enable generation; no model is downloaded automatically.",
+        )
     if not installed("chatterbox"):
-        return False, "Reference saved. Install the optional Chatterbox environment first (Python 3.11 recommended). Model files are already present."
-    return True, "Local Chatterbox reference voice is ready. CPU generation can be slow. MIT model; use your own or an authorized voice."
+        return (
+            False,
+            "Reference saved. Install the optional Chatterbox environment first (Python 3.11 recommended). Model files are already present.",
+        )
+    return (
+        True,
+        "Local Chatterbox reference voice is ready. CPU generation can be slow. MIT model; use your own or an authorized voice.",
+    )
 
 
 def provider_list(settings: dict) -> list[dict]:
     model = Path(settings.get("piper_model") or "__not_configured__").expanduser()
-    piper = bool((shutil.which("piper") or installed("piper")) and model.is_file() and Path(str(model) + ".json").is_file())
+    piper = bool(
+        (shutil.which("piper") or installed("piper"))
+        and model.is_file()
+        and Path(str(model) + ".json").is_file()
+    )
     clone_available, clone_note = clone_readiness(settings)
     return [
-        {"id": "piper", "name": "Piper · local & free", "available": piper, "note": "CPU voice. Install Piper and select a local .onnx model plus its .onnx.json file. Check that voice's MODEL_CARD for commercial rights; licenses vary."},
-        {"id": "espeak", "name": "eSpeak · basic local voice", "available": bool(shutil.which("espeak-ng") or shutil.which("espeak")), "note": "Free local CPU narration using the installed eSpeak engine. Basic synthetic sound, not a neural voice or clone. No key or model download is required. eSpeak NG is GPL-3.0-or-later; the app uses your separately installed executable."},
-        {"id": "edge", "name": "Edge · optional online", "available": installed("edge_tts"), "note": "Unofficial online service; may stop working. Its library license does not grant commercial rights to Microsoft's voices. Check service terms before monetized use."},
-        {"id": "elevenlabs", "name": "ElevenLabs · your key", "available": bool(settings.get("elevenlabs_api_key")), "note": "Optional paid service. ElevenLabs' free plan does not include commercial use. Requests use your account credits."},
-        {"id": "clone", "name": "Your voice · local Chatterbox", "available": clone_available, "note": clone_note},
+        {
+            "id": "piper",
+            "name": "Piper · local & free",
+            "available": piper,
+            "note": "CPU voice. Install Piper and select a local .onnx model plus its .onnx.json file. Check that voice's MODEL_CARD for commercial rights; licenses vary.",
+        },
+        {
+            "id": "espeak",
+            "name": "eSpeak · basic local voice",
+            "available": bool(shutil.which("espeak-ng") or shutil.which("espeak")),
+            "note": "Free local CPU narration using the installed eSpeak engine. Basic synthetic sound, not a neural voice or clone. No key or model download is required. eSpeak NG is GPL-3.0-or-later; the app uses your separately installed executable.",
+        },
+        {
+            "id": "edge",
+            "name": "Edge · optional online",
+            "available": installed("edge_tts"),
+            "note": "Unofficial online service; may stop working. Its library license does not grant commercial rights to Microsoft's voices. Check service terms before monetized use.",
+        },
+        {
+            "id": "elevenlabs",
+            "name": "ElevenLabs · your key",
+            "available": bool(settings.get("elevenlabs_api_key")),
+            "note": "Optional paid service. ElevenLabs' free plan does not include commercial use. Requests use your account credits.",
+        },
+        {
+            "id": "clone",
+            "name": "Your voice · local Chatterbox",
+            "available": clone_available,
+            "note": clone_note,
+        },
     ]
 
 
 def builtin_voices(settings: dict) -> list[dict]:
     available = {p["id"]: p["available"] for p in provider_list(settings)}
     rows = [
-        ("piper-local", "My local Piper voice", "piper", "Model language", "Uses the voice model selected in Settings."),
-        ("espeak-en", "eSpeak · basic local voice", "espeak", "English", "Ready-to-use English narration when eSpeak is installed. Basic synthetic sound; not a neural voice or clone."),
-        ("en-US-AriaNeural", "Aria", "edge", "English (US)", "Clear conversational voice. Online, unofficial service."),
-        ("en-US-GuyNeural", "Guy", "edge", "English (US)", "Warm narration voice. Online, unofficial service."),
-        ("en-GB-SoniaNeural", "Sonia", "edge", "English (UK)", "British narration. Online, unofficial service."),
-        ("ur-PK-UzmaNeural", "Uzma", "edge", "Urdu (Pakistan)", "Urdu narration. Online, unofficial service."),
-        ("ur-PK-AsadNeural", "Asad", "edge", "Urdu (Pakistan)", "Urdu narration. Online, unofficial service."),
+        (
+            "piper-local",
+            "My local Piper voice",
+            "piper",
+            "Model language",
+            "Uses the voice model selected in Settings.",
+        ),
+        (
+            "espeak-en",
+            "eSpeak · basic local voice",
+            "espeak",
+            "English",
+            "Ready-to-use English narration when eSpeak is installed. Basic synthetic sound; not a neural voice or clone.",
+        ),
+        (
+            "en-US-AriaNeural",
+            "Aria",
+            "edge",
+            "English (US)",
+            "Clear conversational voice. Online, unofficial service.",
+        ),
+        (
+            "en-US-GuyNeural",
+            "Guy",
+            "edge",
+            "English (US)",
+            "Warm narration voice. Online, unofficial service.",
+        ),
+        (
+            "en-GB-SoniaNeural",
+            "Sonia",
+            "edge",
+            "English (UK)",
+            "British narration. Online, unofficial service.",
+        ),
+        (
+            "ur-PK-UzmaNeural",
+            "Uzma",
+            "edge",
+            "Urdu (Pakistan)",
+            "Urdu narration. Online, unofficial service.",
+        ),
+        (
+            "ur-PK-AsadNeural",
+            "Asad",
+            "edge",
+            "Urdu (Pakistan)",
+            "Urdu narration. Online, unofficial service.",
+        ),
     ]
-    return [{"id": id, "name": name, "provider": provider, "language": language, "description": description, "available": available[provider], "cloned": False} for id, name, provider, language, description in rows]
+    return [
+        {
+            "id": id,
+            "name": name,
+            "provider": provider,
+            "language": language,
+            "description": description,
+            "available": available[provider],
+            "cloned": False,
+        }
+        for id, name, provider, language, description in rows
+    ]
 
 
-def synthesize(text: str, provider: str, voice_id: str, speed: float, pitch: float, output: Path, settings: dict, reference: Path | None = None, stability: float = 0.5) -> Path:
+def synthesize(
+    text: str,
+    provider: str,
+    voice_id: str,
+    speed: float,
+    pitch: float,
+    output: Path,
+    settings: dict,
+    reference: Path | None = None,
+    stability: float = 0.5,
+) -> Path:
     if pitch and provider != "edge":
-        raise ValueError("Pitch control is available for Edge voices. Keep pitch at 0 for this provider.")
+        raise ValueError(
+            "Pitch control is available for Edge voices. Keep pitch at 0 for this provider."
+        )
     if provider == "piper":
         model = str(Path(settings["piper_model"]).expanduser().resolve())
-        command = [shutil.which("piper")] if shutil.which("piper") else [sys.executable, "-m", "piper"]
-        command += ["--model", model, "--output_file", str(output), "--length_scale", str(1 / speed)]
+        command = (
+            [shutil.which("piper")]
+            if shutil.which("piper")
+            else [sys.executable, "-m", "piper"]
+        )
+        command += [
+            "--model",
+            model,
+            "--output_file",
+            str(output),
+            "--length_scale",
+            str(1 / speed),
+        ]
         with LOCAL_VOICE_LOCK:
-            process = subprocess.run(command, input=text, text=True, capture_output=True, timeout=600)
+            process = subprocess.run(
+                command, input=text, text=True, capture_output=True, timeout=600
+            )
         if process.returncode:
-            raise ValueError("Piper could not generate speech. Check that the .onnx and .onnx.json files match, and that Piper is installed.")
+            raise ValueError(
+                "Piper could not generate speech. Check that the .onnx and .onnx.json files match, and that Piper is installed."
+            )
     elif provider == "espeak":
         executable = shutil.which("espeak-ng") or shutil.which("espeak")
         if not executable:
-            raise ValueError("eSpeak is not installed. Choose another ready voice or install eSpeak NG separately, then restart the app.")
+            raise ValueError(
+                "eSpeak is not installed. Choose another ready voice or install eSpeak NG separately, then restart the app."
+            )
         voice_names = {"espeak-en": "en"}
         if voice_id not in voice_names:
             raise ValueError("Choose one of the available eSpeak voices.")
-        command = [executable, "--stdin", "-w", str(output), "-s", str(round(175 * speed)), "-v", voice_names[voice_id]]
+        command = [
+            executable,
+            "--stdin",
+            "-w",
+            str(output),
+            "-s",
+            str(round(175 * speed)),
+            "-v",
+            voice_names[voice_id],
+        ]
         with LOCAL_VOICE_LOCK:
-            process = subprocess.run(command, input=text, text=True, encoding="utf-8", capture_output=True, timeout=120)
+            process = subprocess.run(
+                command,
+                input=text,
+                text=True,
+                encoding="utf-8",
+                capture_output=True,
+                timeout=120,
+            )
         if process.returncode:
-            raise ValueError("eSpeak could not generate speech. Check that its English voice data is installed, then try again.")
+            raise ValueError(
+                "eSpeak could not generate speech. Check that its English voice data is installed, then try again."
+            )
     elif provider == "edge":
         import edge_tts
+
         mp3 = output.with_suffix(".mp3")
         rate = f"{round((speed - 1) * 100):+d}%"
-        asyncio.run(edge_tts.Communicate(text, voice_id, rate=rate, pitch=f"{round(pitch):+d}Hz").save(str(mp3)))
+        asyncio.run(
+            edge_tts.Communicate(
+                text, voice_id, rate=rate, pitch=f"{round(pitch):+d}Hz"
+            ).save(str(mp3))
+        )
         return mp3
     elif provider == "elevenlabs":
         if not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", voice_id):
             raise ValueError("Choose a valid ElevenLabs voice ID.")
-        req = request.Request(f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps", data=json.dumps({"text": text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": stability, "similarity_boost": 0.75, "speed": speed}}).encode(), headers={"xi-api-key": settings["elevenlabs_api_key"], "Content-Type": "application/json", "Accept": "application/json"}, method="POST")
+        req = request.Request(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/with-timestamps",
+            data=json.dumps(
+                {
+                    "text": text,
+                    "model_id": "eleven_multilingual_v2",
+                    "voice_settings": {
+                        "stability": stability,
+                        "similarity_boost": 0.75,
+                        "speed": speed,
+                    },
+                }
+            ).encode(),
+            headers={
+                "xi-api-key": settings["elevenlabs_api_key"],
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
         mp3 = output.with_suffix(".mp3")
         try:
             with request.urlopen(req, timeout=120) as response:
                 payload = json.load(response)
             audio = base64.b64decode(payload["audio_base64"], validate=True)
-            words = alignment_words(payload.get("normalized_alignment") or payload.get("alignment") or {})
+            words = alignment_words(
+                payload.get("normalized_alignment") or payload.get("alignment") or {}
+            )
             if not audio:
-                raise ValueError("ElevenLabs returned no audio. Try generating this line again.")
+                raise ValueError(
+                    "ElevenLabs returned no audio. Try generating this line again."
+                )
             mp3.write_bytes(audio)
-            timing = {"text": " ".join(word["word"] for word in words), "words": words, "duration": audio_duration(mp3), "timing_method": "elevenlabs", "timing_note": "Word timestamps come from ElevenLabs character alignment for this generated audio."}
-            mp3.with_suffix(".timing.json").write_text(json.dumps(timing, ensure_ascii=False), encoding="utf-8")
+            timing = {
+                "text": " ".join(word["word"] for word in words),
+                "words": words,
+                "duration": audio_duration(mp3),
+                "timing_method": "elevenlabs",
+                "timing_note": "Word timestamps come from ElevenLabs character alignment for this generated audio.",
+            }
+            mp3.with_suffix(".timing.json").write_text(
+                json.dumps(timing, ensure_ascii=False), encoding="utf-8"
+            )
         except error.HTTPError as exc:
-            raise ValueError(f"ElevenLabs returned HTTP {exc.code}. Check your key, voice access and account credits.") from None
+            raise ValueError(
+                f"ElevenLabs returned HTTP {exc.code}. Check your key, voice access and account credits."
+            ) from None
         except (KeyError, TypeError, binascii.Error):
-            raise ValueError("ElevenLabs returned incomplete audio or timing. Try generating this line again.") from None
+            raise ValueError(
+                "ElevenLabs returned incomplete audio or timing. Try generating this line again."
+            ) from None
         except OSError:
-            raise ValueError("Could not reach ElevenLabs or save the voice audio. Check your connection and free disk space, then try again.") from None
+            raise ValueError(
+                "Could not reach ElevenLabs or save the voice audio. Check your connection and free disk space, then try again."
+            ) from None
         return mp3
     elif provider == "clone":
         if reference is None:
             raise ValueError("Choose a saved voice reference first.")
         environment = {**os.environ, "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
-        payload = {"model_dir": str(Path(settings["clone_model_path"]).expanduser().resolve()), "reference": str(reference), "text": text, "output": str(output)}
+        payload = {
+            "model_dir": str(Path(settings["clone_model_path"]).expanduser().resolve()),
+            "reference": str(reference),
+            "text": text,
+            "output": str(output),
+        }
         with LOCAL_VOICE_LOCK:
-            process = subprocess.run([sys.executable, "-m", "engine.ai.clone_worker"], input=json.dumps(payload), text=True, capture_output=True, timeout=1800, env=environment, cwd=Path(__file__).resolve().parents[2])
+            process = subprocess.run(
+                [sys.executable, "-m", "engine.ai.clone_worker"],
+                input=json.dumps(payload),
+                text=True,
+                capture_output=True,
+                timeout=1800,
+                env=environment,
+                cwd=Path(__file__).resolve().parents[2],
+            )
         if process.returncode:
-            raise ValueError("Local cloning failed. Use a complete compatible Chatterbox or Nano model folder, its optional Python dependencies, and a clean 6–30 second voice sample. No model was downloaded.")
+            raise ValueError(
+                "Local cloning failed. Use a complete compatible Chatterbox or Nano model folder, its optional Python dependencies, and a clean 6–30 second voice sample. No model was downloaded."
+            )
         if speed != 1:
             adjusted = output.with_name(output.stem + "-paced.wav")
-            process = subprocess.run([ffmpeg_binary(), "-y", "-i", str(output), "-af", f"atempo={speed}", str(adjusted)], capture_output=True, timeout=120)
+            process = subprocess.run(
+                [
+                    ffmpeg_binary(),
+                    "-y",
+                    "-i",
+                    str(output),
+                    "-af",
+                    f"atempo={speed}",
+                    str(adjusted),
+                ],
+                capture_output=True,
+                timeout=120,
+            )
             if process.returncode:
-                raise ValueError("Voice was generated but pacing could not be adjusted. Try speed 1.0.")
+                raise ValueError(
+                    "Voice was generated but pacing could not be adjusted. Try speed 1.0."
+                )
             return adjusted
     else:
         raise ValueError("Choose a supported voice provider.")
@@ -200,11 +453,31 @@ def align_voice(path: Path, text: str) -> dict:
         if timing.get("timing_method") == "elevenlabs" and timing.get("words"):
             return timing
     duration = audio_duration(path)
+    # Why the note differs below: telling someone to install Whisper when they
+    # already have it, and the real problem was the audio, sends them the wrong way.
+    note = "Approximate timing: a local Whisper model is unavailable. Words are distributed across this new audio; review timing before export."
     try:
         from engine.core.media import transcribe_file
+
         result = transcribe_file(path)
         if result.get("words"):
-            return {**result, "timing_method": "whisper", "timing_note": "Word timestamps come from the newly generated audio. Review for recognition errors.", "duration": duration}
-    except Exception:
+            return {
+                **result,
+                "timing_method": "whisper",
+                "timing_note": "Word timestamps come from the newly generated audio. Review for recognition errors.",
+                "duration": duration,
+            }
+        note = "Approximate timing: the local model recognised no words in this audio. Words are distributed across it; review timing before export."
+    except RuntimeError:
+        # transcribe_file raises RuntimeError only when faster-whisper or the
+        # model file itself is missing, so the default note is the right one.
         pass
-    return {"text": text, "words": approximate_words(text, duration), "duration": duration, "timing_method": "approximate", "timing_note": "Approximate timing: a local Whisper model is unavailable. Words are distributed across this new audio; review timing before export."}
+    except Exception:
+        note = "Approximate timing: reading the new audio with the local model failed. Words are distributed across it; review timing before export."
+    return {
+        "text": text,
+        "words": approximate_words(text, duration),
+        "duration": duration,
+        "timing_method": "approximate",
+        "timing_note": note,
+    }

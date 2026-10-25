@@ -32,6 +32,6 @@ def status() -> dict:
         "started_at": STARTED_AT,
         "loaded_revision": LOADED_REVISION,
         "disk_revision": disk_revision,
-        "restart_required": disk_revision is not None and disk_revision != LOADED_REVISION,
-        "studio_protocol": 2,
+        "restart_required": disk_revision is not None
+        and disk_revision != LOADED_REVISION,
     }

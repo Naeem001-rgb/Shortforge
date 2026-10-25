@@ -31,15 +31,16 @@ class ClipBatch(StrictModel):
     clips: list[ClipInput] = Field(min_length=1, max_length=100)
 
 
-class ProjectInput(StrictModel):
-    title: str = Field(default="Untitled project", min_length=1, max_length=1000)
-
-
 class ClipPatch(StrictModel):
     title: str | None = Field(default=None, min_length=1, max_length=1000)
     license_status: Literal["permission", "unknown"] | None = None
     permission_note: str | None = Field(default=None, max_length=5000)
-    workflow_status: Literal["collected", "downloaded", "transcribed", "editing", "exported", "archived"] | None = None
+    workflow_status: (
+        Literal[
+            "collected", "downloaded", "transcribed", "editing", "exported", "archived"
+        ]
+        | None
+    ) = None
 
 
 class TranscribeInput(StrictModel):
@@ -84,13 +85,17 @@ class TranscriptInput(StrictModel):
 
     @model_validator(mode="after")
     def ordered_words(self):
-        if any(right.start < left.start for left, right in zip(self.words, self.words[1:])):
+        if any(
+            right.start < left.start for left, right in zip(self.words, self.words[1:])
+        ):
             raise ValueError("Word timestamps must be in order.")
         return self
 
 
 class SettingsPatch(StrictModel):
-    gemini_model: str | None = Field(default=None, min_length=1, max_length=150, pattern=r"^[a-zA-Z0-9._-]+$")
+    gemini_model: str | None = Field(
+        default=None, min_length=1, max_length=150, pattern=r"^[a-zA-Z0-9._-]+$"
+    )
     gemini_api_key: str | None = Field(default=None, max_length=500)
     youtube_api_key: str | None = Field(default=None, max_length=500)
     elevenlabs_api_key: str | None = Field(default=None, max_length=500)
@@ -100,14 +105,22 @@ class SettingsPatch(StrictModel):
     min_views: int | None = Field(default=None, ge=0, le=100000000000)
     target_count: int | None = Field(default=None, ge=1, le=500)
     scout_mode: Literal["credits", "narrated", "auto"] | None = None
-    tts_provider: Literal["piper", "edge", "elevenlabs", "clone", "espeak"] | None = None
+    tts_provider: Literal["piper", "edge", "elevenlabs", "clone", "espeak"] | None = (
+        None
+    )
     piper_model: str | None = Field(default=None, max_length=4096)
     whisper_model: str | None = Field(default=None, max_length=4096)
     clone_model_path: str | None = Field(default=None, max_length=4096)
     clone_vocab_path: str | None = Field(default=None, max_length=4096)
     clone_config_path: str | None = Field(default=None, max_length=4096)
 
-    @field_validator("piper_model", "whisper_model", "clone_model_path", "clone_vocab_path", "clone_config_path")
+    @field_validator(
+        "piper_model",
+        "whisper_model",
+        "clone_model_path",
+        "clone_vocab_path",
+        "clone_config_path",
+    )
     @classmethod
     def no_null_bytes(cls, value):
         if value is not None and "\x00" in value:

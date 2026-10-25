@@ -5,4 +5,4 @@ faster-whisper>=1.1
 piper-tts>=1.3
 # Optional network TTS; unofficial, service availability and terms may change.
 edge-tts>=7
-# Voice cloning is intentionally separate: see docs/VOICE.md for F5-TTS.
+# Voice cloning is intentionally separate: see docs/VOICE.md for Chatterbox.

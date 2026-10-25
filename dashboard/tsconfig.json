@@ -1,8 +1,11 @@
 {
+  // The app itself. Browser only: no Node globals are in scope here, so a
+  // mistake like leaving a `process.env` read in a component is a type error.
   "compilerOptions": {
     "target": "ES2022",
     "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "Bundler",

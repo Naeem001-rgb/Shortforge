@@ -16,7 +16,9 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 
-DATA_DIR = Path(os.getenv("SHORTFORGE_DATA_DIR", Path(__file__).resolve().parents[2] / "data")).resolve()
+DATA_DIR = Path(
+    os.getenv("SHORTFORGE_DATA_DIR", Path(__file__).resolve().parents[2] / "data")
+).resolve()
 DEFAULT_SETTINGS = {
     "gemini_model": "gemini-3.8-flash",
     "niche": "",
@@ -32,7 +34,13 @@ DEFAULT_SETTINGS = {
     "clone_vocab_path": "",
     "clone_config_path": "",
 }
-SECRET_SETTINGS = {"youtube_api_key", "gemini_api_key", "elevenlabs_api_key"}
+SECRET_SETTINGS = {
+    "youtube_api_key",
+    "gemini_api_key",
+    "elevenlabs_api_key",
+    "youtube_client_id",
+    "youtube_client_secret",
+}
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS clips (
     id TEXT PRIMARY KEY, video_id TEXT UNIQUE, url TEXT NOT NULL DEFAULT '',
@@ -129,7 +137,10 @@ def resolve_data_path(path: str | Path) -> Path:
     if not candidate.is_absolute():
         candidate = DATA_DIR / candidate
     resolved = candidate.resolve()
-    if not resolved.is_relative_to(DATA_DIR.resolve()) or resolved == DATA_DIR.resolve():
+    if (
+        not resolved.is_relative_to(DATA_DIR.resolve())
+        or resolved == DATA_DIR.resolve()
+    ):
         raise HTTPException(400, "The file must be inside ShortForge's data folder.")
     return resolved
 
@@ -142,7 +153,18 @@ def asset_dict(row) -> dict:
 
 # Deleting a clip should also give the disk space back, not just the row.
 # A voice reference recording belongs to its voice profile, not to a clip.
-CLIP_OWNED_ASSETS = ("source", "voiceover", "export", "video", "image", "sfx", "music", "audio", "vocals", "instrumental")
+CLIP_OWNED_ASSETS = (
+    "source",
+    "voiceover",
+    "export",
+    "video",
+    "image",
+    "sfx",
+    "music",
+    "audio",
+    "vocals",
+    "instrumental",
+)
 
 
 def _prune_empty_folders(directory: Path) -> None:
@@ -165,7 +187,12 @@ def _remove_clip_files(rows) -> None:
         except HTTPException:
             continue
         # Voiceover and export jobs leave a timing/subtitle sidecar behind.
-        for candidate in (path, path.with_suffix(".timing.json"), path.with_suffix(".ass"), path.with_suffix(path.suffix + ".name.json")):
+        for candidate in (
+            path,
+            path.with_suffix(".timing.json"),
+            path.with_suffix(".ass"),
+            path.with_suffix(path.suffix + ".name.json"),
+        ):
             try:
                 candidate.unlink()
             except OSError:
@@ -176,13 +203,19 @@ def _remove_clip_files(rows) -> None:
 def delete_clip(clip_id: str) -> None:
     """Delete a clip, its related rows, and the media files it owns."""
     with connect() as conn:
-        if conn.execute("SELECT 1 FROM clips WHERE id=?", (clip_id,)).fetchone() is None:
+        if (
+            conn.execute("SELECT 1 FROM clips WHERE id=?", (clip_id,)).fetchone()
+            is None
+        ):
             raise HTTPException(404, "Clip not found.")
         rows = conn.execute(
             "SELECT path,kind FROM assets WHERE clip_id=?", (clip_id,)
         ).fetchall()
         conn.execute("DELETE FROM clips WHERE id=?", (clip_id,))
     _remove_clip_files(rows)
+    from .thumbnails import cache_path
+
+    cache_path(clip_id).unlink(missing_ok=True)
 
 
 def add_asset(clip_id: str | None, kind: str, path: Path) -> dict:
@@ -191,10 +224,18 @@ def add_asset(clip_id: str | None, kind: str, path: Path) -> dict:
     resolved = resolve_data_path(path)
     if clip_id is not None:
         get_clip(clip_id)
-    asset = {"id": str(uuid4()), "clip_id": clip_id, "kind": kind,
-             "path": str(resolved.relative_to(DATA_DIR.resolve())), "created_at": now()}
+    asset = {
+        "id": str(uuid4()),
+        "clip_id": clip_id,
+        "kind": kind,
+        "path": str(resolved.relative_to(DATA_DIR.resolve())),
+        "created_at": now(),
+    }
     with connect() as conn:
-        conn.execute("INSERT INTO assets (id,clip_id,kind,path,created_at) VALUES (:id,:clip_id,:kind,:path,:created_at)", asset)
+        conn.execute(
+            "INSERT INTO assets (id,clip_id,kind,path,created_at) VALUES (:id,:clip_id,:kind,:path,:created_at)",
+            asset,
+        )
     return asset_dict(asset)
 
 
@@ -229,36 +270,62 @@ def get_settings() -> dict:
 
 def public_settings() -> dict:
     values = get_settings()
-    return {**{key: values[key] for key in DEFAULT_SETTINGS},
-            **{f"{key}_set": bool(values.get(key)) for key in SECRET_SETTINGS}}
+    return {
+        **{key: values[key] for key in DEFAULT_SETTINGS},
+        **{f"{key}_set": bool(values.get(key)) for key in SECRET_SETTINGS},
+    }
 
 
 def save_script(clip_id: str, original_text: str, rewritten_text: str) -> dict:
     get_clip(clip_id)
-    script = {"clip_id": clip_id, "original_text": original_text,
-              "rewritten_text": rewritten_text,
-              "words_original": len(re.findall(r"\S+", original_text)),
-              "words_rewritten": len(re.findall(r"\S+", rewritten_text))}
+    script = {
+        "clip_id": clip_id,
+        "original_text": original_text,
+        "rewritten_text": rewritten_text,
+        "words_original": len(re.findall(r"\S+", original_text)),
+        "words_rewritten": len(re.findall(r"\S+", rewritten_text)),
+    }
     with connect() as conn:
-        conn.execute("INSERT INTO scripts VALUES (:clip_id,:original_text,:rewritten_text,:words_original,:words_rewritten) ON CONFLICT(clip_id) DO UPDATE SET original_text=excluded.original_text, rewritten_text=excluded.rewritten_text, words_original=excluded.words_original, words_rewritten=excluded.words_rewritten", script)
+        conn.execute(
+            "INSERT INTO scripts VALUES (:clip_id,:original_text,:rewritten_text,:words_original,:words_rewritten) ON CONFLICT(clip_id) DO UPDATE SET original_text=excluded.original_text, rewritten_text=excluded.rewritten_text, words_original=excluded.words_original, words_rewritten=excluded.words_rewritten",
+            script,
+        )
     return script
 
 
 def new_job(type: str, clip_id: str | None) -> dict:
     if clip_id is not None:
         get_clip(clip_id)
-    job = {"id": str(uuid4()), "type": type, "clip_id": clip_id, "status": "queued", "progress": 0, "error": None, "result": None}
+    job = {
+        "id": str(uuid4()),
+        "type": type,
+        "clip_id": clip_id,
+        "status": "queued",
+        "progress": 0,
+        "error": None,
+        "result": None,
+    }
     with connect() as conn:
-        conn.execute("INSERT INTO jobs VALUES (:id,:type,:clip_id,:status,:progress,:error,:result)", job)
+        conn.execute(
+            "INSERT INTO jobs VALUES (:id,:type,:clip_id,:status,:progress,:error,:result)",
+            job,
+        )
     return job
 
 
 def update_job(job_id: str, **fields):
-    if not fields or not set(fields).issubset({"status", "progress", "error", "result"}):
+    if not fields or not set(fields).issubset(
+        {"status", "progress", "error", "result"}
+    ):
         raise ValueError("Unsupported job fields")
     if "progress" in fields:
         fields["progress"] = max(0, min(100, float(fields["progress"])))
-    if "status" in fields and fields["status"] not in {"queued", "running", "completed", "failed"}:
+    if "status" in fields and fields["status"] not in {
+        "queued",
+        "running",
+        "completed",
+        "failed",
+    }:
         raise ValueError("Unsupported job status")
     if "error" in fields and fields["error"]:
         fields["error"] = redact_secrets(str(fields["error"]))[:2000]
@@ -266,7 +333,9 @@ def update_job(job_id: str, **fields):
         fields["result"] = json.dumps(fields["result"])
     with connect() as conn:
         assignments = ",".join(f"{key} = ?" for key in fields)
-        conn.execute(f"UPDATE jobs SET {assignments} WHERE id = ?", (*fields.values(), job_id))
+        conn.execute(
+            f"UPDATE jobs SET {assignments} WHERE id = ?", (*fields.values(), job_id)
+        )
 
 
 def get_job(job_id: str) -> dict:

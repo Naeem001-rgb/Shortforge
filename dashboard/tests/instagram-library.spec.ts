@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("Instagram imports retain their source in Library and open Studio without YouTube enrichment", async ({
+test("Instagram imports retain their source and details without YouTube enrichment", async ({
   page,
   request,
   context,
@@ -20,6 +20,15 @@ test("Instagram imports retain their source in Library and open Studio without Y
   });
   expect(response.ok()).toBeTruthy();
   const clip = (await response.json()).clips[0];
+  await context.route("**/api/clips/*/thumbnail", (route) =>
+    route.fulfill({
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    }),
+  );
   await context.route("**/api/clips/*/download", (route) =>
     route.fulfill({
       status: 503,
@@ -30,8 +39,19 @@ test("Instagram imports retain their source in Library and open Studio without Y
     await page.goto("/");
     const card = page.locator(".clip-card").filter({ hasText: clip.title });
     await expect(card.locator(".source-pill")).toHaveText("Instagram");
+    await expect(card.locator(".media-artwork img")).toHaveAttribute(
+      "src",
+      clip.thumbnail_url,
+    );
+    await expect
+      .poll(() =>
+        card
+          .locator(".media-artwork img")
+          .evaluate((image: HTMLImageElement) => image.naturalWidth),
+      )
+      .toBeGreaterThan(0);
     await card
-      .getByRole("button", { name: `Details for ${clip.title}` })
+      .getByRole("button", { name: `More about ${clip.title}` })
       .click();
     await expect(
       page.getByRole("link", { name: "Watch original" }),
@@ -39,14 +59,17 @@ test("Instagram imports retain their source in Library and open Studio without Y
     await expect(
       page.getByRole("button", { name: "Fetch YouTube details" }),
     ).toHaveCount(0);
-    const created = context.waitForEvent("page");
-    await page
-      .getByRole("button", { name: "Edit in Studio", exact: true })
-      .click();
-    const editor = await created;
-    await expect(editor).toHaveURL(new RegExp(`\\?studio=${clip.id}$`));
-    await expect(editor.locator("main.studio-tab")).toBeVisible();
-    await editor.close();
+    await expect(
+      page
+        .getByRole("dialog", { name: "Video details" })
+        .getByRole("button", { name: "Edit in Studio", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Archive", exact: true }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Video details" }),
+    ).toBeHidden();
+    await page.getByRole("tab", { name: /^Archived/ }).click();
+    await expect(card).toBeVisible();
   } finally {
     await request.delete(`/api/clips/${clip.id}`);
   }

@@ -6,6 +6,8 @@ if errorlevel 1 exit /b 1
 .venv\Scripts\python.exe -m pip install -q --upgrade yt-dlp
 if not exist dashboard\node_modules call npm --prefix dashboard ci
 if not exist extension\node_modules call npm --prefix extension ci
+.venv\Scripts\python.exe scripts\setup-concat.py
+if errorlevel 1 echo Concat setup needs attention; Library and Scout will still start. Restart ShortForge to retry.
 call npm --prefix extension run build
 start "ShortForge Engine (close this window to stop engine)" .venv\Scripts\python.exe -m engine
 echo Open http://127.0.0.1:5173

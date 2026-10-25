@@ -1,0 +1,102 @@
+{
+  "measures": [
+    {
+      "name": "desktop",
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif",
+      "cards": 32,
+      "cardHeight": 314.140625,
+      "columns": "213.594px 213.594px 213.609px 213.594px 213.609px",
+      "loadedImages": 32
+    },
+    {
+      "name": "desktop-dark",
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif",
+      "cards": 32,
+      "cardHeight": 314.140625,
+      "columns": "213.594px 213.594px 213.609px 213.594px 213.609px",
+      "loadedImages": 32
+    },
+    {
+      "name": "user-1261",
+      "viewport": 1261,
+      "scrollWidth": 1261,
+      "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif",
+      "cards": 32,
+      "cardHeight": 298.46875,
+      "columns": "177.797px 177.797px 177.797px 177.797px 177.812px",
+      "loadedImages": 32
+    },
+    {
+      "name": "table",
+      "viewport": 1261,
+      "scrollWidth": 1261,
+      "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif",
+      "cards": 0,
+      "columns": null,
+      "loadedImages": 0
+    },
+    {
+      "name": "mobile",
+      "viewport": 390,
+      "scrollWidth": 390,
+      "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif",
+      "cards": 2,
+      "cardHeight": 351.984375,
+      "columns": "342px",
+      "loadedImages": 2
+    },
+    {
+      "name": "mobile-dark",
+      "viewport": 390,
+      "scrollWidth": 390,
+      "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif",
+      "cards": 2,
+      "cardHeight": 351.984375,
+      "columns": "342px",
+      "loadedImages": 2
+    },
+    {
+      "name": "mobile-navigation",
+      "viewport": 390,
+      "scrollWidth": 390,
+      "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif",
+      "cards": 2,
+      "cardHeight": 351.984375,
+      "columns": "342px",
+      "loadedImages": 2
+    },
+    {
+      "name": "mobile-320",
+      "viewport": 320,
+      "scrollWidth": 320,
+      "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif",
+      "cards": 2,
+      "cardHeight": 358.28125,
+      "columns": "272px",
+      "loadedImages": 2
+    },
+    {
+      "name": "empty",
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif",
+      "cards": 0,
+      "columns": null,
+      "loadedImages": 0
+    },
+    {
+      "name": "offline",
+      "viewport": 1440,
+      "scrollWidth": 1440,
+      "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif",
+      "cards": 0,
+      "columns": null,
+      "loadedImages": 0
+    }
+  ],
+  "errors": []
+}

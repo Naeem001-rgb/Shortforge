@@ -8,6 +8,9 @@ if ! .venv/bin/python -m pip install -q --upgrade yt-dlp; then
 fi
 if [ ! -d dashboard/node_modules ]; then npm --prefix dashboard ci; fi
 if [ ! -d extension/node_modules ]; then npm --prefix extension ci; fi
+if ! .venv/bin/python scripts/setup-concat.py; then
+  printf '\nConcat setup needs attention; Library and Scout will still start.\n'
+fi
 npm --prefix extension run build
 .venv/bin/python -m engine &
 ENGINE_PID=$!

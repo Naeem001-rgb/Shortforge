@@ -7,8 +7,8 @@ body {
   background-attachment: scroll;
 }
 ::selection {
-  background: var(--button-bg);
-  color: #fff;
+  background: var(--marker);
+  color: var(--marker-ink);
 }
 h1,
 h2,
@@ -44,7 +44,7 @@ input[type="checkbox"]:indeterminate {
   border-color: var(--button-bg);
 }
 .button:active:not(:disabled) {
-  box-shadow: none;
+  transform: translateY(1px);
 }
 .segmented,
 .theme-toggle {
@@ -54,12 +54,12 @@ input[type="checkbox"]:indeterminate {
 .segmented .selected,
 .theme-toggle .selected {
   background: var(--surface-raised);
-  box-shadow: var(--shadow-sm);
+  box-shadow: inset 0 0 0 1px var(--border), var(--shadow-sm);
 }
 .page-heading h1 {
-  font-size: 30px;
+  font-size: 34px;
   font-weight: 600;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.015em;
 }
 .page-heading p {
   margin-top: 8px;
@@ -75,22 +75,20 @@ input[type="checkbox"]:indeterminate {
   box-shadow: none;
   border-radius: 16px;
 }
-.scout-feature,
-.voice-intro {
+.scout-feature {
   border: 1px solid var(--border);
   background: var(--hero-bg);
   color: var(--hero-ink);
   border-radius: 16px;
 }
 .scout-feature p,
-.voice-intro p,
 .scout-chips {
   color: var(--hero-muted);
 }
 .scout-mark {
   background: var(--accent-soft);
   border-color: transparent;
-  color: var(--accent);
+  color: var(--text);
   border-radius: 14px;
   width: 84px;
   height: 84px;
@@ -98,65 +96,13 @@ input[type="checkbox"]:indeterminate {
 .scout-chips svg {
   color: var(--success);
 }
-.voice-art {
-  color: var(--accent);
-  border-color: var(--border);
-}
-.voice-intro .button.secondary {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--text);
-}
-.voice-intro .button.secondary:hover {
-  background: var(--elevated);
-}
-.studio-welcome {
-  min-height: 380px;
-  border: 1px solid var(--border);
-  box-shadow: none;
-  background: linear-gradient(
-    135deg,
-    var(--surface-raised),
-    var(--surface) 60%,
-    var(--accent-soft)
-  );
-}
-.empty-tool-icon {
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 0;
-  width: 72px;
-  height: 84px;
-  border-radius: 16px;
-}
-.project-bar {
-  background: var(--surface-raised);
-}
-.studio-workbench {
-  box-shadow: none;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-}
-.studio-stage {
-  background: color-mix(in srgb, var(--bg), var(--elevated) 45%);
-}
-.studio-tools,
-.studio-properties {
-  background: var(--surface);
-}
-.studio-tools > button.active {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent), transparent 85%);
-}
-.property-section h3 {
-  letter-spacing: -0.015em;
-}
 .modal {
   background: var(--surface-raised);
   border: 0;
   border-radius: 16px;
 }
 .modal::backdrop {
-  background: rgba(12, 20, 36, 0.48);
+  background: var(--backdrop);
 }
 .notice {
   border-radius: 9px;
@@ -179,22 +125,14 @@ input[type="checkbox"]:indeterminate {
 }
 @media (max-width: 820px) {
   .page-heading h1 {
-    font-size: 23px;
+    font-size: 27px;
   }
 }
 @media (max-width: 560px) {
   .page-heading h1 {
-    font-size: 22px;
+    font-size: 25px;
   }
-  .studio-welcome {
-    min-height: 390px;
-    padding: 36px 22px;
-  }
-  .studio-welcome h2 {
-    font-size: 23px;
-  }
-  .scout-feature,
-  .voice-intro {
+  .scout-feature {
     padding: 28px 22px;
   }
   .scout-mark {

@@ -1,4 +1,5 @@
 """Background caption checks which do not create Library clips."""
+
 from threading import Event
 import time
 from typing import Literal
@@ -29,21 +30,39 @@ def caption_check(payload: CaptionCheckRequest, background: BackgroundTasks):
         raise HTTPException(503, capability["message"])
     if payload.policy == scout_captions.SMALL_TEXT_POLICY:
         from engine.studio.scout_speech import speech_capability
+
         capability = speech_capability()
         if not capability["available"]:
             raise HTTPException(503, capability["message"])
     if not scout_captions.SLOTS.acquire(blocking=False):
-        raise HTTPException(409, "Scout is already checking a video's captions. Wait for it to finish or cancel that check.")
+        raise HTTPException(
+            409,
+            "Scout is already checking a video's captions. Wait for it to finish or cancel that check.",
+        )
     job = None
     try:
         job = db.new_job("scout_caption_check", None)
         cancel = Event()
         with scout_captions.CANCEL_LOCK:
             scout_captions.CANCEL_EVENTS[job["id"]] = cancel
-        db.update_job(job["id"], result={"video_id": video_id, "url": url,
-                                       "max_caption_seconds": payload.max_caption_seconds, "policy": payload.policy})
-        background.add_task(scout_captions.caption_check_job, job["id"], video_id, url,
-                            payload.max_caption_seconds, cancel, payload.policy)
+        db.update_job(
+            job["id"],
+            result={
+                "video_id": video_id,
+                "url": url,
+                "max_caption_seconds": payload.max_caption_seconds,
+                "policy": payload.policy,
+            },
+        )
+        background.add_task(
+            scout_captions.caption_check_job,
+            job["id"],
+            video_id,
+            url,
+            payload.max_caption_seconds,
+            cancel,
+            payload.policy,
+        )
         return db.get_job(job["id"])
     except Exception:
         with scout_captions.CANCEL_LOCK:
@@ -72,5 +91,5 @@ def cancel_caption_check(job_id: str):
         remaining = deadline - time.monotonic()
         if not active or remaining <= 0:
             break
-        time.sleep(min(.02, remaining))
+        time.sleep(min(0.02, remaining))
     return db.get_job(job_id)

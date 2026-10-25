@@ -1,0 +1,32 @@
+{
+  "repository": "https://github.com/jub0t/Concat.git",
+  "revision": "1d04d1472a3f986fe1ed592e618c25b687f0dbfb",
+  "license": "AGPL-3.0-or-later",
+  "version": "0.2.8",
+  "windows": {
+    "x86_64": {
+      "url": "https://github.com/jub0t/Concat/releases/download/v0.2.8/Concat-0.2.8-windows-x86_64-setup.exe",
+      "sha256": "6ded705620e6c18adbc2ece28a2876db326e4f6361c8e41151dab516419c8776"
+    }
+  },
+  "macos": {
+    "aarch64": {
+      "url": "https://github.com/jub0t/Concat/releases/download/v0.2.8/Concat-0.2.8-macos-arm64.dmg",
+      "sha256": "4fe1820f36235efe8a28379a224239032c260bef1ad0fb950274c2f832e91805"
+    },
+    "x86_64": {
+      "url": "https://github.com/jub0t/Concat/releases/download/v0.2.8/Concat-0.2.8-macos-x86_64.dmg",
+      "sha256": "c040bd5c14b6de6443dd9c4e00070e57beafcf7cd6347dfc19b8559843bc16e6"
+    }
+  },
+  "linux": {
+    "x86_64": {
+      "url": "https://github.com/jub0t/Concat/releases/download/v0.2.8/Concat-0.2.8-x86_64.AppImage",
+      "sha256": "4e64a3826cdb86be43fc82beeb087ecb82141ea5c557f156d855fd21ff87ccb1"
+    },
+    "aarch64": {
+      "url": "https://github.com/jub0t/Concat/releases/download/v0.2.8/Concat-0.2.8-aarch64.AppImage",
+      "sha256": "93058c09134bea4f274ea6c9578b7cda638ab81ebe4db2841b03a71f47d9e785"
+    }
+  }
+}

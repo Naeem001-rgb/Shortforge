@@ -7,6 +7,20 @@ ShortForge (Spec Sheet for AI Coding Agents)
 
   ## 0. Current state (read this first — the spec below has drifted)
 
+  **October 25 — Concat opens on the desktop.** The user replaced the October 24 browser
+  streaming approach with native desktop launch. A Library video opens in Concat's own window
+  on the computer running the engine; ShortForge shows progress in the same browser tab.
+  The browser streaming routes/runtime integration were removed. Normal project startup
+  automatically downloads and verifies the pinned Concat runtime when missing on a supported
+  platform; users do not install it separately. Runtime binaries are ignored by Git and are not
+  included in a source checkout. Saved Concat projects and media remain intact. See
+  `docs/CONCAT.md` for supported platforms and verification limits. The custom Studio frontend,
+  WebCodecs exporter and editor-only Python services remain removed. YouTube channel Settings
+  and backend routes remain; the old editor's
+  Publish to YouTube/Publish kit interface was removed and is not integrated into Concat.
+  The editor features, deleted file paths and test counts described below are historical; do not
+  restore that editor or claim those features based on this older brief.
+
   This file is the original brief. **Parts of it no longer match the code.** Where they disagree, the
   code is the truth and this section wins. Check here before assuming any feature exists or is enforced.
 
@@ -21,18 +35,28 @@ ShortForge (Spec Sheet for AI Coding Agents)
   renderer. Text-only and audio-only timelines export fine — the background is a generated colour, so
   no video source is assumed. MP4 (H.264/AAC) with a WebM fallback, 1080×1920.
 
+  **Direct publishing, authorized October 12.** The user approved adding YouTube uploads after
+  editing. The old "No auto-upload" and manual-handoff statements below are superseded for this
+  explicit, user-confirmed publishing flow. Connect channels with Google OAuth, select a saved
+  export and metadata, review, then press Publish. Exporting alone must never post. See
+  `shared/contract/YOUTUBE.md` and `docs/YOUTUBE-PUBLISHING.md`.
+
   **The License Gate is NOT enforced.** §3.1 describes locking downloads and the editor for
-  `unknown` clips. That was deliberately removed on 2 October (`248bcbb`). `dashboard/src/api.ts`
-  has `editable = (_clip) => true`, and `engine/core/db.py`'s `require_editable()` is now only an
+  `unknown` clips. That was deliberately removed on 2 October (`248bcbb`). The Library treats every
+  active clip as ready to edit, and `engine/core/db.py`'s `require_editable()` is now only an
   existence check. `POST /api/clips/{id}/download` never consults rights. `docs/editor/DECISIONS.md`
   says a later brief superseded the lock. **Rights are recorded metadata only — treat §3.1 as history,
   not as a rule to implement.** Do not "restore" the gate as a side effect of another task.
 
-  **Burned-in subtitles cannot be deleted.** They are pixels in the frame. The only implemented options
-  are `cover`, `blur` and `mosaic` (`Conceal` in `engine/studio/editor_models.py`), which *hide* the
-  pixels. The brief's third option — *crop-zoom out of the band* — was specified and never built. Real
-  removal needs cropping (not implemented) or inpainting (not implemented). Never describe cover or
-  blur as deletion.
+  **Burned-in subtitles: hiding and repairing are two different features.** The subtitles are pixels in
+  the frame. `cover`, `blur` and `mosaic` (`Conceal` in `engine/studio/editor_models.py`) only *hide*
+  them — never describe those three as deletion. Real repair **has since shipped**:
+  `engine/studio/inpainting.py` finds the text with OCR and rebuilds the covered pixels with a local CPU
+  MI-GAN model (opt-in install via `engine/studio/setup_inpainting.py`, UI in
+  `dashboard/src/studio/CaptionRemoval.tsx`, written up in `docs/CAPTION-REMOVAL.md`). It *guesses* what
+  was behind the text, so it can smudge or flicker and it is slow on a laptop — call it best-effort
+  repair, never a perfect undo. The brief's third option — *crop-zoom out of the band* — was specified
+  and still has not been built.
 
   **Reading on-screen captions (new, shipped).** `engine/studio/ocr_captions.py` samples the lower
   band of a clip with one ffmpeg process and reads it with local CPU OCR (RapidOCR + PP-OCRv6,
@@ -48,10 +72,32 @@ ShortForge (Spec Sheet for AI Coding Agents)
   Basic tab. Playwright's `isVisible()` returns true for elements scrolled out of view — assert on
   `boundingBox()` against the viewport instead.
 
-  **Tests.** `178` backend tests (`engine/core/tests engine/studio engine/ai`, ~5 min) and `26` browser
-  tests (`cd dashboard && npx playwright test`, ~3 min). Both must be green before pushing. `npm run
-  lint` is `tsc --noEmit`; `npm run build` is `tsc -b && vite build`. All three are required — `vite dev`
-  skips type checking, so a green browser run does **not** prove the build works.
+  **Tests.** Three suites, and all three must be green before pushing:
+
+  - **Backend** — `.venv/bin/python -m pytest engine/core/tests engine/studio engine/ai -q`.
+  `402` collected: **400 pass and 2 skip**, plus **25 subtests**. The two skips are the opt-in
+  real-model checks, which only run with `SHORTFORGE_TEST_TRANSCRIPTION=1` or
+  `SHORTFORGE_TEST_SEPARATION=1` set — the suite never downloads a model on its own. Expect roughly
+  5–8 min on an idle laptop; it stretches past 13 min when something else is loading the CPU, so a
+  slow run is not by itself a sign that anything is wrong.
+  - **Extension** — `cd extension && npm test`. **`71`** Node unit tests covering the scout's parsing,
+  queueing and network rules. A couple of seconds, so there is no excuse for skipping it.
+  - **Browser** — `cd dashboard && npx playwright test`. **`46`** tests across 14 spec files; 2 of them
+  skip unless `SHORTFORGE_REAL_MEDIA` points at the licensed Sintel trailer, so **44** normally run.
+  Allow several minutes. The Web Audio preview cleanup test can be timing-sensitive under load:
+  if it fails in a full run, re-run that test in isolation and report both outcomes.
+
+  **Type checking and the build.** Both of these changed recently, so ignore any older description.
+  `cd dashboard && npm run lint` is now **two** passes —
+  `tsc --noEmit -p tsconfig.json` for the app **and** `tsc --noEmit -p tsconfig.test.json` for the
+  Playwright specs plus `vite.config.ts` and `playwright.config.ts`. That second group was never
+  type-checked at all before, so a broken spec or a typo in the build config could sail through.
+  `npm run build` is `tsc --noEmit -p tsconfig.json && vite build`. It used to be `tsc -b`, which
+  type-checks this project just as thoroughly — both forms were checked against a deliberate type
+  error and both caught it — so the change was for tidiness, not correctness: build mode also writes
+  a `tsconfig.tsbuildinfo` cache that nothing here reads. `extension/build.mjs` also invokes
+  `tsc --noEmit -p tsconfig.json` in `dashboard/` for the same check. `vite dev` skips type checking
+  entirely, so a green browser run does **not** prove the build works.
 
   ---
 
@@ -159,12 +205,18 @@ ShortForge (Spec Sheet for AI Coding Agents)
 
   ```
   shortforge/
-  ├─ CLAUDE.md               ← this file
+  ├─ AGENT.md                ← this file
   ├─ start.bat / start.sh    ← one command runs engine + dashboard
   ├─ .env.example
+  ├─ package.json            ← repo-wide formatting only (Prettier); holds no app code
+  ├─ .prettierrc.json        ← the house style Prettier applies (2 spaces, semicolons, double quotes)
+  ├─ .prettierignore         ← what Prettier must never touch (Markdown, vendored fonts, lock files)
+  ├─ pyproject.toml          ← ruff settings for the Python side (line length, Python 3.11 target)
+  ├─ requirements-dev.txt    ← ruff itself; not needed just to run ShortForge
+  ├─ scripts/                ← small helpers (the ruff runner, the editor check harnesses)
   ├─ shared/contract/        ← API + DB contract (single source of truth)
   ├─ extension/              ← Chrome MV3 (TypeScript)      [Agent A]
-  ├─ dashboard/              ← Vite + React + TypeScript + Tailwind   [Agents B, D]
+  ├─ dashboard/              ← Vite + React + TypeScript, ~8,500 lines of hand-written CSS   [Agents B, D]
   ├─ engine/                 ← Python 3.11+, FastAPI          [Agents C, D, E]
   │   ├─ core/  studio/  ai/
   ├─ data/                   ← SQLite DB, downloads, exports (git-ignored)
@@ -223,10 +275,12 @@ ShortForge (Spec Sheet for AI Coding Agents)
   Three-pane layout: tools (left) · phone-shaped 9:16 preview (center) · properties (right).
 
   - **Trim** start/end. **Crop/zoom** to 9:16.
-  - **Caption removal** (honest, best-effort). Captions burned into a video are pixels, so they cannot be
-  deleted — only hidden. Ship exactly `cover`, `blur` and `mosaic` over a user-adjustable band, and label
-  them as hiding the area. Do not implement or imply *crop-zoom out of the band* or AI inpainting; both
-  are unbuilt and out of scope until the user asks.
+  - **Caption removal** (honest, best-effort). Two separate things, and the wording must keep them
+  apart. *Hiding:* `cover`, `blur` and `mosaic` over a user-adjustable band — label these as hiding the
+  area, never as deletion. *Repairing:* the local CPU inpainting path described in §0 and
+  `docs/CAPTION-REMOVAL.md`, which rebuilds the covered pixels and may be called removal as long as its
+  limits are stated plainly. *Crop-zoom out of the band* is still unbuilt and stays out of scope until
+  the user asks (see §13).
   - **Reading on-screen captions:** `engine/studio/ocr_captions.py` + `POST /api/editor/{id}/ocr-captions`.
   Samples the lower band with one ffmpeg process, runs local CPU OCR, and turns repeated readings into
   timed cues that land on the timeline as ordinary editable text clips. Opt-in dependency; the UI must
@@ -308,7 +362,7 @@ ShortForge (Spec Sheet for AI Coding Agents)
   - **Radius:** 10 (controls) · 16 (cards) · 24 (sheets/modals).
   - **Dark:** bg `#0B0B0D`, surface `#141416`, elevated `#1C1C1F`, border `rgba(255,255,255,0.08)`, text `#F5F5F7`, muted `#A1A1A6`.
   - **Light:** bg `#F5F5F7`, surface `#FFFFFF`, border `rgba(0,0,0,0.08)`, text `#1D1D1F`, muted `#6E6E73`.
-  - **Accent:** one accent only — a violet ramp, used for primary buttons, focus rings, active states. Dark `#b7a1ff` (button `#7953df`, soft `#332b49`); light `#b5adff` (button `#5347ce`). Defined once as `--accent` in `dashboard/src/theme/editor.css` and `tokens.css`; never hard-code a hex in a component. Semantic colors for success/warn/error, used sparingly.
+  - **Accent:** one accent only — a violet ramp, used for primary buttons, focus rings, active states. There are three scopes and they do not share values. Dashboard light: accent `#5347ce`, button `#5347ce`, soft `#eae7fc`. Dashboard dark: accent `#b5adff`, button `#6558d8`, soft `#302b4c`. Studio's own dark workspace: accent `#b7a1ff`, button `#7953df`, soft `#332b49`. Defined as the `--accent` variable, never as a hex in a component. There are exactly three places it is assigned: `dashboard/src/theme/tokens.css` sets it once for the dashboard's light theme and once for the dark override, and `dashboard/src/theme/editor.css` sets it again inside the `.timeline-studio` scope for Studio's own dark workspace. Do not carry a value across scopes — the dashboard dark accent is a light-on-dark tone and fails contrast on a white background. Semantic colors for success/warn/error, used sparingly.
   - **Motion:** 150–250 ms ease-out; subtle springs on drawers/toggles; respect `prefers-reduced-motion`.
   - **Glass:** translucent sidebar with `backdrop-filter: blur(20px)`; elsewhere prefer 1px borders over heavy shadows.
   - **Icons:** Lucide (SVG, 1.5px stroke, 20px). **No emoji as icons.**
@@ -362,7 +416,11 @@ ShortForge (Spec Sheet for AI Coding Agents)
   clip can never be downloaded or exported — test the API too, not just the button).
   - Dashboard smoke test (Playwright or similar) for Library, theme toggle, and the Studio export path.
   - `docs/TESTING.md`: plain-English, click-by-click checklist the user can run.
-  - Lint/format on commit. No TODOs left in shipped code without an entry in `docs/PROGRESS.md`.
+  - **Format and lint before you commit.** All four commands run from the repo root: `npm run format`
+  (Prettier tidies every JavaScript, TypeScript, CSS and JSON file), `npm run format:check` (same check,
+  changes nothing — use it to see what would move), `npm run format:py` and `npm run lint:py` (ruff
+  formats and then checks the Python). Hand-written Markdown is left alone on purpose, so these docs keep
+  the line breaks they were given. No TODOs left in shipped code without an entry in `docs/PROGRESS.md`.
   - Definition of done for any feature: works on the user's machine, has a test, has a designed empty/loading/error state, and is explained in one paragraph in `docs/
   PROGRESS.md`.
 
@@ -370,8 +428,10 @@ ShortForge (Spec Sheet for AI Coding Agents)
 
   ## 12. Out of scope
 
-  Auto-uploading to YouTube · evasion of bot or copyright detection · liking/commenting/subscribing automation · mobile apps · cloud hosting ·
-  AI inpainting of burned-in captions.
+  Auto-uploading to YouTube · evasion of bot or copyright detection · liking/commenting/subscribing automation · mobile apps · cloud hosting.
+
+  > AI inpainting of burned-in captions used to be on this list. The user later asked for it and it
+  > shipped as the local CPU caption-removal path (§0). Running it on a cloud GPU is still out of scope.
 
   ## 13. Open decisions the user has not settled
 

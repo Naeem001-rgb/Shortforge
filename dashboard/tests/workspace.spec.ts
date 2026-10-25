@@ -2,12 +2,92 @@ import { test, expect } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 import os from "node:os";
-import { removeProject } from "./editor-fixtures";
 const root = path.join(os.tmpdir(), "shortforge-resume-qa-workspace");
+for (const savedPage of ["studio", "seo"]) {
+  test(`legacy saved ${savedPage} page recovers to Library`, async ({
+    page,
+  }) => {
+    await page.addInitScript((savedPage) => {
+      localStorage.setItem("shortforge-page", savedPage);
+      localStorage.setItem("shortforge-project", "legacy-project");
+    }, savedPage);
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { name: "Your library", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("navigation", { name: "Main navigation" })
+        .getByRole("button"),
+    ).toHaveCount(3);
+    await expect(
+      page.getByRole("button", {
+        name: /^(Publish kit|Create a Short)$/,
+      }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("tab", { name: /Ready to edit/ })).toHaveCount(
+      0,
+    );
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("shortforge-page")))
+      .toBe("library");
+    expect(new URL(page.url()).searchParams.has("studio")).toBe(false);
+    await page.getByRole("button", { name: "Search workspace" }).click();
+    const palette = page.getByRole("dialog", { name: "Go anywhere" });
+    await expect(
+      palette.getByRole("button", { name: "Publish kit", exact: true }),
+    ).toHaveCount(0);
+    await palette.getByRole("button", { name: "Scout", exact: true }).click();
+    await expect(
+      page.getByRole("heading", {
+        name: "A little curiosity goes a long way.",
+      }),
+    ).toBeVisible();
+  });
+}
+
+test("workspace search opens saved video details", async ({
+  page,
+  request,
+}) => {
+  const response = await request.post("/api/clips", {
+    data: {
+      clips: [
+        {
+          url: `https://www.youtube.com/shorts/${randomBytes(8).toString("base64url")}`,
+          title: "Searchable saved video",
+        },
+      ],
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  const clip = (await response.json()).clips[0];
+  try {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Search workspace" }).click();
+    const palette = page.getByRole("dialog", { name: "Go anywhere" });
+    await palette.getByLabel("Search pages and clips").fill(clip.title);
+    await palette
+      .getByRole("button", { name: clip.title, exact: true })
+      .click();
+    const details = page.getByRole("dialog", { name: "Video details" });
+    await expect(
+      details.getByRole("heading", { name: clip.title, exact: true }),
+    ).toBeVisible();
+    await expect(
+      details.getByRole("link", { name: "Watch original" }),
+    ).toHaveAttribute("href", clip.url);
+    await expect(
+      details.getByRole("button", { name: "Edit in Studio" }),
+    ).toBeVisible();
+  } finally {
+    await request.delete(`/api/clips/${clip.id}`);
+  }
+});
+
 test("library, theme, navigation, settings and responsive layout", async ({
   page,
-  context,
-  request,
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -37,7 +117,6 @@ test("library, theme, navigation, settings and responsive layout", async ({
   await page.getByRole("button", { name: "Light theme", exact: true }).click();
   for (const [button, heading] of [
     ["Scout", "A little curiosity goes a long way."],
-    ["Publish kit", "A great first impression."],
   ]) {
     await page
       .getByRole("navigation", { name: "Main navigation" })
@@ -94,31 +173,16 @@ test("library, theme, navigation, settings and responsive layout", async ({
     page.getByRole("navigation", { name: "Main navigation" }),
   ).toBeHidden();
   await page.getByRole("button", { name: "Open navigation" }).click();
-  const created = context.waitForEvent("page");
   await page
     .getByRole("navigation", { name: "Main navigation" })
-    .getByRole("button", { name: "Studio", exact: true })
+    .getByRole("button", { name: "Scout", exact: true })
     .click();
-  const editor = await created;
-  await expect(editor).toHaveURL(/\?studio=[a-f0-9-]{36}$/);
-  const id = new URL(editor.url()).searchParams.get("studio")!;
-  try {
-    await expect(
-      editor.getByRole("textbox", { name: "Project name" }),
-    ).toBeVisible();
-    await expect(editor.locator("main.studio-tab")).toBeVisible();
-    expect(
-      await editor.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      ),
-    ).toBe(true);
-    await expect(
-      page.getByRole("heading", { name: "Your library", exact: true }),
-    ).toBeVisible();
-  } finally {
-    await editor.close();
-    await removeProject(request, id);
-  }
+  await expect(
+    page.getByRole("heading", { name: "A little curiosity goes a long way." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Main navigation" }),
+  ).toBeHidden();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -184,7 +248,9 @@ test("select all and permanently delete the chosen videos", async ({
     // Half-selected is reported as a mixed state, not a plain tick.
     await page.getByLabel("Select Selectable three").uncheck();
     await expect(selectAll).not.toBeChecked();
-    expect(await selectAll.evaluate((el) => el.indeterminate)).toBe(true);
+    expect(
+      await selectAll.evaluate((el: HTMLInputElement) => el.indeterminate),
+    ).toBe(true);
     // appearance:none drops the native dash, so a visible mark must be drawn.
     expect(
       await selectAll.evaluate((el) => getComputedStyle(el).backgroundImage),
@@ -220,6 +286,6 @@ test("select all and permanently delete the chosen videos", async ({
       expect((await request.get(`/api/clips/${id}`)).status()).toBe(404);
     expect(errors).toEqual([]);
   } finally {
-    for (const id of ids) await removeProject(request, id);
+    for (const id of ids) await request.delete(`/api/clips/${id}`);
   }
 });

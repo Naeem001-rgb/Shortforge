@@ -1,0 +1,11 @@
+{
+  // The Playwright specs and the two build configs. These run in Node, not in
+  // the browser, so they get the Node types that the app deliberately lacks.
+  // `npm run lint` checks this project as well, so a broken spec or a typo in
+  // vite.config.ts fails the same gate the app does.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["tests", "vite.config.ts", "playwright.config.ts"]
+}

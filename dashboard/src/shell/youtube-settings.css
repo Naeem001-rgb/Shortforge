@@ -1,0 +1,77 @@
+.youtube-settings p {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.youtube-settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.youtube-client-setup {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0;
+}
+.youtube-client-setup ol {
+  padding-left: 24px;
+  line-height: 1.6;
+  font-size: 14px;
+}
+.youtube-client-setup li + li {
+  margin-top: 8px;
+}
+.youtube-client-setup .field {
+  margin: 12px 0;
+}
+.youtube-client-setup > .button {
+  justify-self: start;
+}
+.youtube-connected-channels {
+  list-style: none;
+  padding: 0;
+  margin: 20px 0;
+  display: grid;
+  gap: 12px;
+}
+.youtube-connected-channels li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.youtube-connected-channels img {
+  border-radius: 50%;
+  object-fit: cover;
+}
+.youtube-connected-channels li > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.youtube-connected-channels strong {
+  overflow-wrap: anywhere;
+}
+.youtube-connected-channels span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.youtube-settings .help-text a {
+  display: inline;
+}
+.youtube-settings .help-text svg {
+  vertical-align: middle;
+}
+@media (max-width: 600px) {
+  .youtube-connected-channels li {
+    flex-wrap: wrap;
+  }
+  .youtube-connected-channels li > .button {
+    margin-left: auto;
+  }
+}

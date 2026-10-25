@@ -7,16 +7,32 @@ Everything in this file is implemented twice and must stay in step:
 | Preview | `dashboard/src/studio/textPresets.ts` | `textAppearance()` for the line, `captionWords()` / `captionWordAppearance()` per word |
 | Export | `engine/studio/captions.py` | `caption_ass()` writes the ASS document FFmpeg burns in |
 
+One thing has moved since this file was written, and it changes what "export"
+means here. The **default** export now runs in the browser: `exportProject.ts`
+calls the same `renderFrame()` canvas compositor the player uses, and that
+compositor reads its word selection and styling helpers out of `textPresets.ts`.
+So the preview and the ordinary downloaded file cannot disagree — they are one
+code path. `caption_ass()` is the **Local compatibility export**, the FFmpeg
+path you choose explicitly when the browser exporter cannot handle a timeline.
+Where this file says a capability is "not rendered in the export", read it as
+*not rendered by the compatibility export*; the default export does render it,
+because the default export is the preview.
+
 `dashboard/src/studio/textPresets.ts` owns the new defaults
 (`modernTextStyle`). `engine/studio/captions.py` mirrors them in
 `CAPTION_DEFAULTS` and reads them with `getattr`, so a caption keeps rendering
 on an engine whose `TextStyle` has not gained the columns yet. Nothing crashes;
-the new effects are simply ignored until the model knows about them.
+the new effects are simply ignored until the model knows about them. The engine
+in this repository does know about all of them — see the next section — but the
+`getattr` path is kept so an older engine never fails on a newer project.
 
-## Wiring the model
+## The model, as wired today
 
-`editor_render.write_text()` should become a thin wrapper so there is exactly
-one ASS builder:
+Both halves of this are done; the paragraphs below are the record of what
+landed, not a to-do list.
+
+`editor_render.write_text()` is now a thin wrapper, so there is exactly one ASS
+builder (`engine/studio/editor_render.py`):
 
 ```python
 def write_text(item, width, height, directory, index, ratio):
@@ -26,38 +42,41 @@ def write_text(item, width, height, directory, index, ratio):
     return name
 ```
 
-Then paste this block into `TextStyle` in `engine/studio/editor_models.py`,
-after the existing `highlight` line. Nothing else in the model changes.
+`TextStyle` in `engine/studio/editor_models.py` carries all eighteen new fields,
+after the existing `highlight` line. Nothing else in the model changed. As
+stored today, with the bounds the model actually enforces:
 
 ```python
     case_style: Literal['none','upper','lower','title','sentence'] = 'none'
-    line_height: float = Field(1, ge=.6, le=3)
+    line_height: float = Field(1, ge=.5, le=3)
     emphasis: Literal['none','pop','tilt','flash','shake'] = 'none'
     emphasis_scope: Literal['all','key'] = 'all'
     emphasis_words: Literal['none','all','first','last','longest','keyword'] = 'none'
-    emphasis_keywords: list[str] = Field(default_factory=list, max_length=40)
+    emphasis_keywords: list[str] = Field(default_factory=list, max_length=500)
     emphasis_case: Literal['none','upper','lower'] = 'none'
     emphasis_bold: bool = True
     emphasis_color: str = Field('#f9e54c', pattern=r'^#[0-9a-fA-F]{6}$')
     color_ramp: Literal['none','words'] = 'none'
     ramp_color: str = Field('#ff2d55', pattern=r'^#[0-9a-fA-F]{6}$')
-    glow: float = Field(0, ge=0, le=16)
+    glow: float = Field(0, ge=0, le=100)
     glow_color: str = Field('#7c5cff', pattern=r'^#[0-9a-fA-F]{6}$')
     shadow_color: str = Field('#000000', pattern=r'^#[0-9a-fA-F]{6}$')
     shadow_opacity: float = Field(.5, ge=0, le=1)
-    shadow_soft: float = Field(0, ge=0, le=24)
-    box_padding: float = Field(0, ge=0, le=160)
+    shadow_soft: float = Field(0, ge=0, le=100)
+    box_padding: float = Field(0, ge=0, le=200)
     chip: Literal['none','emphasis'] = 'none'
 ```
 
-`emphasis_keywords` accepts any string today. If you want a hard length cap per
-entry, add `from typing import Annotated` and use
+`emphasis_keywords` caps the list at 500 entries but does not cap the length of
+each string. If you ever want a per-entry cap, add
+`from typing import Annotated` and use
 `list[Annotated[str, Field(max_length=40)]]`.
 
-Until this lands, saving a project that uses one of the new presets fails with
-`422 items.0.text_style.emphasis: Extra inputs are not permitted` (the model is
-`extra='forbid'`). The dashboard only writes the new fields when a value differs
-from its default, so untouched captions keep saving fine.
+Before this landed, saving a project that used one of the new presets failed
+with `422 items.0.text_style.emphasis: Extra inputs are not permitted`, because
+the model is `extra='forbid'`. That cannot happen now. The dashboard still only
+writes the new fields when a value differs from its default, so untouched
+captions stay byte-identical on save.
 
 ## Shared vocabulary
 
@@ -102,7 +121,7 @@ preview, so every pixel-ish value is written as `value * ratio` in ASS and
   block of every event for this caption, including the glow, shadow and box
   layers so all of them break lines identically.
 - Preview: `line-height: line_height × 1.16`. The 1.16 is libass's natural
-  leading for DejaVu Sans (`FONT_LEADING` in both files) — without it the
+  leading for DejaVu Sans (`FONT_LEADING` in `textPresets.ts`) — without it the
   preview would sit visibly tighter than the export.
 - Caveat: ASS has no line-height *style field*. The eighth numeric slot of a
   V4+ style line is the baseline angle, so it stays `0` and `\fsp` does the
@@ -149,7 +168,7 @@ preview, so every pixel-ish value is written as `value * ratio` in ASS and
 
 ### `emphasis_keywords`
 
-- Type: `string[]`, at most 40 entries
+- Type: `string[]`, at most 500 entries
 - Default: `[]`
 - ASS: none. It is the input to the `keyword` selector above.
 
@@ -195,7 +214,7 @@ preview, so every pixel-ish value is written as `value * ratio` in ASS and
 
 ### `glow`
 
-- Type: `number`, 0–16
+- Type: `number`, 0–100
 - Default: `0`
 - ASS: two extra `Dialogue` events on **layer 0**, styled `Glow`
   (`BorderStyle 1`, `Outline 0`, every colour = `glow_color`), carrying the
@@ -238,7 +257,7 @@ preview, so every pixel-ish value is written as `value * ratio` in ASS and
 
 ### `shadow_soft`
 
-- Type: `number`, 0–24
+- Type: `number`, 0–100
 - Default: `0`
 - ASS: one extra `Dialogue` on **layer 1**, styled `Soft` (`BorderStyle 1`,
   `Outline 0`, `Shadow 0`, fill = `shadow_color`), tagged
@@ -249,7 +268,7 @@ preview, so every pixel-ish value is written as `value * ratio` in ASS and
 
 ### `box_padding`
 
-- Type: `number`, 0–160
+- Type: `number`, 0–200
 - Default: `0`
 - ASS: when `text_background` is not `transparent`, an extra `Dialogue` on
   **layer 2** styled `Box` with `BorderStyle 3` and

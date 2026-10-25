@@ -1,6 +1,5 @@
 import {
   ArrowUpRight,
-  ChevronsUpDown,
   ChevronRight,
   Clapperboard,
   Compass,
@@ -10,29 +9,28 @@ import {
   Menu,
   Monitor,
   Moon,
-  Plus,
   Search,
   Settings2,
   Sun,
-  WandSparkles,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Clip, Health } from "../api";
-import { api, post } from "../api";
+import { api } from "../api";
 import { ImportDialog, LibraryPage } from "../library/Library";
 import { ScoutPage } from "../library/Scout";
-import { SEOPage } from "../studio/SEO";
-import { Studio } from "../studio/Studio";
+import { StudioPage } from "../studio/Studio";
 import { IconButton, Modal, Notice } from "../ui";
 import { SettingsPage } from "./Settings";
 import "../theme/shell.css";
-export type Page = "library" | "scout" | "studio" | "seo" | "settings";
+export type Page = "library" | "scout" | "studio" | "settings";
+const PLATFORM: string =
+  (navigator as Navigator & { userAgentData?: { platform?: string } })
+    .userAgentData?.platform ?? navigator.platform;
 const pages = [
   { id: "library", label: "Library", icon: Library },
   { id: "scout", label: "Scout", icon: Compass },
   { id: "studio", label: "Studio", icon: Clapperboard },
-  { id: "seo", label: "Publish kit", icon: WandSparkles },
 ] as const;
 export function App() {
   const [mobile, setMobile] = useState(
@@ -47,7 +45,7 @@ export function App() {
   const [page, setPage] = useState<Page>(() => {
     if (new URLSearchParams(location.search).has("studio")) return "studio";
     const saved = localStorage.getItem("shortforge-page");
-    return ["library", "scout", "seo", "settings"].includes(saved || "")
+    return ["library", "scout", "settings"].includes(saved || "")
       ? (saved as Page)
       : "library";
   });
@@ -57,14 +55,12 @@ export function App() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [selected, setSelected] = useState(
-    () =>
-      new URLSearchParams(location.search).get("studio") ||
-      localStorage.getItem("shortforge-project") ||
-      "",
-  );
-  const creating = useRef(false);
-  const [projectError, setProjectError] = useState("");
+  const [detail, setDetail] = useState<Clip | null>(null);
+  const [studioClip, setStudioClip] = useState(() => {
+    const id = new URLSearchParams(location.search).get("studio");
+    return id && id !== "new" ? id : "";
+  });
+  const [studioAttempt, setStudioAttempt] = useState(0);
   const [palette, setPalette] = useState(false);
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState(false);
@@ -74,9 +70,8 @@ export function App() {
     () => localStorage.getItem("shortforge-theme") || "system",
   );
   useEffect(() => {
-    localStorage.setItem("shortforge-page", page);
-    localStorage.setItem("shortforge-project", selected);
-  }, [page, selected]);
+    if (page !== "studio") localStorage.setItem("shortforge-page", page);
+  }, [page]);
   const refresh = useCallback(async () => {
     try {
       const data = await api<{ clips: Clip[] }>("/clips");
@@ -87,6 +82,17 @@ export function App() {
     } finally {
       setLoading(false);
     }
+  }, []);
+  const openStudio = useCallback((id = "") => {
+    setDetail(null);
+    setMenu(false);
+    const url = new URL(location.href);
+    url.searchParams.set("studio", id || "new");
+    url.hash = "";
+    history.replaceState(null, "", url);
+    setStudioClip(id);
+    setStudioAttempt((attempt) => attempt + 1);
+    setPage("studio");
   }, []);
   useEffect(() => {
     refresh();
@@ -106,8 +112,12 @@ export function App() {
   useEffect(() => {
     const media = matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
-      document.documentElement.dataset.theme =
+      const resolved =
         theme === "system" ? (media.matches ? "dark" : "light") : theme;
+      document.documentElement.dataset.theme = resolved;
+      document
+        .querySelector('meta[name="theme-color"]:not([media])')
+        ?.setAttribute("content", resolved === "dark" ? "#1a1a17" : "#faf7ee");
     };
     apply();
     localStorage.setItem("shortforge-theme", theme);
@@ -156,72 +166,27 @@ export function App() {
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);
   }, []);
-  const selectProject = useCallback((id: string) => {
-    setSelected(id);
-    const url = new URL(location.href);
-    url.searchParams.set("studio", id);
-    history.replaceState(null, "", url);
-  }, []);
-  const createProject = useCallback(async () => {
-    if (creating.current) return;
-    creating.current = true;
-    setProjectError("");
-    try {
-      const clip = await post<Clip>("/projects");
-      setClips((current) => [clip, ...current]);
-      selectProject(clip.id);
-      setPage("studio");
-    } catch (cause) {
-      setProjectError((cause as Error).message);
-    } finally {
-      creating.current = false;
-    }
-  }, [selectProject]);
-  useEffect(() => {
-    if (page === "studio" && selected === "new") void createProject();
-  }, [page, selected, createProject]);
-  const open = (id: string) => {
-    const url = new URL(location.href);
-    url.searchParams.set("studio", id || "new");
-    url.hash = "";
-    window.open(url.href, "_blank", "noopener,noreferrer");
-  };
   const navigate = (next: Page) => {
-    if (next === "studio") open(selected || "new");
-    else {
-      const url = new URL(location.href);
-      url.searchParams.delete("studio");
-      history.replaceState(null, "", url);
-      setPage(next);
+    if (next === "studio") {
+      openStudio();
+      return;
     }
+    const url = new URL(location.href);
+    url.searchParams.delete("studio");
+    history.replaceState(null, "", url);
+    setDetail(null);
+    setPage(next);
     setMenu(false);
   };
-  if (page === "studio") {
-    return (
-      <main id="main-content" className="studio-tab">
-        {projectError && (
-          <Notice>
-            {projectError}{" "}
-            <button className="text-button" onClick={createProject}>
-              Try again
-            </button>
-          </Notice>
-        )}
-        <Studio
-          key={selected}
-          clips={clips}
-          selected={selected === "new" ? "" : selected}
-          onSelect={selectProject}
-          refresh={refresh}
-          onImport={createProject}
-          {...{ onBack: () => navigate("library") }}
-          onPublish={() => navigate("seo")}
-        />
-      </main>
-    );
-  }
   const label =
     page === "settings" ? "Settings" : pages.find((p) => p.id === page)?.label;
+  const palettePages = [
+    ...pages,
+    { id: "settings" as const, label: "Settings", icon: Settings2 },
+  ].filter((p) => p.label.toLowerCase().includes(query.toLowerCase()));
+  const paletteClips = clips
+    .filter((c) => query && c.title.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 5);
   return (
     <div className="app-shell">
       <a href="#main-content" className="skip-link">
@@ -244,20 +209,16 @@ export function App() {
         aria-label="Workspace navigation"
       >
         <div className="sidebar-brand-row">
-          <a
+          <button
+            type="button"
             className="brand"
-            aria-label="ShortForge"
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate("library");
-            }}
+            onClick={() => navigate("library")}
           >
             <span className="brand-icon">
-              <Clapperboard size={20} strokeWidth={1.9} />
+              <Clapperboard size={20} strokeWidth={1.9} aria-hidden="true" />
             </span>
             <span>ShortForge</span>
-          </a>
+          </button>
           <IconButton
             label="Close navigation"
             className="sidebar-close"
@@ -268,7 +229,7 @@ export function App() {
         </div>
         <button
           className="sidebar-workspace"
-          aria-label="Personal workspace"
+          aria-label="My workspace"
           onClick={() => navigate("settings")}
         >
           <span className="workspace-avatar" aria-hidden="true">
@@ -277,65 +238,36 @@ export function App() {
           <span>
             My workspace<small>On this device</small>
           </span>
-          <ChevronsUpDown size={14} aria-hidden="true" />
-        </button>
-        <button
-          className="sidebar-create"
-          aria-label="Create a Short"
-          title="Create a Short"
-          onClick={() => {
-            setMenu(false);
-            open("");
-          }}
-        >
-          <Plus size={17} />
-          <span>Create a Short</span>
         </button>
         <nav aria-label="Main navigation">
           <div className="nav-label">Workspace</div>
-          {pages.map(({ id, label, icon: Icon }, index) => (
-            <div className="nav-entry" key={id}>
-              {index === 2 && (
-                <div className="nav-label production-label">Production</div>
+          {pages.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              className={`nav-item ${page === id ? "active" : ""}`}
+              title={label}
+              onClick={() => navigate(id)}
+              aria-current={page === id ? "page" : undefined}
+            >
+              <Icon size={16} aria-hidden="true" />
+              <span>{label}</span>
+              {id === "library" && clips.length > 0 && (
+                <span className="nav-count">
+                  {clips.filter((c) => c.workflow_status !== "archived").length}
+                </span>
               )}
-              <button
-                className={`nav-item ${page === id ? "active" : ""}`}
-                aria-label={label}
-                title={label}
-                onClick={() => navigate(id)}
-                aria-current={page === id ? "page" : undefined}
-              >
-                <Icon size={16} />
-                <span>{label}</span>
-                {id === "library" && clips.length > 0 && (
-                  <span className="nav-count">
-                    {
-                      clips.filter((c) => c.workflow_status !== "archived")
-                        .length
-                    }
-                  </span>
-                )}
-                {id === "studio" && (
-                  <ArrowUpRight
-                    className="nav-external"
-                    size={14}
-                    aria-hidden="true"
-                  />
-                )}
-              </button>
-            </div>
+            </button>
           ))}
         </nav>
         <div className="sidebar-bottom">
           <div className="nav-label">Preferences</div>
           <button
             className={`nav-item ${page === "settings" ? "active" : ""}`}
-            aria-label="Settings"
             title="Settings"
             onClick={() => navigate("settings")}
             aria-current={page === "settings" ? "page" : undefined}
           >
-            <Settings2 size={16} />
+            <Settings2 size={16} aria-hidden="true" />
             <span>Settings</span>
           </button>
           <div className="sidebar-device">
@@ -369,7 +301,7 @@ export function App() {
             >
               <Search size={17} />
               <span>Search your workspace…</span>
-              <kbd>{navigator.platform.includes("Mac") ? "⌘" : "Ctrl"} K</kbd>
+              <kbd>{PLATFORM.includes("Mac") ? "⌘" : "Ctrl"} K</kbd>
             </button>
           </div>
           <div className="topbar-actions">
@@ -442,21 +374,22 @@ export function App() {
               unavailable={Boolean(error)}
               refresh={refresh}
               onImport={() => setImporting(true)}
-              onOpen={open}
+              detail={detail}
+              onDetailChange={setDetail}
               onScout={() => navigate("scout")}
+              onOpen={openStudio}
             />
           )}
           {page === "scout" && (
-            <ScoutPage
-              onImport={() => setImporting(true)}
-            />
+            <ScoutPage onImport={() => setImporting(true)} />
           )}
-          {page === "seo" && (
-            <SEOPage
-              key={selected}
-              clips={clips}
-              selected={selected}
-              onSelect={setSelected}
+          {page === "studio" && (
+            <StudioPage
+              key={`${studioClip}:${studioAttempt}`}
+              clip={clips.find((clip) => clip.id === studioClip)}
+              clipId={studioClip}
+              onComplete={() => void refresh()}
+              onBack={() => navigate("library")}
             />
           )}
           {page === "settings" && <SettingsPage health={health} />}
@@ -484,45 +417,39 @@ export function App() {
             />
           </div>
           <div className="command-results">
-            {[
-              ...pages,
-              { id: "settings" as const, label: "Settings", icon: Settings2 },
-            ]
-              .filter((p) =>
-                p.label.toLowerCase().includes(query.toLowerCase()),
-              )
-              .map(({ id, label, icon: Icon }) => (
-                <button
-                  key={id}
-                  onClick={() => {
-                    navigate(id);
-                    setPalette(false);
-                    setQuery("");
-                  }}
-                >
-                  <Icon size={19} />
-                  {label}
-                  <ArrowUpRight size={15} />
-                </button>
-              ))}
-            {clips
-              .filter(
-                (c) =>
-                  query && c.title.toLowerCase().includes(query.toLowerCase()),
-              )
-              .slice(0, 5)
-              .map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => {
-                    open(c.id);
-                    setPalette(false);
-                  }}
-                >
-                  <FolderOpen size={18} />
-                  {c.title}
-                </button>
-              ))}
+            {palettePages.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => {
+                  navigate(id);
+                  setPalette(false);
+                  setQuery("");
+                }}
+              >
+                <Icon size={19} aria-hidden="true" />
+                {label}
+                <ArrowUpRight size={15} aria-hidden="true" />
+              </button>
+            ))}
+            {paletteClips.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => {
+                  navigate("library");
+                  setDetail(c);
+                  setPalette(false);
+                  setQuery("");
+                }}
+              >
+                <FolderOpen size={18} aria-hidden="true" />
+                {c.title}
+              </button>
+            ))}
+            {palettePages.length === 0 && paletteClips.length === 0 && (
+              <div className="command-empty muted">
+                No matches for “{query}”
+              </div>
+            )}
           </div>
         </Modal>
       )}

@@ -1,1 +1,36 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="theme-color" content="#f5f5f7"/><link rel="icon" type="image/svg+xml" href="/favicon.svg"/><title>ShortForge — Your next great Short</title><script>try{var t=localStorage.getItem('shortforge-theme')||'system';document.documentElement.dataset.theme=t==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t}catch(e){}</script></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#faf7ee" />
+    <meta
+      name="theme-color"
+      media="(prefers-color-scheme: dark)"
+      content="#1a1a17"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>ShortForge — Your next great Short</title>
+    <script>
+      try {
+        var t = localStorage.getItem("shortforge-theme") || "system";
+        var dark =
+          t === "dark" ||
+          (t === "system" &&
+            matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        var metas = document.querySelectorAll('meta[name="theme-color"]');
+        var color = dark ? "#1a1a17" : "#faf7ee";
+        for (var i = 0; i < metas.length; i++) {
+          var metaDark =
+            metas[i].getAttribute("media") === "(prefers-color-scheme: dark)";
+          if (metaDark === dark) metas[i].setAttribute("content", color);
+        }
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

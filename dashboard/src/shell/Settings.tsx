@@ -12,11 +12,12 @@ import { useEffect, useState } from "react";
 import type { Health, Settings } from "../api";
 import { api } from "../api";
 import { Notice } from "../ui";
+import { YouTubeSettings } from "./YouTubeSettings";
 export function SettingsPage({ health }: { health: Health | null }) {
   const [settings, setSettings] = useState<Settings>({
-    gemini_model: "gemini-3.8-flash",
-    niche: "Narrated facts and stories",
-    language: "English",
+    gemini_model: "",
+    niche: "",
+    language: "",
   });
   const [keys, setKeys] = useState({
     gemini_api_key: "",
@@ -25,11 +26,13 @@ export function SettingsPage({ health }: { health: Health | null }) {
   });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     api<Settings>("/settings")
       .then(setSettings)
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
   }, []);
   const change = (name: string, value: string) => {
     setSettings((s) => ({ ...s, [name]: value }));
@@ -68,13 +71,17 @@ export function SettingsPage({ health }: { health: Health | null }) {
           <h1>Make yourself at home.</h1>
           <p>Your tools, your preferences. Everything saved on this machine.</p>
         </div>
-        <button className="button primary" disabled={busy} onClick={save}>
+        <button
+          className="button primary"
+          disabled={busy || loading}
+          onClick={save}
+        >
           {busy ? (
-            <LoaderCircle size={17} className="spin" />
+            <LoaderCircle size={17} className="spin" aria-hidden="true" />
           ) : saved ? (
-            <Check size={17} />
+            <Check size={17} aria-hidden="true" />
           ) : (
-            <Save size={17} />
+            <Save size={17} aria-hidden="true" />
           )}{" "}
           {saved ? "Saved" : "Save changes"}
         </button>
@@ -87,6 +94,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
       )}
       <div className="settings-layout">
         <div className="settings-main">
+          <YouTubeSettings />
           <section className="settings-section">
             <div className="section-title">
               <KeyRound size={21} />
@@ -99,7 +107,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
               </div>
             </div>
             <div className="provider-heading">
-              <strong>Google Gemini</strong>
+              <h3>Google Gemini</h3>
               <span
                 className={`badge ${settings.gemini_api_key_set ? "good" : "neutral"}`}
               >
@@ -114,9 +122,11 @@ export function SettingsPage({ health }: { health: Health | null }) {
                 type="password"
                 autoComplete="new-password"
                 value={keys.gemini_api_key}
-                onChange={(e) =>
-                  setKeys({ ...keys, gemini_api_key: e.target.value })
-                }
+                disabled={loading || busy}
+                onChange={(e) => {
+                  setKeys({ ...keys, gemini_api_key: e.target.value });
+                  setSaved(false);
+                }}
                 placeholder={
                   settings.gemini_api_key_set
                     ? "A key is saved. Paste to replace."
@@ -128,12 +138,11 @@ export function SettingsPage({ health }: { health: Health | null }) {
               Model
               <input
                 value={String(settings.gemini_model || "")}
+                disabled={loading || busy}
                 onChange={(e) => change("gemini_model", e.target.value)}
                 placeholder="gemini-3.8-flash"
               />
-              <small>
-                Used when you request script writing or a publish kit.
-              </small>
+              <small>Used for transcript extraction.</small>
             </label>
             <div className="settings-link-row">
               <a
@@ -160,7 +169,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
             </p>
             <hr />
             <div className="provider-heading">
-              <strong>ElevenLabs voice generation</strong>
+              <h3>ElevenLabs</h3>
               <span
                 className={`badge ${settings.elevenlabs_api_key_set ? "good" : "neutral"}`}
               >
@@ -175,6 +184,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
                 value={keys.elevenlabs_api_key}
                 aria-label="ElevenLabs API key"
                 aria-describedby="elevenlabs-key-storage"
+                disabled={loading || busy}
                 onChange={(event) => {
                   setKeys({ ...keys, elevenlabs_api_key: event.target.value });
                   setSaved(false);
@@ -191,9 +201,8 @@ export function SettingsPage({ health }: { health: Health | null }) {
               </small>
             </label>
             <p className="help-text">
-              Choose one of your account’s voices in Studio. Generating speech
-              sends the selected script to ElevenLabs and uses your account
-              credits. Commercial use requires an eligible plan.
+              Store an ElevenLabs API key on this machine. Your library and
+              Scout work without it.
             </p>
             <a
               className="inline-link"
@@ -206,7 +215,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
             </a>
             <hr />
             <div className="provider-heading">
-              <strong>YouTube Data API</strong>
+              <h3>YouTube Data API</h3>
               <span
                 className={`badge ${settings.youtube_api_key_set ? "good" : "neutral"}`}
               >
@@ -219,9 +228,11 @@ export function SettingsPage({ health }: { health: Health | null }) {
                 type="password"
                 autoComplete="new-password"
                 value={keys.youtube_api_key}
-                onChange={(e) =>
-                  setKeys({ ...keys, youtube_api_key: e.target.value })
-                }
+                disabled={loading || busy}
+                onChange={(e) => {
+                  setKeys({ ...keys, youtube_api_key: e.target.value });
+                  setSaved(false);
+                }}
                 placeholder={
                   settings.youtube_api_key_set
                     ? "A key is saved. Paste to replace."
@@ -267,6 +278,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
                 Channel topic
                 <input
                   value={String(settings.niche || "")}
+                  disabled={loading}
                   onChange={(e) => change("niche", e.target.value)}
                 />
               </label>
@@ -274,6 +286,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
                 Main language
                 <input
                   value={String(settings.language || "English")}
+                  disabled={loading}
                   onChange={(e) => change("language", e.target.value)}
                 />
               </label>
@@ -287,14 +300,16 @@ export function SettingsPage({ health }: { health: Health | null }) {
               <h3>A small footprint.</h3>
             </div>
             <p>
-              Your library, editing timelines, footage, music, and voiceovers
-              are stored locally. Saved keys are never returned to the dashboard
-              or stored in project files.
+              Your library, footage, and saved media are stored locally. Saved
+              keys are never returned to the dashboard or stored in video files.
             </p>
             <p>
-              Gemini receives text when you request writing or a publish kit.
-              ElevenLabs receives text when you generate a voice. Local editing
-              and imported audio work without either connection.
+              Gemini receives text when you request transcript extraction. Your
+              library and Scout work without either connection.
+            </p>
+            <p>
+              YouTube receives video and post details for uploads. Channel
+              connections stay in the local engine.
             </p>
           </section>
           <section className="section-card">
@@ -305,7 +320,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
                   <span>
                     {
                       {
-                        ffmpeg: "Video rendering",
+                        ffmpeg: "Video processing",
                         yt_dlp: "Video downloads",
                       }[tool]
                     }
@@ -319,8 +334,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
               ))}
             </div>
             <p className="help-text">
-              Import voiceovers and music made with your own tools directly in
-              Studio.
+              These tools support video imports, thumbnails, and Scout checks.
             </p>
           </section>
         </aside>

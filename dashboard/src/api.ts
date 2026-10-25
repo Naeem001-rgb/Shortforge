@@ -58,19 +58,6 @@ export type Voice = {
   available: boolean;
   cloned: boolean;
 };
-export type Preset = {
-  id: string;
-  name: string;
-  font: string;
-  size: number;
-  fill: string;
-  stroke: string;
-  highlight: string;
-  position: number;
-  animation: string;
-  description: string;
-};
-export const editable = (_clip: Clip) => true;
 // Web development uses Vite's proxy; the packaged extension connects directly
 // to the local engine. Provider keys never belong in this connection setting.
 export const API_ORIGIN =
@@ -128,8 +115,6 @@ export async function api<T>(
 }
 export const post = <T>(path: string, body: unknown = {}) =>
   api<T>(path, { method: "POST", body: JSON.stringify(body) });
-export const assetUrl = (asset: Asset) =>
-  resolveAssetUrl(asset.url || `/api/assets/${asset.id}`);
 // Keep a job attached to its project when a page unmounts or reloads.
 function storedJob(scope: string): Job | null {
   try {

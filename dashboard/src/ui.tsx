@@ -7,7 +7,7 @@ import {
   X,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Clip, Job } from "./api";
 export function IconButton({
   label,
@@ -83,6 +83,7 @@ export function Modal({
   wide?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     const d = dialog.current;
     d?.showModal();
@@ -92,14 +93,14 @@ export function Modal({
     <dialog
       ref={dialog}
       className={`modal ${wide ? "wide" : ""}`}
-      aria-label={title}
+      aria-labelledby={titleId}
       onCancel={onClose}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div className="modal-heading">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <IconButton label="Close dialog" onClick={onClose}>
           <X size={20} />
         </IconButton>
@@ -117,6 +118,8 @@ export function CopyButton({
 }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
   return (
     <>
       <button
@@ -124,8 +127,10 @@ export function CopyButton({
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(text);
+            setError("");
             setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
+            clearTimeout(timer.current);
+            timer.current = setTimeout(() => setCopied(false), 2000);
           } catch {
             setError("Copy was blocked. Select and copy the text manually.");
           }
@@ -169,34 +174,5 @@ export function JobProgress({ job }: { job: Job | null }) {
           ) : null,
         )}
     </div>
-  );
-}
-export function ClipSelect({
-  clips,
-  value,
-  onChange,
-  label = "Project",
-}: {
-  clips: Clip[];
-  value: string;
-  onChange: (value: string) => void;
-  label?: string;
-}) {
-  return (
-    <label className="field">
-      {label}
-      <select
-        aria-label={label}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
-        <option value="">Choose a Short…</option>
-        {clips.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.title}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }

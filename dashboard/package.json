@@ -5,25 +5,23 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc -b && vite build",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "playwright test",
-    "format": "prettier --write src vite.config.ts playwright.config.ts tests",
-    "lint": "tsc --noEmit"
+    "format": "prettier --write src tests index.html vite.config.ts playwright.config.ts --config ../.prettierrc.json",
+    "lint": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
+    "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource-variable/inter": "^5.2.8",
-    "@tailwindcss/vite": "^4.1.0",
+    "@fontsource-variable/source-serif-4": "^5.3.1",
     "lucide-react": "^0.468.0",
-    "mp4-muxer": "5.2.2",
-    "mp4box": "2.4.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tailwindcss": "^4.1.0",
-    "webm-muxer": "5.1.4"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.51.0",
+    "@types/node": "^22.20.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",

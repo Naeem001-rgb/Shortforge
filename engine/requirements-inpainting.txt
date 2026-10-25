@@ -1,3 +1,0 @@
-# Uses the same CPU runtime as OCR. Install the model separately with:
-# python -m engine.studio.setup_inpainting
--r requirements-ocr.txt

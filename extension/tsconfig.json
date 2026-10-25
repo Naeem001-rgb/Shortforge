@@ -5,9 +5,15 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
-    "types": ["chrome"],
+    // "node" is here only so the test files can import node:test and node:assert.
+    "types": ["chrome", "node"],
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  // dashboard-api.test.ts imports dashboard/src/api.ts, which imports React. Checking
+  // it from here would make the extension resolve the dashboard's dependencies.
+  // The dashboard's app type check already covers that file - build.mjs runs it -
+  // and "npm test" still executes this test through tsx.
+  "exclude": ["tests/dashboard-api.test.ts"]
 }

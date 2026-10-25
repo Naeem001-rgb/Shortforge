@@ -1,69 +1,92 @@
----
 name: "ShortForge"
-description: "A framed local video workspace shaped by the selected Pinterest/Coursie dashboard reference."
+description: "A framed local video workspace in the Voxy paper-and-gold world: warm cream paper, ink typography, and a gold signature, replacing the previous violet Pinterest direction on October 25, 2026."
 colors:
-  bg: "#f5f5f8"
+  bg: "#faf7ee"
   surface: "#ffffff"
   surface-raised: "#ffffff"
   media-card-bg: "#ffffff"
-  media-card-border: "#e6e6ee"
-  elevated: "#ebebf1"
-  text: "#242432"
-  muted: "#686878"
-  border: "#e4e4ed"
-  accent: "#5347ce"
-  button-bg: "#5347ce"
-  accent-soft: "#eae7fc"
-  secondary: "#887cfd"
-  info: "#4896fe"
-  teal: "#16c8c7"
-  success: "#237b68"
-  danger: "#bc3748"
-  danger-button: "#b42c42"
-  warning: "#8c601b"
-  sidebar-bg: "#f5f5f8"
-  topbar-bg: "#f5f5f8"
+  media-card-border: "#ece8dd"
+  elevated: "#f4f0e5"
+  text: "#1a1a17"
+  muted: "#57534a"
+  border: "#e5e1d3"
+  accent: "#f2c94c"
+  button-bg: "#f2c94c"
+  on-accent: "#1a1a17"
+  accent-soft: "#f7edcb"
+  marker: "#fff67e"
+  marker-ink: "#1a1a17"
+  secondary: "#6f8f3f"
+  info: "#5b54c4"
+  info-soft: "#eae8f8"
+  teal: "#3e7d5c"
+  success: "#487113"
+  success-soft: "#eaf2dc"
+  danger: "#b04228"
+  danger-button: "#a93e27"
+  on-danger: "#fff3ea"
+  danger-soft: "#f8e4da"
+  warning: "#8a5416"
+  warning-soft: "#f5e8d2"
+  sidebar-bg: "#faf7ee"
+  topbar-bg: "#faf7ee"
   frame-bg: "#ffffff"
-  feature-bg: "#5347ce"
-  feature-ink: "#ffffff"
-  feature-muted: "#e7e3ff"
-  device-bg: "#242137"
-  device-ink: "#f6f3ff"
-  device-muted: "#c1bdd4"
-  hero-bg: "#eeecfb"
-  hero-ink: "#28243f"
-  hero-muted: "#625d77"
-  dark-bg: "#1d1e29"
-  dark-surface: "#272835"
-  dark-surface-raised: "#2d2e3c"
-  dark-media-card-bg: "#272835"
-  dark-media-card-border: "#3d3e50"
-  dark-elevated: "#333446"
-  dark-text: "#f1f0f8"
-  dark-muted: "#b3b2c7"
-  dark-border: "#3b3b4f"
-  dark-accent: "#b5adff"
-  dark-button-bg: "#6558d8"
-  dark-accent-soft: "#302b4c"
-  dark-secondary: "#a59aff"
-  dark-info: "#82b3ff"
-  dark-teal: "#51d5cd"
-  dark-success: "#83c8b0"
-  dark-danger: "#ff9daa"
-  dark-danger-button: "#b73850"
-  dark-warning: "#e4bd7c"
-  dark-sidebar-bg: "#1d1e29"
-  dark-topbar-bg: "#1d1e29"
-  dark-frame-bg: "#14151e"
-  dark-feature-bg: "#5b4bd3"
-  dark-feature-ink: "#ffffff"
-  dark-feature-muted: "#e7e3ff"
-  dark-device-bg: "#302b47"
-  dark-device-ink: "#f6f3ff"
-  dark-device-muted: "#c1bdd4"
-  dark-hero-bg: "#302b47"
-  dark-hero-ink: "#efecff"
-  dark-hero-muted: "#bab4d3"
+  feature-bg: "#f2c94c"
+  feature-ink: "#1a1a17"
+  feature-muted: "#62500f"
+  device-bg: "#1a1a17"
+  device-ink: "#faf7ee"
+  device-muted: "#a8a395"
+  hero-bg: "#e9e6f7"
+  hero-ink: "#26243a"
+  hero-muted: "#5d5a72"
+  media-chip-bg: "rgba(255, 253, 247, 0.94)"
+  media-chip-border: "rgba(255, 253, 247, 0.7)"
+  media-chip-ink: "#1a1a17"
+  media-chip-shadow: "0 1px 4px rgba(26, 26, 23, 0.18)"
+  media-scrim: "rgba(26, 26, 23, 0.55)"
+  media-scrim-strong: "rgba(26, 26, 23, 0.72)"
+  backdrop: "rgba(26, 26, 23, 0.45)"
+  ring: "#1a1a17"
+  dark-bg: "#1a1a17"
+  dark-surface: "#242420"
+  dark-surface-raised: "#2b2b26"
+  dark-media-card-bg: "#242420"
+  dark-media-card-border: "#3b3a33"
+  dark-elevated: "#302f29"
+  dark-text: "#faf7ee"
+  dark-muted: "#b3aea0"
+  dark-border: "#3b3a33"
+  dark-accent: "#f2c94c"
+  dark-button-bg: "#f2c94c"
+  dark-on-accent: "#1a1a17"
+  dark-accent-soft: "#3d3926"
+  dark-marker: "#fff67e"
+  dark-secondary: "#a9c97e"
+  dark-info: "#b7b2ec"
+  dark-info-soft: "#2e2d42"
+  dark-teal: "#7fbf9f"
+  dark-success: "#a9c97e"
+  dark-success-soft: "#2c331f"
+  dark-danger: "#e89a7d"
+  dark-danger-button: "#b44a2e"
+  dark-on-danger: "#fff3ea"
+  dark-danger-soft: "#3f2a21"
+  dark-warning: "#e0b36a"
+  dark-warning-soft: "#3a2f1c"
+  dark-sidebar-bg: "#1a1a17"
+  dark-topbar-bg: "#1a1a17"
+  dark-frame-bg: "#121210"
+  dark-feature-bg: "#f2c94c"
+  dark-feature-ink: "#1a1a17"
+  dark-feature-muted: "#62500f"
+  dark-device-bg: "#242420"
+  dark-device-ink: "#faf7ee"
+  dark-device-muted: "#b3aea0"
+  dark-hero-bg: "#2b2937"
+  dark-hero-ink: "#efedfa"
+  dark-hero-muted: "#aca8c4"
+  dark-ring: "#f2c94c"
   scout-frame: '#f0f0f4'
   scout-panel: '#fff'
   scout-control: '#f7f7fa'
@@ -107,23 +130,23 @@ colors:
   scout-action-ink: '#fff'
 typography:
   display:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
-    fontSize: "30px"
+    fontFamily: "\"Source Serif 4 Variable\", \"Source Serif 4\", Georgia, \"Times New Roman\", serif"
+    fontSize: "34px"
     fontWeight: 600
     lineHeight: 1.2
-    letterSpacing: "-0.035em"
+    letterSpacing: "-0.015em"
   headline:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
-    fontSize: "30px"
+    fontFamily: "\"Source Serif 4 Variable\", \"Source Serif 4\", Georgia, \"Times New Roman\", serif"
+    fontSize: "34px"
     fontWeight: 600
     lineHeight: 1.25
-    letterSpacing: "-0.025em"
+    letterSpacing: "-0.015em"
   title:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
-    fontSize: "20px"
+    fontFamily: "\"Source Serif 4 Variable\", \"Source Serif 4\", Georgia, \"Times New Roman\", serif"
+    fontSize: "21px"
     fontWeight: 600
     lineHeight: 1.25
-    letterSpacing: "-0.025em"
+    letterSpacing: "-0.01em"
   body:
     fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
     fontSize: "14px"
@@ -145,15 +168,15 @@ typography:
     fontWeight: 600
     lineHeight: 1.55
   overview-number:
-    fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
-    fontSize: "33px"
-    fontWeight: 550
+    fontFamily: "\"Source Serif 4 Variable\", \"Source Serif 4\", Georgia, \"Times New Roman\", serif"
+    fontSize: "35px"
+    fontWeight: 600
     lineHeight: 1.1
-    letterSpacing: "-0.04em"
+    letterSpacing: "-0.01em"
   card-title:
     fontFamily: "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Inter Variable\", Inter, \"Segoe UI\", sans-serif"
     fontSize: "13px"
-    fontWeight: 560
+    fontWeight: 600
     lineHeight: 1.5
     letterSpacing: "-0.015em"
   card-metadata:
@@ -161,8 +184,13 @@ typography:
     fontSize: "11px"
     fontWeight: 400
     lineHeight: 1.6
+  data-label:
+    fontFamily: "\"Geist Mono Variable\", \"Geist Mono\", ui-monospace, SFMono-Regular, Consolas, monospace"
+    fontSize: "11px"
+    fontWeight: 400
+    lineHeight: 1.45
   code:
-    fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace"
+    fontFamily: "\"Geist Mono Variable\", \"Geist Mono\", ui-monospace, SFMono-Regular, Consolas, monospace"
     fontSize: "12px"
   scout-heading:
     fontFamily: '"Inter Scout", Inter, -apple-system, "Segoe UI", sans-serif'
@@ -240,7 +268,7 @@ spacing:
 components:
   button-primary:
     backgroundColor: "{colors.button-bg}"
-    textColor: "{colors.feature-ink}"
+    textColor: "{colors.on-accent}"
     typography: "{typography.label}"
     rounded: "{rounded.button}"
     padding: "9px 15px"
@@ -258,317 +286,208 @@ components:
     padding: "9px 15px"
   button-danger:
     backgroundColor: "{colors.danger-button}"
-    textColor: "{colors.feature-ink}"
+    textColor: "{colors.on-danger}"
     typography: "{typography.label}"
     rounded: "{rounded.button}"
     padding: "9px 15px"
-  input:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text}"
-    typography: "{typography.body}"
-    rounded: "{rounded.field}"
-    padding: "10px 12px"
-  navigation-active:
-    backgroundColor: "{colors.accent-soft}"
-    textColor: "{colors.accent}"
-    typography: "{typography.navigation-active}"
-    rounded: "{rounded.navigation}"
-    padding: "10px 12px"
-  badge-neutral:
-    backgroundColor: "{colors.elevated}"
-    textColor: "{colors.muted}"
-    rounded: "{rounded.compact}"
-    padding: "3px 8px"
-  section-card:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.text}"
-    rounded: "{rounded.panel}"
-    padding: "28px"
-  theme-selector:
-    backgroundColor: "{colors.elevated}"
-    rounded: "{rounded.field}"
-    padding: "3px"
-  media-card:
-    backgroundColor: "{colors.media-card-bg}"
-    textColor: "{colors.text}"
-    rounded: "{rounded.media-card}"
-    padding: "6px"
-  overview-featured:
+  nav-active:
+    backgroundColor: "{colors.marker}"
+    textColor: "{colors.marker-ink}"
+  featured-tile:
     backgroundColor: "{colors.feature-bg}"
     textColor: "{colors.feature-ink}"
-    rounded: "{rounded.overview}"
-    padding: "16px 17px"
-  scout-mode-choice:
-    backgroundColor: '{colors.scout-control}'
-    textColor: '{colors.scout-text}'
-    rounded: '{rounded.scout-choice}'
-    padding: 11px 8px
-    typography: '{typography.scout-choice}'
-  scout-mode-choice-selected:
-    backgroundColor: '{colors.scout-selected}'
-    textColor: '{colors.scout-accent}'
-    rounded: '{rounded.scout-choice}'
-    padding: 11px 8px
-    typography: '{typography.scout-choice}'
-  scout-input:
-    backgroundColor: '{colors.scout-control}'
-    textColor: '{colors.scout-text}'
-    rounded: '{rounded.scout-field}'
-    padding: 9px 10px
-    typography: '{typography.scout-body}'
-    height: 42px
-  scout-count-field:
-    backgroundColor: '{colors.scout-control}'
-    textColor: '{colors.scout-text}'
-    rounded: '{rounded.scout-choice}'
-    padding: 9px 10px 5px
-  scout-button-primary:
-    backgroundColor: '{colors.scout-button}'
-    textColor: '{colors.scout-action-ink}'
-    rounded: '{rounded.scout-action}'
-    padding: 8px 11px
-    typography: '{typography.scout-label}'
-  scout-button-secondary:
-    backgroundColor: '{colors.scout-panel}'
-    textColor: '{colors.scout-text}'
-    rounded: '{rounded.scout-action}'
-    padding: 8px 11px
-    typography: '{typography.scout-label}'
-  scout-settings-group:
-    backgroundColor: '{colors.scout-panel}'
-    textColor: '{colors.scout-text}'
-    rounded: '{rounded.scout-panel}'
-    padding: 12px
-  scout-session:
-    backgroundColor: '{colors.scout-panel}'
-    textColor: '{colors.scout-text}'
-    rounded: '{rounded.scout-panel}'
-    padding: 16px
-  scout-status:
-    backgroundColor: '{colors.scout-control}'
-    textColor: '{colors.scout-muted}'
-    rounded: '{rounded.scout-status}'
-    padding: 4px 8px
-  scout-error:
-    backgroundColor: '{colors.scout-danger-surface}'
-    textColor: '{colors.scout-danger}'
-    rounded: '{rounded.scout-choice}'
-    padding: 10px 12px
-    typography: '{typography.scout-body}'
+    activeRing: "1px {colors.feature-ink} inset + 1px color-mix(text 28%) outside"
+  selection:
+    backgroundColor: "{colors.marker}"
+    textColor: "{colors.marker-ink}"
+  focus:
+    outline: "2px solid {colors.ring}"
+    outlineOffset: "4px"
+
 ---
 
 # Design System: ShortForge
 
 ## Overview
 
-**Creative North Star: "The framed creator workspace"**
+**Creative North Star: "The framed paper workshop"**
 
-ShortForge follows the user-selected Pinterest direction, led by Coursie's framed workspace and supported by Donezo's grouping and creator/media references. A white outer frame separates inset, rounded pale-gray navigation and work regions. White content surfaces, a strong violet collection tile, clear typography, and compact footage cards make the next working action easy to find.
+ShortForge carries the Voxy brand world extracted from voxy-psi.vercel.app on October 25, 2026, replacing the previous violet Pinterest direction. A white outer frame separates inset, rounded warm-paper navigation and work regions. Ink-on-paper typography does the talking: Source Serif 4 speaks for page headings and stat numerals, Inter runs the interface, and Geist Mono marks data — counts, statuses, source pills, and keyboard hints. Gold #F2C94C is the single signature accent: the logo tile, primary actions, the featured overview tile, progress fills, and the active-tab underline. Butter #FFF67E is the marker — text selection, the active navigation item, and highlighted blockquotes behave like highlighted text on a page. Gold never appears as small text on light ground; ink and gold always pair as surface and label.
 
-Light, dark, and system dashboard themes preserve the same geometry. Dark mode uses a deeper outer frame, charcoal work regions, and readable lavender interaction colors. Platform system fonts lead the dashboard stack, with bundled Inter Variable available on every installation. Studio opens in a separate browser tab and retains its own dark editing workspace; the dashboard frame does not wrap the editor.
-
-Scout applies ShortForge's violet identity to a compact system-preferences console in the Chrome extension. Neutral framing, inset settings groups, four visible native mode choices, and an anchored session-action dock make configuration and progress legible at 392×600. Its locally bundled Inter Scout face and operating-system light/dark pairing are scoped to the popup; Library and Studio retain their documented systems.
+Light, dark, and system themes preserve the same geometry. Dark mode inverts the world: warm ink #1A1A17 grounds, paper text, the same gold accent with ink labels, and a gold focus ring. The frame deepens to #121210. Studio keeps its own separate editing scope, and Scout keeps its own violet popup scope — neither inherits the paper world.
 
 **Key Characteristics:**
 
-- A solid outer frame and inset rounded work regions, with no dashboard canvas gradient.
-- Violet actions and one featured overview tile, with neutral content surfaces and factual status colors.
+- A solid white outer frame and inset rounded work regions; cream paper work surfaces, white content surfaces, no canvas gradient.
+- Gold actions and one featured gold overview tile with ink numerals; neutral content surfaces and factual state colors drawn from the brand's own families (meadow green, terracotta, periwinkle, warm brown).
+- Butter marker highlights: active navigation, text selection, and blockquotes read as highlighted text.
 - A 212px desktop navigation rail, 64px utility bar, 16px outer inset, and 24px content gutters.
-- Four actionable Library overview counts and at most five compact media cards per row.
-- Persistent dashboard themes and grid/table choice, keyboard navigation, useful unavailable states, and a separate Studio tab.
+- Four actionable Library overview counts and at most five compact media cards per row; mono data labels everywhere numbers report facts.
+- Persistent paired themes, grid/table choice, visible ink-or-gold focus rings, useful unavailable states, and a separate Studio tab.
 
-- Scout keeps all four discovery choices and both engagement minimums in its first viewport, with remaining settings directly scrollable.
-- Scout uses native form semantics, 14px body/helper copy, persistent errors, and session actions outside the scrolling main region.
+This replaces the previous violet Pinterest specification (its research and ship evidence remain in docs/design/ and .impeccable/review/pinterest-dashboard/ as history). The [active dashboard contract](.impeccable/surfaces/dashboard-src-library-library-tsx.md) retains the surface strategy; the October 25 finish review captured the new world at .impeccable/review/desktop.png, desktop-dark.png, and mobile.png with verdict "ship". No Voxy raster ships as application artwork; the palette and type voices were re-derived as tokens.
 
-This replaces the previous Nexus specification. The [active dashboard contract](.impeccable/surfaces/dashboard-src-library-library-tsx.md), [15-reference research record](docs/design/pinterest-dashboard-research.md), and [independent ship review](.impeccable/review/pinterest-dashboard/finish-review.md) retain the selection and finish evidence. Reference rasters are research-only; rendered video thumbnails are library media. No Pinterest raster is bundled as application artwork.
+The normative implementation is in [tokens.css](dashboard/src/theme/tokens.css), [app.css](dashboard/src/theme/app.css), [workspace.css](dashboard/src/theme/workspace.css), [shell.css](dashboard/src/theme/shell.css), and [library.css](dashboard/src/theme/library.css). [App.tsx](dashboard/src/shell/App.tsx) and [Library.tsx](dashboard/src/library/Library.tsx) define the interactions. Fonts bundle locally through Fontsource: Inter Variable, Source Serif 4 Variable (roman + italic), and Geist Mono Variable.
 
-The normative implementation is in [tokens.css](dashboard/src/theme/tokens.css), [app.css](dashboard/src/theme/app.css), [workspace.css](dashboard/src/theme/workspace.css), [shell.css](dashboard/src/theme/shell.css), and [library.css](dashboard/src/theme/library.css). [App.tsx](dashboard/src/shell/App.tsx) and [Library.tsx](dashboard/src/library/Library.tsx) define the interactions. [editor.css](dashboard/src/theme/editor.css) owns Studio's separate dark scope.
-
-Scout's normative sources are [popup.html](extension/static/popup.html) and [popup.css](extension/static/popup.css), with behavior in [popup.ts](extension/src/popup.ts). Its [direction contract](.impeccable/surfaces/extension-static-popup-html.md), [Pinterest research](docs/design/scout-pinterest-research.md), and [independent ship review](.impeccable/review/scout-redesign/finish-review.md) record the scoped decision. No reference raster ships; the bundled font carries its [OFL license](extension/static/fonts/OFL.txt).
+Scout applies ShortForge's violet identity to a compact system-preferences console in the Chrome extension. Neutral framing, inset settings groups, four visible native mode choices, and an anchored session-action dock make configuration and progress legible at 392×600. Its locally bundled Inter Scout face and operating-system light/dark pairing are scoped to the popup; the dashboard's paper world does not reach it. Scout's normative sources remain [popup.html](extension/static/popup.html) and [popup.css](extension/static/popup.css).
 
 ## Colors
 
-The frontmatter preserves runtime color values and custom-property names without their leading double hyphen. A **dark-** prefix identifies the dashboard dark-theme value. Components reference these primitives; the sidecar records shadow values and the solid-color aliases whose legacy names still contain “gradient.”
+The frontmatter preserves runtime color values and custom-property names without their leading double hyphen. A **dark-** prefix identifies the dashboard dark-theme value. Components reference these primitives.
 
 ### Primary
 
-**accent** marks navigation, links, focus, and selected controls. **button-bg** supplies the action fill; its dark value is deliberately darker than the dark accent ink so white action text remains readable. **accent-soft** provides selected and secondary-action surfaces. **feature-bg**, **feature-ink**, and **feature-muted** form the featured overview tile in both themes.
+**accent** and **button-bg** are the same brand gold; gold fills actions, the brand tile, progress bars, the active-tab underline, and link underlines. **on-accent** (ink in both themes) is the only label color on gold — gold text on light surfaces is banned. **accent-soft** is the warm gold wash for hovers and soft fills. **marker** (butter) and **marker-ink** form the highlight pair: text selection, the active navigation item, and blockquotes. **feature-bg/feature-ink/feature-muted** form the featured overview tile. **ring** is the focus color: ink in light, gold in dark.
 
 ### Secondary
 
-**secondary**, **info**, and **teal** retain the supporting lavender, blue, and teal palette. They support specific interface details rather than assigning a new accent to each dashboard region.
+**secondary** is meadow green and **info** is periwinkle; each has a **-soft** wash. They support specific interface details (info notices use the periwinkle pair) rather than assigning a new accent to each region. **teal** remains available for future data coloring.
 
 ### Tertiary
 
-**success**, **warning**, and **danger** express actual state. Filled destructive actions use **danger-button**. Success badges pair semantic ink with a ten-percent success tint.
+**success** (meadow olive), **warning** (Voxy brown), and **danger** (terracotta, darkened for text contrast) express actual state; each has a **-soft** surface pair. Filled destructive actions use **danger-button** with **on-danger** labels.
 
 ### Neutral
 
-**frame-bg** is the outer application frame. **bg**, **sidebar-bg**, and **topbar-bg** form the solid inset work regions; **surface** and **surface-raised** separate content and controls. **elevated** is the neutral hover/control fill. **text**, **muted**, and **border** establish the reading hierarchy and fine rules.
+**frame-bg** is the outer application frame. **bg**, **sidebar-bg**, and **topbar-bg** form the warm inset work regions; **surface** and **surface-raised** separate content and controls. **elevated** is the warm hover/control fill. **text** (ink), **muted** (stone), and **border** (warm hairline) establish the reading hierarchy and fine rules.
 
-**media-card-bg** and **media-card-border** define compact footage cards. **device-bg**, **device-ink**, and **device-muted** keep the sidebar's local-workspace information panel dark and legible in both dashboard themes. **hero-bg**, **hero-ink**, and **hero-muted** remain available to shared tool introduction surfaces.
+**media-card-bg/border** define compact footage cards. **media-chip-bg/border/ink/shadow** and **media-scrim/scrim-strong** are theme-constant materials that sit over video imagery: warm-white chips (checkboxes, more-menus) and warm-ink scrims (source pills, play buttons). **backdrop** warms modal scrims. **device-bg/ink/muted** keep the sidebar's local-workspace panel dark in light theme and ink-toned in dark theme. **hero-bg/ink/muted** are the lavender-sky wash reserved for shared tool introductions. **workspace-gradient** and **library-gradient** resolve to var(--bg).
 
-Both **workspace-gradient** and **library-gradient** resolve to **var(--bg)** in each dashboard theme. Their names no longer imply a rendered gradient. Studio overrides its own colors inside the editor scope; do not treat those as dashboard dark-theme replacements.
+**The Gold Action Rule.** Gold owns actions, the brand tile, progress, and underline accents — always as a surface with ink labels, never as small text on light ground. Ink-on-gold is the only primary pairing in both themes.
 
-**The Violet Action Rule.** Use violet for primary actions, active navigation, links, focus, and the total-collection overview tile. Supporting hues and semantic status colors must not compete with that hierarchy.
+**The Marker Rule.** Butter highlights selection, active navigation, and quoted material. It never backs buttons or large surfaces.
 
-**The Paired Surface Rule.** Switch dashboard surface and ink tokens together while preserving geometry. Keep the editor-scoped dark palette separate from the dashboard theme.
+**The Paired Surface Rule.** Switch dashboard surface and ink tokens together while preserving geometry. Selected chips read as raised via a 1px inset border ring in both themes. Keep the editor-scoped and popup-scoped palettes separate from the dashboard themes.
 
 ### Scout popup scope
 
-**scout-** keys map to the popup's CSS custom properties; **scout-dark-** keys map to its `prefers-color-scheme: dark` overrides. They do not replace dashboard tokens. **scout-accent** supplies selected text, focus, and carets; **scout-button** and **scout-button-hover** supply action fills with **scout-action-ink** labels. **scout-selected**, **scout-selected-border**, **scout-selection-mark**, and **scout-selection-dot** keep the selected surface and radio state distinct.
-
-**scout-frame**, **scout-panel**, **scout-control**, and **scout-control-hover** separate the frame, groups, fields, and hover state. **scout-text**, **scout-muted**, and **scout-line** carry the reading hierarchy. Danger, warning, and success each have an ink/surface pair for errors, paused/pending state, and completed state.
-
-**The Scout Paired Control Rule.** Switch the popup's full surface, text, selection, and semantic-state palette together through the operating-system color scheme; preserve its control geometry and keep its tokens scoped to Scout.
+**scout-** keys map to the popup's CSS custom properties; **scout-dark-** keys map to its `prefers-color-scheme: dark` overrides. They do not replace dashboard tokens and remain violet-scoped by design.
 
 ## Typography
 
-**Dashboard display and body:** the exact platform stack in the frontmatter: Apple system fonts, SF Pro Display, bundled Inter Variable, Inter, Segoe UI, sans-serif. [main.tsx](dashboard/src/main.tsx) bundles Inter Variable locally. **Code and keyboard hints:** the system monospace stack. **Studio:** Inter Variable, Inter, sans-serif inside its own editor scope.
-
-The dashboard uses compact sans-serif copy, moderate heading weight, and restrained negative tracking. Headings balance their wrapping. Counts use tabular numerals; card titles reserve two lines, while creator names truncate to one.
+**Three voices, one world.** Display and headlines use **Source Serif 4 Variable** (bundled, roman + italic): page headings, section titles, empty-state headings, and the overview numerals. The interface uses the platform stack led by bundled **Inter Variable**: body copy, labels, navigation, card titles. Data uses **Geist Mono Variable** (bundled): code, keyboard hints, nav counts, tab counts, clip statistics, engine status, source pills, and the workspace footer. Serif headings balance their wrapping; counts keep tabular numerals.
 
 | Role | Implemented use |
 |---|---|
-| Display | Library heading: 30px, weight 600, line-height 1.2, tracking -0.035em; 27px at 650px and below. |
-| Headline | Other dashboard page headings: 30px, weight 600, line-height 1.25, tracking -0.025em; 23px at 820px and 22px at 560px. |
-| Title | Shared section headings: 20px, weight 600, line-height 1.25; settings section headings use 19px. |
+| Display | Library heading: 32px serif, weight 600, tracking -0.02em; 27px at 650px and below. Other page headings: 34px serif; 27px at 820px, 25px at 560px. |
+| Title | Shared section headings: 21px serif, weight 600, tracking -0.01em; settings section headings 19px serif. |
 | Body | General copy and fields: 14px, weight 400, line-height 1.55. |
-| Label | Shared buttons: 13px, weight 500, line-height 1.45. Library heading actions use 12px on wide screens. |
-| Navigation | 13px, weight 450 at rest and 600 when active; uppercase group labels use 10px, weight 550, and 0.06em tracking. |
-| Overview number | 33px, weight 550, line-height 1.1, tracking -0.04em; 26px in the two-column compact overview. |
-| Card title | 13px, weight 560, line-height 1.5, tracking -0.015em; 14px/1.45 at 440px and below. |
-| Card metadata | Creator copy is 11px/1.6; statistics are 11px/1.2. Both become 12px on one-column mobile cards. |
+| Label | Shared buttons: 13px, weight 500. Library heading actions use 12px on wide screens. |
+| Navigation | 13px, weight 450 at rest and 600 on the butter marker; uppercase group labels use 10px, weight 550, 0.06em tracking. |
+| Overview number | 35px serif, weight 600, tracking -0.01em, tabular numerals; 26px in the two-column compact overview. |
+| Card title | 13px, weight 600, line-height 1.5, tracking -0.015em; 14px/1.45 at 440px and below. |
+| Card metadata | Creator copy is 11px/1.6 Inter; statistics are 10px Geist Mono. Both become 12px on one-column mobile cards. |
+| Data label | 11px Geist Mono for engine state; 10–11px for counts and pills; 12px for code and keyboard hints. |
 
 ### Scout popup scope
 
-The local variable font is registered as **Inter Scout**, with Inter, Apple system, Segoe UI, and sans-serif fallbacks. The task heading uses **scout-heading** (20px/1.3, weight 650); body and helper text use **scout-body** (14px/1.45). Labels and actions use **scout-label** (weight 550), and mode choices use **scout-choice** (14px/1.3, weight 500). Engagement values use **scout-count** (16px, weight 600); session titles use **scout-session-title** (16px/1.35), and scanned/matched totals use **scout-session-number** (22px/1.3). Numeric fields, session totals, and activity timestamps use tabular numerals.
+The local variable font is registered as **Inter Scout**. The task heading uses 20px/1.3 weight 650; body and helper text 14px/1.45. Engagement values 16px weight 600; session titles 16px/1.35; scanned/matched totals 22px/1.3. Tabular numerals throughout.
 
 ## Layout
 
-The desktop application has a solid 16px outer inset. Its fixed sidebar is 212px wide, inset 16px from the top, bottom, and left, with 15px 13px internal padding and 16px corners. The body starts 228px from the inside edge of the frame, leaving a 16px gap after the rail. The utility bar is 64px high, with 20px horizontal padding and 16px corners. Main content begins 16px below it, has 24px padding and 16px corners, and has no fixed maximum width.
+The desktop application has a solid 16px outer inset. Its fixed sidebar is 212px wide, inset 16px from the top, bottom, and left, with 15px 13px internal padding and 16px corners. The body starts 228px from the inside edge of the frame. The utility bar is 64px high, with 20px horizontal padding and 16px corners. Main content begins 16px below it, has 24px padding and 16px corners, and has no fixed maximum width.
 
-The rail groups Workspace, Production, and Preferences. It includes the workspace selector, Create a Short, and a local-device information panel. At desktop heights of 800px or less, the lower rail tightens spacing and hides the device panel's supporting icon and paragraph to keep Settings accessible.
+The rail groups Workspace and Preferences. It includes the workspace selector, navigation, and a local-device information panel (ink in light theme, ink-toned surface in dark). At desktop heights of 800px or less, the lower rail tightens spacing and hides the device panel's supporting icon and paragraph.
 
-The Library's heading and two actions precede four overview controls: All videos, Ready to edit, Exported, and Inspiration. Wide-screen overview tiles have 14px gaps, 16px 17px padding, and 14px corners. All videos remains the featured violet tile; current filtering is communicated by the tabs, not by moving the tile's emphasis. Tabs, grid/table choice, selection, search, rights, and sort controls sit directly above the collection without an extra enclosing card.
+The Library's heading and two actions precede four overview controls: All videos, Archived, Exported, and Inspiration. Wide-screen overview tiles have 14px gaps, 16px padding, and 14px corners. All videos is the featured gold tile with serif numerals; the applied overview filter also shows as an active state — an ink ring around the gold tile, an inner ring plus aria-pressed on the others. Clicking any tab resets the rights filter so the tab state never contradicts the results. Tabs, grid/table choice, selection, search, rights, and sort controls sit directly above the collection.
 
-The media grid has five columns maximum and 22px row / 16px column gaps. Cards have a 6px inset and a 6:5 thumbnail constrained to 142–160px height. At 440px and below, the image changes to 16:10 and 186–200px height. Metadata remains below the image. The reviewed captures measured cards at approximately 314px high at 1440px and 298px at the user's 1261px viewport; those are observed results, not fixed CSS heights.
+The media grid has five columns maximum and 22px row / 16px column gaps. Cards have a 6px inset and a 6:5 thumbnail constrained to 142–160px height. At 440px and below, the image changes to 16:10 and 186–200px height. Titles wrap without starting a line with their separator (the "·" glues to the preceding word at render time). Metadata remains below the image.
 
 | Maximum viewport width | Dashboard behavior |
 |---|---|
-| 1200px | Workspace search narrows from 292px to 250px; the profile label and chevron disappear. |
+| 1200px | Workspace search narrows from 292px to 250px; the profile label disappears. |
 | 1100px | Four media columns; overview padding becomes 14px; filters may wrap. |
 | 980px | Engine status becomes a dot with its descriptive title retained. |
-| 820px | Three media columns; the rail becomes a 260px drawer; outer inset is 12px; the utility bar is 60px high; content has 22px padding and a 12px top gap. |
-| 650px | Heading/actions stack; overview becomes two columns of compact 60px-minimum controls; two media columns with 20px / 12px gaps; search and filters wrap into full-width rows. Overview notes and arrows disappear while labels and counts remain. |
-| 560px | Outer inset is 8px; utility and content corners become 12px; content padding is 20px 16px. Header search becomes an icon, the current page label appears, and engine/profile controls leave the header. Theme choices grow to 32px. |
-| 440px | One media column with 16px gaps; larger thumbnail and text treatment; the two heading actions share the available width. |
-| 375px | Content horizontal padding becomes 12px and utility-bar padding becomes 9px. |
+| 820px | Three media columns; the rail becomes a 260px drawer; outer inset is 12px; the utility bar is 60px high; content has 22px padding. |
+| 650px | Heading/actions stack; overview becomes two columns of compact controls; two media columns with 20px / 12px gaps; search and filters wrap into full-width rows. |
+| 560px | Outer inset is 8px; utility and content corners become 12px; content padding is 20px 16px. Header search becomes an icon, the current page label appears. |
+| 440px | One media column with 16px gaps; larger thumbnail and text treatment. |
+| 375px | Content horizontal padding becomes 12px. |
 
-The application supports a 320px minimum viewport. Mobile navigation has its own close control, traps Tab while open, makes background content inert, closes with Escape, and restores focus to its trigger. Tabs may scroll within their strip; the table scrolls inside its container rather than expanding the document.
+The application supports a 320px minimum viewport. Mobile navigation traps Tab while open, makes background content inert, closes with Escape, and restores focus. Tab strips scroll horizontally with hidden scrollbars; the table scrolls inside its container.
 
-Studio opens in its own browser tab and fills a 100dvh editor root with no dashboard rail, utility bar, frame padding, or theme selector. Preserve its requested CapCut-style arrangement: media bin, central player, right inspector, and multitrack timeline below. Its existing dark editor scope and responsive pane behavior remain separate from this dashboard layout.
+Studio opens in its own browser tab and fills a 100dvh editor root with no dashboard rail, utility bar, frame padding, or theme selector. Its existing editor scope and responsive pane behavior remain separate from this dashboard layout and are untouched by the paper world.
 
 ### Scout popup scope
 
-Scout is a 392px-wide, 600px-high flex column. The header has a 64px minimum height and 10px 16px padding. Only the main region scrolls, with 12px horizontal insets, 16px bottom padding, and 12px scroll padding. Settings groups have 12px padding and 8px gaps; the two-column mode selector uses 6px gaps, and paired numeric fields use 8px gaps. Mode choices have a 64px minimum height. Account and caption groups follow the engagement minimums without extra disclosures.
-
-The action dock and error region are flex siblings outside the scrolling main region. Dock padding is 12px with 8px gaps; actions have a 44px minimum height, with Start/Resume taking the remaining width. The error region stays immediately above the dock, grows to 104px maximum, then scrolls internally. Other buttons have a 40px minimum height. The fixed popup has no width breakpoints; color-scheme and reduced-motion queries preserve its geometry. During a run, configuration gives way to session progress. Activity uses a native disclosure and an internally scrolling list capped at 180px.
+Scout is a 392px-wide, 600px-high flex column, unchanged by the dashboard rebrand. See the popup's own direction contract for its geometry.
 
 ## Elevation & Depth
 
-The dashboard uses solid tonal separation and whitespace. The pale workspace is flat; overview tiles, media cards, standard primary buttons, and working sections have no cast shadow. Media cards keep a fine one-pixel edge; hover mixes 60% accent into the default card border. Selection uses an inset two-pixel accent outline with a -2px offset.
+The dashboard uses solid tonal separation and whitespace. The paper workspace is flat; overview tiles, media cards, and standard buttons carry no cast shadow. Media cards keep a fine one-pixel warm edge; hover mixes 60% accent into the card border. Card selection uses a two-pixel accent outline at -2px; overview selection uses the ring treatment described under Colors.
 
-The shared shadow vocabulary remains available: **shadow-sm** for low control elevation, **shadow-card** as an available shared card token, and **shadow** for dialogs and the open mobile drawer. Their exact light/dark declarations are in the sidecar. Neither the dashboard media cards nor the selected header theme/grid controls apply those small shadows.
+The shared shadow vocabulary: **shadow-sm** for low control elevation (selected segmented chips), **shadow-card** for media chips over imagery, and **shadow** for dialogs and the open mobile drawer. Exact light/dark declarations live in tokens.css.
 
-**The Flat Frame Rule.** Separate ordinary content through solid fills, spacing, and thin borders. Keep media cards and overview tiles shadow-free; reserve the larger shadow for dialogs and the open mobile drawer.
+**The Flat Frame Rule.** Separate ordinary content through solid fills, spacing, and thin borders. Reserve shadows for floating things: dialogs, the drawer, and chips that sit on video imagery.
 
-Overview and card border feedback runs for 160ms ease-out. Shared buttons and fields use 180ms ease-out; the open drawer uses a 200ms ease-out transition. Loading skeletons pulse over 1.6s, while the collection has no entrance animation. Reduced-motion rules remove these transitions and animations or reduce remaining shared feedback to 0.01ms; content never waits for motion to become usable.
-
-### Scout popup scope
-
-Scout has no cast shadows. Solid frame, panel, and control fills with fine one-pixel edges establish depth. Selected modes add violet fill, border, ink, and a filled radio marker. Controls transition colors over 180ms ease-out; button press moves down 1px. Reduced motion removes transitions and uses automatic scrolling. Keyboard focus is a two-pixel accent outline with a 3px offset; mode choices and engagement-field frames use a 2px offset around the whole target.
+Feedback runs 160–180ms ease-out; the drawer 200ms. Loading skeletons pulse over 1.6s; the collection has no entrance animation. Buttons press down 1px while active. Reduced-motion rules neutralize these; content never waits for motion.
 
 ## Shapes
 
-The family uses rounded rectangles whose size follows their role: four- to six-pixel corners for tiny badges/counts, seven pixels for card actions, eight for Library filters, nine for navigation and image insets, ten for shared buttons, fourteen for media/overview cards, and sixteen for larger work regions and dialogs. Standard fields use nine-pixel corners. These values describe existing components rather than a universal radius to apply everywhere.
+Rounded rectangles follow role: five-pixel corners for badges and counts (unified from a mixed 4/6px past), seven for card actions, eight for Library filters, nine for navigation, fields, and image insets, ten for shared buttons, twelve for insets and table wraps, fourteen for media/overview cards, and sixteen for larger work regions and dialogs. Lucide icons use a 1.6 stroke; navigation 1.7, the brand 1.9.
 
-Lucide icons generally use a 1.6 stroke; navigation uses 1.7 and the brand uses 1.9. Media crops with object-fit cover and a center 42% position inside the rounded inset. Thumbnail source labels use a dark scrim; titles, creator names, rights, and statistics remain in the solid text area.
-
-### Scout popup scope
-
-Scout uses fourteen-pixel settings/session corners, twelve-pixel activity/check containers, eleven-pixel dock actions, ten-pixel mode/count frames and errors, nine-pixel fields, and six-pixel status/progress corners. Radios remain circular. Brand and control icons are inline SVG: solid play marks and restrained line icons accompany accessible text labels.
+Thumbnail source labels sit on the warm-ink scrim in Geist Mono; the play chip uses the lighter scrim. Titles, creator names, rights, and statistics remain in the solid text area below the imagery.
 
 ## Components
 
 ### Buttons
 
-Shared actions have a 40px minimum height, 9px 15px padding, ten-pixel corners, and a 13px label. Primary fill uses **button-bg** with white text and darkens by ten percent on hover. Secondary actions use **surface-raised** and a fine border; ghost actions use muted ink and gain **elevated** fill and primary ink on hover. Danger actions use **danger-button** and darken by twelve percent. Disabled buttons use a not-allowed cursor and reduced opacity (0.45, or 0.55 for danger).
+Shared actions have a 40px minimum height, 9px 15px padding, ten-pixel corners, and a 13px label. Primary fill is gold with **ink labels**, darkening 12% toward ink on hover. Secondary actions use surface-raised and a warm border; ghost actions gain the elevated fill on hover. Danger actions use danger-button with warm-paper labels. Disabled controls share a single 0.45 opacity with a not-allowed cursor.
 
-Library heading actions use a compact 38px minimum, 9px 13px padding, and nine-pixel corners on wide screens, growing to 40px at 650px. Create a Short and Open Studio launch a separate editor tab; Add a video opens import. Keep the distinction between importing media and starting a blank project.
+Library heading actions use a compact 38px minimum on wide screens, growing to 40px at 650px. Add a video opens import; Open Studio launches the separate editor tab.
+
+### Links and text actions
+
+Text buttons and inline links are ink with a two-pixel gold underline at 25% strength, strengthening to full gold on hover. Details-section links behave the same. Never render gold text itself on light ground.
 
 ### Chips
 
-Neutral permission badges use **elevated**, **muted**, six-pixel corners, and 3px 8px padding. Card badges use ten-pixel text, four-pixel corners, 3px 5px padding, and an 18px minimum height. Positive permission states use the semantic success tint. These labels report stored source/rights information rather than decorative categories.
+Neutral permission badges use elevated, muted, five-pixel corners, 3px 8px padding. Card badges use ten-pixel text, five-pixel corners, and an 18px minimum height. Positive permission states pair semantic ink with a ten-percent success tint.
 
 ### Cards / Containers
 
-Shared section cards use sixteen-pixel corners, a solid surface, a thin border, and 28px base padding. Overview controls use fourteen-pixel corners; the featured total tile uses the dedicated feature colors. Clicking an overview control clears the search and selects its relevant collection/rights filter. Counts are derived from real records; loading or an unavailable empty collection shows an em dash.
+Shared section cards use sixteen-pixel corners, solid surface, thin border, and 28px padding; section headings leave 22px below. Overview controls use fourteen-pixel corners; the featured total tile is gold with serif numerals and reports its active filter with the ring treatment. Counts derive from real records; unavailable counts show an em dash.
 
-Media cards use fourteen-pixel corners, a dedicated surface and border, no shadow, six-pixel padding, and a nine-pixel image inset. Thumbnail and title open details; the checkbox and more control remain visible. Edit opens eligible media in Studio, while unavailable editing states retain a details action. When both view and like counts are missing, the card shows its saved date. A failed or absent thumbnail shows the source-aware icon fallback. The first five images load eagerly and the rest load lazily.
+Media cards use fourteen-pixel corners, dedicated surface and border, no shadow, six-pixel padding, and a nine-pixel image inset. Warm-white chips (checkbox, more menu) and warm-ink mono pills (source) sit on imagery. Edit opens eligible media in Studio; both view and like counts missing shows the saved date; failed thumbnails show the source-aware icon fallback. The first five images load eagerly, the rest lazily.
 
-The table shows the same records, source/rights metadata, and selection. Its container has twelve-pixel corners and internal overflow; previews are 58px by 43px with six-pixel corners. Search, filters, and view changes preserve selections; select-all applies to the currently visible records.
+The table shows the same records; its container has twelve-pixel corners and internal overflow; previews are 58px by 43px. Search, filters, and view changes preserve selections.
 
 ### Inputs / Fields
 
-Shared fields have a 42px minimum height, 10px 12px padding, nine-pixel corners, and a thin border. Library search uses a 35px input inside an eight-pixel frame; rights/sort selects have a 37px minimum. At 650px, search becomes 38px and selects 40px. Placeholders use **muted**, carets use **accent**, and controls keep accessible names.
-
-Keyboard focus uses a two-pixel accent outline; buttons, links, and fields use a four-pixel offset. The workspace command launcher opens the search palette and advertises Ctrl/Cmd K on desktop.
+Shared fields have a 42px minimum height, ten-pixel-twelve padding, nine-pixel corners, and a warm border. Library search uses a 35px input inside an eight-pixel frame; rights/sort selects 37px. Placeholders use muted; carets and focus use **ring** (ink in light, gold in dark). Disabled fields read at 0.45 opacity on the elevated fill. Focus is a two-pixel ring with a four-pixel offset; search frames focus as a whole.
 
 ### Navigation
 
-Desktop rows have a 43px minimum height, 10px 12px padding, nine-pixel corners, muted ink, and 13px labels. Hover adds the neutral elevated surface; the current destination uses **accent-soft**, **accent**, and weight 600. Mobile rows grow to 44px. The Library count reflects active records; Studio's external-arrow cue matches its separate-tab behavior.
-
-The persistent light/dark/system control has a nine-pixel track with 3px padding and 2px gaps. Desktop choices are 29px square with six-pixel corners, growing to 32px at 560px. Selected choices have a solid surface, accent ink, and no shadow. System mode follows operating-system changes. Grid/table controls use the same clear selected-state logic and persist their own choice.
+Desktop rows have a 43px minimum height, 10px 12px padding, nine-pixel corners, muted ink, and 13px labels. Hover adds the elevated fill; the current destination sits on the **butter marker with ink text** at weight 600 — the highlighted-text signature. Counts are mono. The light/dark/system control has a nine-pixel track; selected choices carry the surface chip plus a one-pixel inset border ring so selection reads as raised in both themes. System mode follows OS changes and syncs the browser theme-color. Grid/table controls persist their own choice.
 
 ### Empty, unavailable, and loading states
 
-A genuinely empty collection offers Import footage and Explore Scout in a centered white/surface panel with a dashed border and fourteen-pixel corners. A filtered-empty view offers Clear filters. An unavailable library shows an explicit connection message, unknown counts when no records are available, and Try again. Skeletons follow the current grid and honor reduced motion. The small result/local-storage footer remains; the removed creative-workflow footer stays absent.
+A genuinely empty collection offers Import footage and Explore Scout in a centered surface panel with a dashed border. A filtered-empty view offers Clear filters. An unavailable library shows an explicit connection message and Try again. Skeletons follow the current grid and honor reduced motion. The result/local-storage footer remains in mono; the removed creative-workflow footer stays absent. The command palette reports "No matches" instead of an empty list.
 
-### Scout discovery and criteria
+### Notices and quotes
 
-The two-column discovery group is a native fieldset with four labeled radios. Each choice has a 16px radio, 6px internal gap, 11px 8px padding, and a thin border. Checked choices use the Scout selected palette; keyboard focus surrounds the whole choice and arrow-key navigation stays native. The legend marks the group optional and pairs it with a 40px-high Clear text action. Clicking a selected choice again or pressing Space clears it; no selection requires neither credits nor narration and keeps the other filters. Clear is disabled when nothing is selected. Associated guidance preserves the explicit uncertainty that narration is not verified.
+Error, success, and info notices pair semantic inks with their soft washes; the info notice uses the periwinkle pair, not gold. Blockquotes are butter marker sweeps with ink text — no accent border.
 
-Paired engagement fields place a muted label above a 16px value inside a ten-pixel frame. The inner inputs are 40px high with no border; the frame carries focus and invalid state. Other inputs/selects are 42px high with 9px 10px padding and nine-pixel corners. A native select uses an SVG chevron; invalid fields use danger borders. Caption allowance, collection target, account URL, and every mode remain available. Credits-any disables caption/speech checks and their controls.
+### Scout scope
 
-### Scout session, actions, and recovery
-
-The session panel uses 16px padding, a titled native progress element, two tabular totals, and real decision/activity text. Its neutral status badge has six-pixel corners and a small dot: running uses selection colors, paused uses warning, and complete uses success. Progress is 7px high with violet fill. Recent activity remains a native disclosure; pending delivery retains Retry and diagnostics retain Self-test.
-
-Start/Resume is violet; Pause and Stop use neutral surfaces. Dock actions have 8px 11px padding, eleven-pixel corners, and 44px minimum heights. Disabled actions use muted ink and 0.55 opacity; a disabled primary keeps white ink. Errors use a danger surface, wrap long text, expose an alert, and remain visible above the dock even when the form is scrolled.
+Scout's violet popup system is unchanged and documented in its own contract; its native choices, editable limits, persistent errors, and session dock are preserved.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- Do use the semantic dashboard tokens and their paired dark values.
-- Do preserve the Pinterest/Coursie frame and the actual ShortForge destinations and content.
+- Do use the semantic dashboard tokens and their paired dark values; both themes share the same gold.
+- Do pair gold strictly with ink labels; use the butter marker only for selection, active navigation, and quotes.
+- Do set headings, section titles, and stat numerals in Source Serif 4; keep data in Geist Mono and everything else in Inter.
 - Do keep Library counts derived from records, show unavailable counts honestly, and retain source and permission labels.
-- Do use the platform system font stack with bundled Inter Variable and Lucide line icons.
-- Do preserve compact media geometry, responsive controls, visible focus, keyboard tabs, and selection across filters.
-- Do keep Studio in its separate dark editing workspace with the media bin, player, inspector, and multitrack timeline.
-
-- Do keep Scout tokens scoped to the extension and switch its paired themes together.
-- Do retain Scout’s native choices, editable limits, 14px body/helper copy, and persistent action/error regions.
-- Do keep narration uncertainty, real session state, retry, and diagnostics explicit in Scout.
+- Do preserve compact media geometry, responsive controls, visible ink/gold focus rings, keyboard tabs, and selection across filters.
+- Do keep Studio in its separate editing workspace and Scout tokens scoped to the extension.
 
 ### Don't:
 
-- Don't restore the discarded Nexus shell, three-count overview, or gradient Library panel.
-- Don't turn Pinterest reference artwork into shipping application assets or invent media records, metrics, accounts, or subscription offers.
-- Don't overlay titles and creator metadata on footage or stretch the compact dashboard cards into tall portrait panels.
-- Don't apply dashboard themes, outer gutters, or navigation chrome to the separate Studio editor.
+- Don't restore the violet direction, lavender actions, or white-on-gold labels; don't put gold text on light surfaces.
+- Don't invent media records, metrics, accounts, or claims removed from the product (script rewriting and AI voice creation stay out of the interface).
+- Don't overlay titles and creator metadata on footage or stretch compact cards into tall portrait panels.
+- Don't apply dashboard themes, outer gutters, or navigation chrome to the separate Studio editor, or the paper world to Scout's popup.
 - Don't remove working import, discovery, editing, selection, or theme controls on narrow screens.
-- Don't restore the removed creative-workflow footer or add entrance motion that delays access to the collection.
-- Don't apply dashboard gutters, navigation chrome, or display typography to Scout's fixed popup.
-- Don't collapse Scout's settings behind extra disclosures or replace native input behavior with decorative controls.
+- Don't add entrance motion that delays access to the collection or shadows to flat content surfaces.

@@ -26,15 +26,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { Clip } from "../api";
-import { api, count, editable, post, useJob } from "../api";
-import {
-  Badge,
-  CopyButton,
-  IconButton,
-  JobProgress,
-  Modal,
-  Notice,
-} from "../ui";
+import { api, count, post } from "../api";
+import { Badge, CopyButton, IconButton, Modal, Notice } from "../ui";
 import "../theme/library.css";
 
 const sourceLabel = (clip: Clip) =>
@@ -45,6 +38,11 @@ const sourceLabel = (clip: Clip) =>
       : clip.video_id?.startsWith("ig:")
         ? "Instagram"
         : "YouTube";
+
+/* Keep the "·" glued to the word before it so a wrapped title never starts with it. */
+function displayTitle(title: string): string {
+  return title.replace(/ · /g, "\u00a0· ");
+}
 
 function ClipArtwork({ clip, eager = false }: { clip: Clip; eager?: boolean }) {
   const [failed, setFailed] = useState(false);
@@ -85,16 +83,20 @@ export function LibraryPage({
   unavailable = false,
   refresh,
   onImport,
-  onOpen,
+  detail,
+  onDetailChange: setDetail,
   onScout,
+  onOpen,
 }: {
   clips: Clip[];
   loading: boolean;
   unavailable?: boolean;
   refresh: () => void;
   onImport: () => void;
-  onOpen: (id: string) => void;
+  detail: Clip | null;
+  onDetailChange: (clip: Clip | null) => void;
   onScout: () => void;
+  onOpen: (id: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
@@ -108,10 +110,10 @@ export function LibraryPage({
   useEffect(() => {
     localStorage.setItem("shortforge-library-view", view);
   }, [view]);
-  const [detail, setDetail] = useState<Clip | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const [error, setError] = useState("");
   const active = clips.filter((c) => c.workflow_status !== "archived");
   const visible = (
@@ -123,9 +125,7 @@ export function LibraryPage({
       (c) =>
         (filter === "all" ||
           filter === "archived" ||
-          (filter === "ready"
-            ? editable(c)
-            : c.workflow_status === "exported")) &&
+          c.workflow_status === "exported") &&
         (license === "all" || c.license_status === license) &&
         `${c.title} ${c.channel_name}`
           .toLowerCase()
@@ -169,20 +169,30 @@ export function LibraryPage({
         : [...new Set([...current, ...visibleIds])],
     );
   const archive = async () => {
-    try {
-      await Promise.all(
-        selected.map((id) =>
-          api(`/clips/${id}`, {
-            method: "PATCH",
-            body: JSON.stringify({ workflow_status: "archived" }),
-          }),
-        ),
+    setArchiving(true);
+    setError("");
+    const results = await Promise.allSettled(
+      selected.map((id) =>
+        api(`/clips/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ workflow_status: "archived" }),
+        }),
+      ),
+    );
+    const failed = selected.filter(
+      (_, index) => results[index].status === "rejected",
+    );
+    if (failed.length > 0) {
+      // Keep the clips that failed selected so Archive can be retried.
+      setSelected(failed);
+      setError(
+        `Archived ${selected.length - failed.length} of ${selected.length} — ${failed.length} failed. Try again for the rest.`,
       );
+    } else {
       setSelected([]);
-      refresh();
-    } catch (e) {
-      setError((e as Error).message);
     }
+    refresh();
+    setArchiving(false);
   };
   const remove = async () => {
     setDeleting(true);
@@ -227,7 +237,6 @@ export function LibraryPage({
     a.click();
     URL.revokeObjectURL(a.href);
   };
-  const readyCount = active.filter(editable).length;
   const exportedCount = active.filter(
     (c) => c.workflow_status === "exported",
   ).length;
@@ -243,7 +252,6 @@ export function LibraryPage({
   };
   const tabs = [
     { id: "all", label: "All videos", n: active.length },
-    { id: "ready", label: "Ready to edit", n: readyCount },
     { id: "exported", label: "Exported", n: exportedCount },
     { id: "archived", label: "Archived", n: clips.length - active.length },
   ];
@@ -261,8 +269,16 @@ export function LibraryPage({
     if (next === null) return;
     event.preventDefault();
     setFilter(tabs[next].id);
+    setLicense("all");
     document.getElementById(`library-tab-${tabs[next].id}`)?.focus();
   };
+  // Mirrors what each card sets on click so exactly one card can read active.
+  const cardActive = (id: string) =>
+    id === "inspiration"
+      ? filter === "all" && license === "unknown"
+      : id === "all"
+        ? filter === "all" && license === "all"
+        : filter === id;
   return (
     <section className="library-page" aria-label="Video library">
       <div className="page-heading library-heading">
@@ -271,9 +287,6 @@ export function LibraryPage({
           <p>Your footage, inspiration, and finished Shorts in one place.</p>
         </div>
         <div className="library-heading-actions">
-          <button className="button secondary" onClick={() => onOpen("")}>
-            <Clapperboard size={16} /> Open Studio <ArrowUpRight size={14} />
-          </button>
           <button className="button primary" onClick={onImport}>
             <Plus size={17} /> Add a video
           </button>
@@ -293,17 +306,17 @@ export function LibraryPage({
             icon: Film,
           },
           {
-            id: "ready",
-            label: "Ready to edit",
-            n: readyCount,
-            note: "Open a project in Studio",
-            icon: Clapperboard,
+            id: "archived",
+            label: "Archived",
+            n: clips.length - active.length,
+            note: "Saved in your archive",
+            icon: Archive,
           },
           {
             id: "exported",
             label: "Exported",
             n: exportedCount,
-            note: "Finished in Studio",
+            note: "Previously exported videos",
             icon: CircleCheck,
           },
           {
@@ -316,8 +329,9 @@ export function LibraryPage({
         ].map(({ id, label, n, note, icon: Icon }) => (
           <button
             key={id}
-            className={`overview-card ${id === "all" ? "overview-featured" : ""}`}
+            className={`overview-card ${id === "all" ? "overview-featured" : ""} ${cardActive(id) ? "active" : ""}`}
             aria-label={`Show ${label.toLowerCase()}, ${countsUnavailable ? "count unavailable" : `${n} videos`}`}
+            aria-pressed={cardActive(id)}
             onClick={() => {
               setQuery("");
               setFilter(id === "inspiration" ? "all" : id);
@@ -348,7 +362,10 @@ export function LibraryPage({
                 tabIndex={filter === t.id ? 0 : -1}
                 className={filter === t.id ? "active" : ""}
                 key={t.id}
-                onClick={() => setFilter(t.id)}
+                onClick={() => {
+                  setFilter(t.id);
+                  setLicense("all");
+                }}
                 onKeyDown={(event) => onTabKey(event, index)}
               >
                 {t.label}
@@ -356,7 +373,7 @@ export function LibraryPage({
               </button>
             ))}
           </div>
-          <div className="segmented" aria-label="Library view">
+          <div className="segmented" role="group" aria-label="Library view">
             <IconButton
               label="Grid view"
               pressed={view === "grid"}
@@ -428,8 +445,17 @@ export function LibraryPage({
             <button className="button secondary small" onClick={csv}>
               <Download size={15} /> Export links
             </button>
-            <button className="button secondary small" onClick={archive}>
-              <Archive size={15} /> Archive
+            <button
+              className="button secondary small"
+              onClick={archive}
+              disabled={archiving || deleting}
+            >
+              {archiving ? (
+                <LoaderCircle size={16} className="spin" />
+              ) : (
+                <Archive size={15} />
+              )}{" "}
+              Archive
             </button>
             <button
               className="button danger small"
@@ -505,8 +531,8 @@ export function LibraryPage({
                   <div className="clip-thumbnail">
                     <button
                       className="thumbnail-button"
-                      onClick={() => setDetail(clip)}
-                      aria-label={`Details for ${clip.title}`}
+                      onClick={() => onOpen(clip.id)}
+                      aria-label={`Edit ${clip.title} in Studio`}
                     >
                       <ClipArtwork clip={clip} eager={index < 5} />
                       <span className="thumbnail-play">
@@ -532,8 +558,8 @@ export function LibraryPage({
                   <div className="clip-meta">
                     <Badge clip={clip} />
                     <h3>
-                      <button onClick={() => setDetail(clip)}>
-                        {clip.title}
+                      <button onClick={() => onOpen(clip.id)}>
+                        {displayTitle(clip.title)}
                       </button>
                     </h3>
                     <p>{clip.channel_name || "Your workspace"}</p>
@@ -557,15 +583,6 @@ export function LibraryPage({
                           </>
                         )}
                       </div>
-                      <button
-                        className="clip-open"
-                        aria-label={`Edit ${clip.title} in a new tab`}
-                        title="Edit in Studio · new tab"
-                        onClick={() => onOpen(clip.id)}
-                      >
-                        Edit
-                        <ArrowUpRight size={13} />
-                      </button>
                     </div>
                   </div>
                 </article>
@@ -614,7 +631,7 @@ export function LibraryPage({
                       <td>
                         <button
                           className="button primary small"
-                          aria-label={`Edit ${c.title} in a new tab`}
+                          aria-label={`Edit ${c.title} in Studio`}
                           onClick={() => onOpen(c.id)}
                         >
                           Edit <ArrowUpRight size={14} />
@@ -663,12 +680,11 @@ export function LibraryPage({
             undone.
           </p>
           <ul className="confirm-list">
-            {selected
-              .slice(0, 5)
-              .map((id) => clips.find((c) => c.id === id)?.title || "A video")
-              .map((title) => (
-                <li key={title}>{title}</li>
-              ))}
+            {selected.slice(0, 5).map((id) => (
+              <li key={id}>
+                {clips.find((c) => c.id === id)?.title || "A video"}
+              </li>
+            ))}
             {selected.length > 5 && <li>and {selected.length - 5} more…</li>}
           </ul>
           <Notice kind="info">
@@ -704,8 +720,8 @@ export function LibraryPage({
           onClose={() => setDetail(null)}
           refresh={refresh}
           onOpen={() => {
-            onOpen(detail.id);
             setDetail(null);
+            onOpen(detail.id);
           }}
         />
       )}
@@ -726,6 +742,13 @@ export function ImportDialog({
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const submit = async () => {
     setError("");
     setBusy(true);
@@ -753,27 +776,29 @@ export function ImportDialog({
         if (title) body.append("title", title);
         await api("/upload", { method: "POST", body });
       }
-      onImported();
+      if (mounted.current) onImported();
     } catch (e) {
-      setError((e as Error).message);
+      if (mounted.current) setError((e as Error).message);
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   };
   return (
-    <Modal title="Bring your next idea in" onClose={onClose}>
+    <Modal title="Bring your next idea in" onClose={() => !busy && onClose()}>
       <p className="modal-description">
         Add your own footage or save a Short or Reel to your library.
       </p>
       <div className="segmented import-tabs">
         <button
           className={tab === "link" ? "selected" : ""}
+          aria-pressed={tab === "link"}
           onClick={() => setTab("link")}
         >
           <Link2 size={17} /> Paste a link
         </button>
         <button
           className={tab === "file" ? "selected" : ""}
+          aria-pressed={tab === "file"}
           onClick={() => setTab("file")}
         >
           <Upload size={17} /> Upload footage
@@ -789,7 +814,7 @@ export function ImportDialog({
             onChange={(e) => setUrl(e.target.value)}
           />
           <small>
-            Edit in Studio to fetch the source. Its rights status stays unknown
+            The link is saved for reference. Its rights status stays unknown
             until you record permission or verify its license.
           </small>
         </label>
@@ -827,7 +852,7 @@ export function ImportDialog({
       </label>
       {error && <Notice>{error}</Notice>}
       <div className="modal-actions">
-        <button className="button secondary" onClick={onClose}>
+        <button className="button secondary" onClick={onClose} disabled={busy}>
           Cancel
         </button>
         <button className="button primary" onClick={submit} disabled={busy}>
@@ -856,7 +881,8 @@ function ClipDetail({
   const [note, setNote] = useState(clip.permission_note || "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const task = useJob(refresh, clip.id);
+  const [fetching, setFetching] = useState(false);
+  const [archiving, setArchiving] = useState(false);
   const permission = async () => {
     setBusy(true);
     try {
@@ -877,7 +903,7 @@ function ClipDetail({
   return (
     <Modal title="Video details" onClose={onClose} wide>
       <div className="detail-title">
-        <h3>{clip.title}</h3>
+        <h3>{displayTitle(clip.title)}</h3>
         <Badge clip={clip} />
       </div>
       <p>
@@ -907,8 +933,8 @@ function ClipDetail({
         <div className="permission-box">
           <h3>Source rights are unknown</h3>
           <p>
-            Local editing is available. Record the creator’s permission or
-            verify a Creative Commons license before publishing reused footage.
+            Record the creator’s permission or verify a Creative Commons license
+            before publishing reused footage.
           </p>
           <CopyButton
             label="Copy permission request"
@@ -939,28 +965,39 @@ function ClipDetail({
         </Notice>
       )}
       {error && <Notice>{error}</Notice>}
-      {task.error && <Notice>{task.error}</Notice>}
-      <JobProgress job={task.job} />
       <div className="detail-actions">
         {clip.video_id && !clip.video_id.startsWith("ig:") && (
           <button
             className="button secondary"
+            disabled={fetching}
             onClick={async () => {
+              setFetching(true);
               setError("");
               try {
                 await post(`/clips/${clip.id}/enrich`);
                 refresh();
               } catch (e) {
                 setError((e as Error).message);
+              } finally {
+                setFetching(false);
               }
             }}
           >
-            Fetch YouTube details
+            {fetching ? (
+              <>
+                <LoaderCircle size={16} className="spin" /> Fetching details…
+              </>
+            ) : (
+              "Fetch YouTube details"
+            )}
           </button>
         )}
         <button
           className="button ghost"
+          disabled={archiving}
           onClick={async () => {
+            setArchiving(true);
+            setError("");
             try {
               await api(`/clips/${clip.id}`, {
                 method: "PATCH",
@@ -975,19 +1012,20 @@ function ClipDetail({
               onClose();
             } catch (e) {
               setError((e as Error).message);
+            } finally {
+              setArchiving(false);
             }
           }}
         >
-          <Archive size={16} />
+          {archiving ? (
+            <LoaderCircle size={16} className="spin" />
+          ) : (
+            <Archive size={16} />
+          )}{" "}
           {clip.workflow_status === "archived" ? "Restore" : "Archive"}
         </button>
-        <button
-          className="button primary"
-          onClick={onOpen}
-          title="Open Studio in a new tab"
-        >
-          Edit in Studio
-          <ArrowUpRight size={16} />
+        <button className="button primary" onClick={onOpen}>
+          Edit in Studio <ArrowUpRight size={16} />
         </button>
       </div>
     </Modal>

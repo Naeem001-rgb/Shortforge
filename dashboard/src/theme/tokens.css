@@ -1,81 +1,135 @@
+/*
+ * ShortForge design tokens — "Voxy paper" visual world.
+ * Warm cream paper ground, ink text, gold accent; butter marker highlights,
+ * meadow/terracotta/periwinkle as functional families. Dark theme inverts the
+ * same world: ink ground with paper text. Colors come from voxy-psi.vercel.app.
+ */
 :root {
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Variable",
     Inter, "Segoe UI", sans-serif;
   color-scheme: light;
-  --bg: #f5f5f8;
+  /* Type voices */
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Variable",
+    Inter, "Segoe UI", sans-serif;
+  --font-display:
+    "Source Serif 4 Variable", "Source Serif 4", Georgia, "Times New Roman",
+    serif;
+  --font-mono:
+    "Geist Mono Variable", "Geist Mono", ui-monospace, SFMono-Regular, Consolas,
+    monospace;
+  /* Grounds and surfaces */
+  --bg: #faf7ee;
   --surface: #ffffff;
   --surface-raised: #ffffff;
   --media-card-bg: #ffffff;
-  --media-card-border: #e6e6ee;
-  --elevated: #ebebf1;
-  --text: #242432;
-  --muted: #686878;
-  --border: #e4e4ed;
-  --accent: #5347ce;
-  --button-bg: #5347ce;
-  --accent-soft: #eae7fc;
-  --secondary: #887cfd;
-  --info: #4896fe;
-  --teal: #16c8c7;
-  --success: #237b68;
-  --danger: #bc3748;
-  --danger-button: #b42c42;
-  --warning: #8c601b;
-  --sidebar-bg: #f5f5f8;
-  --topbar-bg: #f5f5f8;
+  --media-card-border: #ece8dd;
+  --elevated: #f4f0e5;
+  --sidebar-bg: #faf7ee;
+  --topbar-bg: #faf7ee;
   --frame-bg: #ffffff;
-  --feature-bg: #5347ce;
-  --feature-ink: #ffffff;
-  --feature-muted: #e7e3ff;
-  --device-bg: #242137;
-  --device-ink: #f6f3ff;
-  --device-muted: #c1bdd4;
+  /* Ink */
+  --text: #1a1a17;
+  --muted: #57534a;
+  --border: #e5e1d3;
+  /* Brand gold — used on surfaces, never as small text on light ground */
+  --accent: #f2c94c;
+  --button-bg: #f2c94c;
+  --on-accent: #1a1a17;
+  --accent-soft: #f7edcb;
+  --marker: #fff67e;
+  --marker-ink: #1a1a17;
+  /* Functional families (text-safe shades of the brand accents) */
+  --secondary: #6f8f3f;
+  --info: #5b54c4;
+  --info-soft: #eae8f8;
+  --teal: #3e7d5c;
+  --success: #487113;
+  --success-soft: #eaf2dc;
+  --danger: #b04228;
+  --danger-button: #a93e27;
+  --on-danger: #fff3ea;
+  --danger-soft: #f8e4da;
+  --warning: #8a5416;
+  --warning-soft: #f5e8d2;
+  /* Featured surfaces */
+  --feature-bg: #f2c94c;
+  --feature-ink: #1a1a17;
+  --feature-muted: #62500f;
+  --device-bg: #1a1a17;
+  --device-ink: #faf7ee;
+  --device-muted: #a8a395;
+  --hero-bg: #e9e6f7;
+  --hero-ink: #26243a;
+  --hero-muted: #5d5a72;
+  /* Chips and scrims that sit over video imagery (identical in both themes) */
+  --media-chip-bg: rgba(255, 253, 247, 0.94);
+  --media-chip-border: rgba(255, 253, 247, 0.7);
+  --media-chip-ink: #1a1a17;
+  --media-chip-shadow: 0 1px 4px rgba(26, 26, 23, 0.18);
+  --media-scrim: rgba(26, 26, 23, 0.55);
+  --media-scrim-strong: rgba(26, 26, 23, 0.72);
+  --backdrop: rgba(26, 26, 23, 0.45);
   --workspace-gradient: var(--bg);
   --library-gradient: var(--bg);
-  --hero-bg: #eeecfb;
-  --hero-ink: #28243f;
-  --hero-muted: #625d77;
-  --shadow-sm: 0 2px 4px rgba(34, 35, 55, 0.045);
-  --shadow-card: 0 5px 15px -7px rgba(34, 35, 55, 0.12);
-  --shadow: 0 24px 70px -15px rgba(34, 35, 55, 0.2);
+  /* Focus and shadows */
+  --ring: #1a1a17;
+  --shadow-sm: 0 2px 4px rgba(26, 26, 23, 0.05);
+  --shadow-card: 0 10px 30px -14px rgba(26, 26, 23, 0.16);
+  --shadow: 0 24px 60px -20px rgba(26, 26, 23, 0.28);
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #1d1e29;
-  --surface: #272835;
-  --surface-raised: #2d2e3c;
-  --media-card-bg: #272835;
-  --media-card-border: #3d3e50;
-  --elevated: #333446;
-  --text: #f1f0f8;
-  --muted: #b3b2c7;
-  --border: #3b3b4f;
-  --accent: #b5adff;
-  --button-bg: #6558d8;
-  --accent-soft: #302b4c;
-  --secondary: #a59aff;
-  --info: #82b3ff;
-  --teal: #51d5cd;
-  --success: #83c8b0;
-  --danger: #ff9daa;
-  --danger-button: #b73850;
-  --warning: #e4bd7c;
-  --sidebar-bg: #1d1e29;
-  --topbar-bg: #1d1e29;
-  --frame-bg: #14151e;
-  --feature-bg: #5b4bd3;
-  --feature-ink: #ffffff;
-  --feature-muted: #e7e3ff;
-  --device-bg: #302b47;
-  --device-ink: #f6f3ff;
-  --device-muted: #c1bdd4;
+  /* Grounds and surfaces */
+  --bg: #1a1a17;
+  --surface: #242420;
+  --surface-raised: #2b2b26;
+  --media-card-bg: #242420;
+  --media-card-border: #3b3a33;
+  --elevated: #302f29;
+  --sidebar-bg: #1a1a17;
+  --topbar-bg: #1a1a17;
+  --frame-bg: #121210;
+  /* Ink */
+  --text: #faf7ee;
+  --muted: #b3aea0;
+  --border: #3b3a33;
+  /* Brand gold */
+  --accent: #f2c94c;
+  --button-bg: #f2c94c;
+  --on-accent: #1a1a17;
+  --accent-soft: #3d3926;
+  --marker: #fff67e;
+  --marker-ink: #1a1a17;
+  /* Functional families */
+  --secondary: #a9c97e;
+  --info: #b7b2ec;
+  --info-soft: #2e2d42;
+  --teal: #7fbf9f;
+  --success: #a9c97e;
+  --success-soft: #2c331f;
+  --danger: #e89a7d;
+  --danger-button: #b44a2e;
+  --on-danger: #fff3ea;
+  --danger-soft: #3f2a21;
+  --warning: #e0b36a;
+  --warning-soft: #3a2f1c;
+  /* Featured surfaces */
+  --feature-bg: #f2c94c;
+  --feature-ink: #1a1a17;
+  --feature-muted: #62500f;
+  --device-bg: #242420;
+  --device-ink: #faf7ee;
+  --device-muted: #b3aea0;
+  --hero-bg: #2b2937;
+  --hero-ink: #efedfa;
+  --hero-muted: #aca8c4;
   --workspace-gradient: var(--bg);
   --library-gradient: var(--bg);
-  --hero-bg: #302b47;
-  --hero-ink: #efecff;
-  --hero-muted: #bab4d3;
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.12);
-  --shadow-card: 0 5px 15px -7px rgba(0, 0, 0, 0.28);
-  --shadow: 0 24px 70px -15px rgba(0, 0, 0, 0.5);
+  /* Focus and shadows */
+  --ring: #f2c94c;
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.14);
+  --shadow-card: 0 10px 30px -14px rgba(0, 0, 0, 0.4);
+  --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
 }

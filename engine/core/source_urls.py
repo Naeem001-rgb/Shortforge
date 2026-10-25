@@ -13,15 +13,26 @@ LINK_HINT = "Paste a public YouTube video, Shorts, or Instagram Reel link."
 
 def _parse_url(url: str) -> ParseResult:
     # urlparse silently drops some control characters; reject them first.
-    if any(character.isspace() or ord(character) < 32 or ord(character) == 127 for character in url):
+    if any(
+        character.isspace() or ord(character) < 32 or ord(character) == 127
+        for character in url
+    ):
         raise HTTPException(422, LINK_HINT)
-    if any(url.lower().startswith(host + "/") for host in YOUTUBE_HOSTS | INSTAGRAM_HOSTS):
+    if any(
+        url.lower().startswith(host + "/") for host in YOUTUBE_HOSTS | INSTAGRAM_HOSTS
+    ):
         url = "https://" + url
     try:
         parsed = urlparse(url)
-        if (parsed.scheme not in {"https", "http"} or parsed.username is not None
-                or parsed.password is not None or parsed.port is not None):
-            raise HTTPException(422, LINK_HINT + " Links cannot contain credentials or custom ports.")
+        if (
+            parsed.scheme not in {"https", "http"}
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.port is not None
+        ):
+            raise HTTPException(
+                422, LINK_HINT + " Links cannot contain credentials or custom ports."
+            )
         return parsed
     except ValueError as exc:
         raise HTTPException(422, LINK_HINT) from exc
@@ -42,7 +53,10 @@ def canonical_youtube_url(url: str, video_id: str | None = None) -> tuple[str, s
     elif host == "youtu.be" and len(parts) == 1:
         found = parts[0]
     if not found or not re.fullmatch(r"[A-Za-z0-9_-]{11}", found):
-        raise HTTPException(422, "This is not a valid YouTube video link (the video ID must be 11 characters).")
+        raise HTTPException(
+            422,
+            "This is not a valid YouTube video link (the video ID must be 11 characters).",
+        )
     if video_id and found != video_id:
         raise HTTPException(422, "The video ID does not match the YouTube link.")
     return found, f"https://www.youtube.com/shorts/{found}"
@@ -51,8 +65,11 @@ def canonical_youtube_url(url: str, video_id: str | None = None) -> tuple[str, s
 def canonical_clip_url(url: str, video_id: str | None = None) -> tuple[str, str]:
     """Namespaced Instagram IDs keep identical shortcodes separate from YouTube."""
     if not url and video_id:
-        url = (f"https://www.instagram.com/reel/{video_id[3:]}/" if video_id.startswith("ig:")
-               else f"https://www.youtube.com/shorts/{video_id}")
+        url = (
+            f"https://www.instagram.com/reel/{video_id[3:]}/"
+            if video_id.startswith("ig:")
+            else f"https://www.youtube.com/shorts/{video_id}"
+        )
     parsed = _parse_url(url)
     host = (parsed.hostname or "").lower()
     if host in YOUTUBE_HOSTS:
@@ -63,7 +80,9 @@ def canonical_clip_url(url: str, video_id: str | None = None) -> tuple[str, str]
             shortcode = match.group(1)
             identity = f"ig:{shortcode}"
             if video_id and identity != video_id:
-                raise HTTPException(422, "The video ID does not match the Instagram Reel link.")
+                raise HTTPException(
+                    422, "The video ID does not match the Instagram Reel link."
+                )
             return identity, f"https://www.instagram.com/reel/{shortcode}/"
     raise HTTPException(422, LINK_HINT)
 
@@ -83,8 +102,10 @@ def instagram_thumbnail_url(url: str) -> str:
     try:
         parsed = _parse_url(url)
         host = (parsed.hostname or "").lower()
-        if parsed.scheme == "https" and any(host == domain or host.endswith("." + domain)
-                                            for domain in ("cdninstagram.com", "fbcdn.net")):
+        if parsed.scheme == "https" and any(
+            host == domain or host.endswith("." + domain)
+            for domain in ("cdninstagram.com", "fbcdn.net")
+        ):
             return url
     except HTTPException:
         pass

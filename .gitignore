@@ -4,10 +4,33 @@ dist/
 __pycache__/
 *.pyc
 .pytest_cache/
+.ruff_cache/
 .env
 data/*
 !data/.gitkeep
 test-results/
 playwright-report/
-.impeccable/
 *.tsbuildinfo
+
+# Managed upstream clone; the integration and release pin are tracked separately.
+vendor/concat/
+
+# The design tool's scratchpad. Nearly all of it is screenshot output that the
+# Playwright and preview suites rewrite on every run, so keeping it out of Git
+# avoids endless churn. The exceptions below are text files that DESIGN.md and
+# docs/design/dashboard-validation.md cite as normative contracts and review
+# records: a contract that only exists on one laptop is not a contract, so those
+# few files are version-controlled.
+#
+# Images stay ignored on purpose. The app captures are regenerable test output
+# (see docs/QA-HARNESS.md), and the Pinterest reference rasters are someone
+# else's work - DESIGN.md states that no reference raster ships.
+.impeccable/*
+!.impeccable/review/
+.impeccable/review/*
+!.impeccable/review/*/
+.impeccable/review/*/*
+!.impeccable/review/*/finish-review.md
+!.impeccable/review/pinterest-dashboard/measurements.json
+!.impeccable/review/pinterest-dashboard/detector.json
+!.impeccable/surfaces/
