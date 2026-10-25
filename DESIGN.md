@@ -87,46 +87,46 @@ colors:
   dark-hero-ink: "#efedfa"
   dark-hero-muted: "#aca8c4"
   dark-ring: "#f2c94c"
-  scout-frame: '#f0f0f4'
-  scout-panel: '#fff'
-  scout-control: '#f7f7fa'
-  scout-control-hover: '#eeeef4'
-  scout-text: '#24212d'
-  scout-muted: '#666170'
-  scout-line: '#dedbe6'
-  scout-accent: '#6334bc'
-  scout-button: '#7142c9'
-  scout-button-hover: '#6033b6'
-  scout-selected: '#eee7fc'
-  scout-selected-border: '#a68bd5'
-  scout-selection-mark: '#7142c9'
-  scout-selection-dot: '#fff'
-  scout-danger: '#a62a3e'
-  scout-danger-surface: '#fff0f2'
-  scout-warning: '#795815'
-  scout-warning-surface: '#fcf3df'
-  scout-success: '#257048'
-  scout-success-surface: '#e9f6ee'
-  scout-dark-frame: '#111114'
-  scout-dark-panel: '#1d1c22'
-  scout-dark-control: '#26252d'
-  scout-dark-control-hover: '#302d39'
-  scout-dark-text: '#f1eff6'
-  scout-dark-muted: '#ada7b9'
-  scout-dark-line: '#3c3747'
-  scout-dark-accent: '#d1baff'
-  scout-dark-button: '#7950ca'
-  scout-dark-button-hover: '#8a5ddb'
-  scout-dark-selected: '#392b51'
-  scout-dark-selected-border: '#9270c8'
-  scout-dark-selection-mark: '#c7a7ff'
-  scout-dark-selection-dot: '#392b51'
-  scout-dark-danger: '#ffb2bd'
-  scout-dark-danger-surface: '#3b2029'
-  scout-dark-warning: '#e5c178'
-  scout-dark-warning-surface: '#352d20'
-  scout-dark-success: '#99d7ad'
-  scout-dark-success-surface: '#203328'
+  scout-frame: '#faf7ee'
+  scout-panel: '#ffffff'
+  scout-control: '#f4f0e5'
+  scout-control-hover: '#ece7d6'
+  scout-text: '#1a1a17'
+  scout-muted: '#57534a'
+  scout-line: '#e5e1d3'
+  scout-accent: '#8a6914'
+  scout-button: '#f2c94c'
+  scout-button-hover: '#e5ba32'
+  scout-selected: '#f7edcb'
+  scout-selected-border: '#e0c56a'
+  scout-selection-mark: '#f2c94c'
+  scout-selection-dot: '#1a1a17'
+  scout-danger: '#b04228'
+  scout-danger-surface: '#f8e4da'
+  scout-warning: '#8a5416'
+  scout-warning-surface: '#f5e8d2'
+  scout-success: '#487113'
+  scout-success-surface: '#eaf2dc'
+  scout-dark-frame: '#121210'
+  scout-dark-panel: '#1a1a17'
+  scout-dark-control: '#242420'
+  scout-dark-control-hover: '#2f2e29'
+  scout-dark-text: '#faf7ee'
+  scout-dark-muted: '#b3aea0'
+  scout-dark-line: '#3b3a33'
+  scout-dark-accent: '#f2c94c'
+  scout-dark-button: '#f2c94c'
+  scout-dark-button-hover: '#e5ba32'
+  scout-dark-selected: '#3d3926'
+  scout-dark-selected-border: '#8a7524'
+  scout-dark-selection-mark: '#f2c94c'
+  scout-dark-selection-dot: '#1a1a17'
+  scout-dark-danger: '#e89a7d'
+  scout-dark-danger-surface: '#3f2a21'
+  scout-dark-warning: '#e0b36a'
+  scout-dark-warning-surface: '#3a2f1c'
+  scout-dark-success: '#a9c97e'
+  scout-dark-success-surface: '#2c331f'
   scout-action-ink: '#fff'
 typography:
   display:
@@ -314,7 +314,7 @@ components:
 
 ShortForge carries the Voxy brand world extracted from voxy-psi.vercel.app on October 25, 2026, replacing the previous violet Pinterest direction. A white outer frame separates inset, rounded warm-paper navigation and work regions. Ink-on-paper typography does the talking: Source Serif 4 speaks for page headings and stat numerals, Inter runs the interface, and Geist Mono marks data — counts, statuses, source pills, and keyboard hints. Gold #F2C94C is the single signature accent: the logo tile, primary actions, the featured overview tile, progress fills, and the active-tab underline. Butter #FFF67E is the marker — text selection, the active navigation item, and highlighted blockquotes behave like highlighted text on a page. Gold never appears as small text on light ground; ink and gold always pair as surface and label.
 
-Light, dark, and system themes preserve the same geometry. Dark mode inverts the world: warm ink #1A1A17 grounds, paper text, the same gold accent with ink labels, and a gold focus ring. The frame deepens to #121210. Studio keeps its own separate editing scope, and Scout keeps its own violet popup scope — neither inherits the paper world.
+Light, dark, and system themes preserve the same geometry. Dark mode inverts the world: warm ink #1A1A17 grounds, paper text, the same gold accent with ink labels, and a gold focus ring. The frame deepens to #121210. Studio keeps its own separate editing scope, and Scout shares the paper-and-gold world through its own scoped tokens — neither inherits the dashboard's serif display voice or theme switcher.
 
 **Key Characteristics:**
 
@@ -329,7 +329,7 @@ This replaces the previous violet Pinterest specification (its research and ship
 
 The normative implementation is in [tokens.css](dashboard/src/theme/tokens.css), [app.css](dashboard/src/theme/app.css), [workspace.css](dashboard/src/theme/workspace.css), [shell.css](dashboard/src/theme/shell.css), and [library.css](dashboard/src/theme/library.css). [App.tsx](dashboard/src/shell/App.tsx) and [Library.tsx](dashboard/src/library/Library.tsx) define the interactions. Fonts bundle locally through Fontsource: Inter Variable, Source Serif 4 Variable (roman + italic), and Geist Mono Variable.
 
-Scout applies ShortForge's violet identity to a compact system-preferences console in the Chrome extension. Neutral framing, inset settings groups, four visible native mode choices, and an anchored session-action dock make configuration and progress legible at 392×600. Its locally bundled Inter Scout face and operating-system light/dark pairing are scoped to the popup; the dashboard's paper world does not reach it. Scout's normative sources remain [popup.html](extension/static/popup.html) and [popup.css](extension/static/popup.css).
+Scout applies the same Voxy paper-and-gold world to a compact system-preferences console in the Chrome extension, through its own scoped token set. Neutral framing, inset settings groups, four visible native mode choices, and an anchored session-action dock make configuration and progress legible at 392×600. Its locally bundled Inter Scout face and operating-system light/dark pairing are scoped to the popup; the dashboard's paper world does not reach it. Scout's normative sources remain [popup.html](extension/static/popup.html) and [popup.css](extension/static/popup.css).
 
 ## Colors
 
@@ -361,7 +361,7 @@ The frontmatter preserves runtime color values and custom-property names without
 
 ### Scout popup scope
 
-**scout-** keys map to the popup's CSS custom properties; **scout-dark-** keys map to its `prefers-color-scheme: dark` overrides. They do not replace dashboard tokens and remain violet-scoped by design.
+**scout-** keys map to the popup's CSS custom properties; **scout-dark-** keys map to its `prefers-color-scheme: dark` overrides. They do not replace dashboard tokens; the popup keeps its own compact-console token set in the shared brand palette.
 
 ## Typography
 
@@ -470,7 +470,7 @@ Error, success, and info notices pair semantic inks with their soft washes; the 
 
 ### Scout scope
 
-Scout's violet popup system is unchanged and documented in its own contract; its native choices, editable limits, persistent errors, and session dock are preserved.
+Scout shares the Voxy palette (paper frame, ink text, gold actions, butter selection highlights, meadow/terracotta states) through its own scoped token set; its native choices, editable limits, persistent errors, and session dock are preserved.
 
 ## Do's and Don'ts
 
