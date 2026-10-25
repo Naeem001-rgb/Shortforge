@@ -534,16 +534,6 @@ input[type="file"]::file-selector-button {
   color: var(--surface);
   border-radius: 9px;
 }
-.workspace-avatar {
-  width: 30px;
-  height: 32px;
-  border: 1px solid var(--border);
-  background: var(--elevated);
-  display: grid;
-  place-items: center;
-  border-radius: 7px;
-  font-weight: 500;
-}
 .nav-label {
   font-size: 12px;
   font-weight: 500;

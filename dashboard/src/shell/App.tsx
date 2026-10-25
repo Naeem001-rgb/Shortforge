@@ -227,20 +227,7 @@ export function App() {
             <X size={19} />
           </IconButton>
         </div>
-        <button
-          className="sidebar-workspace"
-          aria-label="My workspace"
-          onClick={() => navigate("settings")}
-        >
-          <span className="workspace-avatar" aria-hidden="true">
-            <FolderOpen size={17} />
-          </span>
-          <span>
-            My workspace<small>On this device</small>
-          </span>
-        </button>
         <nav aria-label="Main navigation">
-          <div className="nav-label">Workspace</div>
           {pages.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
