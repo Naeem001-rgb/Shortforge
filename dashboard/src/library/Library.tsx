@@ -30,6 +30,7 @@ import { api, count, post } from "../api";
 import { Badge, CopyButton, IconButton, Modal, Notice } from "../ui";
 import "../theme/library.css";
 
+const PAGE_SIZE = 50;
 const sourceLabel = (clip: Clip) =>
   clip.discovery_mode === "project"
     ? "Project"
@@ -102,6 +103,8 @@ export function LibraryPage({
   const [filter, setFilter] = useState("all");
   const [license, setLicense] = useState("all");
   const [sort, setSort] = useState("recent");
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [query, filter, license, sort]);
   const [view, setView] = useState(() =>
     localStorage.getItem("shortforge-library-view") === "table"
       ? "table"
@@ -115,30 +118,47 @@ export function LibraryPage({
   const [deleting, setDeleting] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [error, setError] = useState("");
-  const active = clips.filter((c) => c.workflow_status !== "archived");
-  const visible = (
-    filter === "archived"
-      ? clips.filter((c) => c.workflow_status === "archived")
-      : active
-  )
-    .filter(
-      (c) =>
-        (filter === "all" ||
-          filter === "archived" ||
-          c.workflow_status === "exported") &&
-        (license === "all" || c.license_status === license) &&
-        `${c.title} ${c.channel_name}`
-          .toLowerCase()
-          .includes(query.toLowerCase()),
-    )
-    .sort((a, b) =>
-      sort === "views"
-        ? (b.views || 0) - (a.views || 0)
-        : sort === "likes"
-          ? (b.likes || 0) - (a.likes || 0)
-          : b.created_at.localeCompare(a.created_at),
-    );
-  const visibleIds = useMemo(() => visible.map((c) => c.id), [visible]);
+  const active = useMemo(
+    () => clips.filter((c) => c.workflow_status !== "archived"),
+    [clips],
+  );
+  const visible = useMemo(
+    () =>
+      (filter === "archived"
+        ? clips.filter((c) => c.workflow_status === "archived")
+        : active
+      )
+        .filter(
+          (c) =>
+            (filter === "all" ||
+              filter === "archived" ||
+              c.workflow_status === "exported") &&
+            (license === "all" || c.license_status === license) &&
+            `${c.title} ${c.channel_name}`
+              .toLowerCase()
+              .includes(query.toLowerCase()),
+        )
+        .sort((a, b) =>
+          sort === "views"
+            ? (b.views || 0) - (a.views || 0)
+            : sort === "likes"
+              ? (b.likes || 0) - (a.likes || 0)
+              : b.created_at.localeCompare(a.created_at),
+        ),
+    [clips, active, filter, license, query, sort],
+  );
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount - 1);
+  useEffect(() => setPage(currentPage), [currentPage]);
+  const pageClips = useMemo(
+    () => visible.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE),
+    [visible, currentPage],
+  );
+  const visibleIds = useMemo(
+    () => new Set(pageClips.map((c) => c.id)),
+    [pageClips],
+  );
+  const selectedIds = useMemo(() => new Set(selected), [selected]);
   const knownIds = useMemo(() => new Set(clips.map((c) => c.id)), [clips]);
   // Only clips that truly left the library are dropped, never ones a filter is
   // hiding, so the count in the bulk bar stays honest.
@@ -151,13 +171,13 @@ export function LibraryPage({
   // Selections survive filtering and searching, so a stray keystroke never
   // silently shrinks a delete. Select all only touches what is on screen.
   const allSelected =
-    visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id));
+    visibleIds.size > 0 && [...visibleIds].every((id) => selectedIds.has(id));
   const selectAllRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     if (selectAllRef.current)
       selectAllRef.current.indeterminate =
-        !allSelected && visibleIds.some((id) => selected.includes(id));
-  }, [selected, allSelected, visibleIds]);
+        !allSelected && [...visibleIds].some((id) => selectedIds.has(id));
+  }, [selectedIds, allSelected, visibleIds]);
   const toggle = (id: string) =>
     setSelected((v) =>
       v.includes(id) ? v.filter((x) => x !== id) : [...v, id],
@@ -165,23 +185,27 @@ export function LibraryPage({
   const toggleAll = () =>
     setSelected((current) =>
       allSelected
-        ? current.filter((id) => !visibleIds.includes(id))
+        ? current.filter((id) => !visibleIds.has(id))
         : [...new Set([...current, ...visibleIds])],
     );
   const archive = async () => {
     setArchiving(true);
     setError("");
-    const results = await Promise.allSettled(
-      selected.map((id) =>
-        api(`/clips/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ workflow_status: "archived" }),
-        }),
-      ),
-    );
-    const failed = selected.filter(
-      (_, index) => results[index].status === "rejected",
-    );
+    const failed: string[] = [];
+    for (let offset = 0; offset < selected.length; offset += 4) {
+      const batch = selected.slice(offset, offset + 4);
+      const results = await Promise.allSettled(
+        batch.map((id) =>
+          api(`/clips/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ workflow_status: "archived" }),
+          }),
+        ),
+      );
+      failed.push(
+        ...batch.filter((_, index) => results[index].status === "rejected"),
+      );
+    }
     if (failed.length > 0) {
       // Keep the clips that failed selected so Archive can be retried.
       setSelected(failed);
@@ -197,25 +221,30 @@ export function LibraryPage({
   const remove = async () => {
     setDeleting(true);
     setError("");
+    let deleted = 0;
     try {
-      const result = await post<{ deleted: string[]; missing: string[] }>(
-        "/clips/delete-bulk",
-        { ids: selected },
-      );
-      setSelected([]);
+      for (let offset = 0; offset < selected.length; offset += 200) {
+        const result = await post<{ deleted: string[]; missing: string[] }>(
+          "/clips/delete-bulk",
+          { ids: selected.slice(offset, offset + 200) },
+        );
+        deleted += result.deleted.length;
+        const handled = new Set([...result.deleted, ...result.missing]);
+        setSelected((current) => current.filter((id) => !handled.has(id)));
+      }
       setConfirming(false);
-      refresh();
-      if (result.deleted.length === 0)
+      if (deleted === 0)
         setError("Those videos were already gone. The library is up to date.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      refresh();
       setDeleting(false);
     }
   };
 
   const csv = () => {
-    const rows = clips.filter((c) => selected.includes(c.id));
+    const rows = clips.filter((c) => selectedIds.has(c.id));
     const safe = (s: string) =>
       '"' + (/^[=+@\-\t\r]/.test(s) ? "'" : "") + s.replaceAll('"', '""') + '"';
     const blob = new Blob(
@@ -398,12 +427,16 @@ export function LibraryPage({
               <input
                 ref={selectAllRef}
                 type="checkbox"
-                aria-label="Select all videos in this view"
+                aria-label={
+                  pageCount > 1
+                    ? "Select all videos on this page"
+                    : "Select all videos in this view"
+                }
                 checked={allSelected}
                 disabled={visible.length === 0}
                 onChange={toggleAll}
               />
-              <span>Select all</span>
+              <span>{pageCount > 1 ? "Select page" : "Select all"}</span>
             </label>
             <div className="search-input">
               <Search size={17} />
@@ -526,7 +559,7 @@ export function LibraryPage({
             )
           ) : view === "grid" ? (
             <div className="clip-grid">
-              {visible.map((clip, index) => (
+              {pageClips.map((clip, index) => (
                 <article className="clip-card" key={clip.id}>
                   <div className="clip-thumbnail">
                     <button
@@ -543,7 +576,7 @@ export function LibraryPage({
                       className="clip-checkbox"
                       type="checkbox"
                       aria-label={`Select ${clip.title}`}
-                      checked={selected.includes(clip.id)}
+                      checked={selectedIds.has(clip.id)}
                       onChange={() => toggle(clip.id)}
                     />
                     <IconButton
@@ -602,13 +635,13 @@ export function LibraryPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map((c) => (
+                  {pageClips.map((c) => (
                     <tr key={c.id}>
                       <td>
                         <input
                           type="checkbox"
                           aria-label={`Select ${c.title}`}
-                          checked={selected.includes(c.id)}
+                          checked={selectedIds.has(c.id)}
                           onChange={() => toggle(c.id)}
                         />
                       </td>
@@ -658,6 +691,27 @@ export function LibraryPage({
                 : "Showing last loaded videos"
               : `${visible.length} ${visible.length === 1 ? "video" : "videos"}${filter === "archived" ? " archived" : " in your library"}`}
           </span>
+          {pageCount > 1 && (
+            <nav className="library-pagination" aria-label="Library pages">
+              <button
+                className="button secondary small"
+                disabled={currentPage === 0}
+                onClick={() => setPage(currentPage - 1)}
+              >
+                Previous
+              </button>
+              <span role="status">
+                Page {currentPage + 1} of {pageCount}
+              </span>
+              <button
+                className="button secondary small"
+                disabled={currentPage + 1 === pageCount}
+                onClick={() => setPage(currentPage + 1)}
+              >
+                Next
+              </button>
+            </nav>
+          )}
           {!unavailable && (
             <span>
               <ShieldCheck size={13} /> Saved locally

@@ -13,6 +13,8 @@ async function harness(
   let handler: Function;
   let stored: Record<string, unknown> = initial ? { scout: initial } : {};
   let online = true;
+  let storageWrites = 0,
+    badgeWrites = 0;
   const known = new Set(existingIds);
   const submittedClips: Candidate[] = [];
   const sends: object[] = [];
@@ -55,12 +57,17 @@ async function harness(
         get: async () => structuredClone(stored),
         set: async (value: Record<string, unknown>) => {
           stored = structuredClone(value);
+          storageWrites++;
         },
       },
     },
     action: {
-      setBadgeBackgroundColor: async () => {},
-      setBadgeText: async () => {},
+      setBadgeBackgroundColor: async () => {
+        badgeWrites++;
+      },
+      setBadgeText: async () => {
+        badgeWrites++;
+      },
     },
     tabs: {
       get: async (id: number) => {
@@ -202,6 +209,7 @@ async function harness(
   return {
     message,
     state: () => stored.scout as ScoutState,
+    writes: () => ({ storageWrites, badgeWrites }),
     online: (value: boolean) => {
       online = value;
     },
@@ -1465,4 +1473,27 @@ test("messages from an old scouting session cannot save or finish the current se
   );
   assert.equal(h.state().status, "running");
   assert.equal(h.state().saved, 0);
+});
+
+test("unchanged caption progress avoids storage and badge writes but still reads completion", async () => {
+  const h = await captionHarness();
+  const prepared = await h.message(
+    { type: "prepareScan", clip: clip(1) },
+    true,
+  );
+  const poll = () =>
+    h.message({ type: "captionStatus", jobId: prepared.captionJobId }, true);
+  await poll();
+  const before = h.writes();
+  await poll();
+  await poll();
+  assert.deepEqual(h.writes(), before);
+  const job = h.jobs.get(prepared.captionJobId);
+  job.progress = 30;
+  await poll();
+  assert.equal(h.writes().storageWrites, before.storageWrites + 1);
+  assert.equal(h.writes().badgeWrites, before.badgeWrites);
+  job.status = "completed";
+  assert.equal((await poll()).job.status, "completed");
+  assert.equal(h.writes().storageWrites, before.storageWrites + 1);
 });

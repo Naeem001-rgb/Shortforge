@@ -1,5 +1,17 @@
 # ShortForge progress
 
+## October 27, 2026 — Current product, requirements and architecture documents
+
+Replaced the stale original `AGENT.md` brief with current maintenance guidance, expanded `PRODUCT.md`, and updated `DESIGN.md` for native Concat, 50-entry pages, selection, refresh and partial-failure behaviour. Added root `PRD.md` and `ARCHITECTURE.md` with source/test references, acceptance criteria, runtime/data flows, measured performance and deferred scope. Marked the old browser-editor architecture historical and linked the current documents from README. The documents distinguish retained AI/YouTube APIs from current dashboard features and do not claim native export, live-platform or Windows verification from fixtures.
+
+Pre-commit verification on October 27: 343 backend tests passed with five optional skips, 73 extension tests passed, and 23 browser tests passed. Dashboard app/test type checks and Python lint passed. Corrected one existing CSS formatting issue without changing its style values; the repository-wide formatting check passed afterward. Checked all local links in the updated root documentation.
+
+## October 26, 2026 — Performance and media-quality improvements
+
+Implemented the twelve priority areas in the [audit](PERFORMANCE-AUDIT-2026-10-26.md): bounded Library rendering, cheaper refreshes with HTTP revalidation, sequential Scout sampling, early speech rejection, separate video/audio conversion, shorter database write locks, indexed/throttled job updates, worker-thread uploads, bounded bulk actions, verified build reuse and less extension parsing/storage work. Search and selections span Library pages; compatible media streams avoid unnecessary lossy encoding. Source changes and incomplete video tails are rejected conservatively.
+
+The 1,000-clip Library benchmark improved from 1,293 ms to 378 ms; the 5,000-clip API response from 247 ms to 118 ms; H.264-plus-PCM normalization from 1.758 s to 0.815 s with identical video packet hashes. See [measurements, checks and limits](PERFORMANCE-RESULTS-2026-10-26.md). The full suites passed 342 backend tests (five optional skips), 73 extension tests and 23 browser tests; the additional ten-bit quality case and final mobile checks also passed. All tests used isolated data. No native Concat export, live platform scouting or Windows run was performed.
+
 ## October 25, 2026 — Restore native Concat launch
 
 The user chose native desktop Concat instead of the browser streaming integration. Library picture/title clicks and table Edit now show launch progress in the current ShortForge tab and open the selected video's persistent project in Concat's desktop window. Studio can also launch Concat without a selected Library video. The streaming routes, session handoff and automatic browser export forwarding are removed; Concat's own file dialogs and export controls operate on the local computer.

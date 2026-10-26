@@ -7,7 +7,7 @@ test("extension requests and nested asset URLs use only the local engine", async
     value: { protocol: "chrome-extension:" },
     configurable: true,
   });
-  const { api, assetUrl, API_ORIGIN } =
+  const { api, resolveAssetUrl, count, API_ORIGIN } =
     await import("../../dashboard/src/api.ts");
   assert.equal(API_ORIGIN, "http://127.0.0.1:8787");
   const savedFetch = globalThis.fetch;
@@ -42,7 +42,10 @@ test("extension requests and nested asset URLs use only the local engine", async
     );
     assert.equal(result.title, "/api/assets/keep-text");
     assert.equal(result.original_url, "https://youtube.com/shorts/test");
-    assert.equal(assetUrl(result.result.asset), result.result.asset.url);
+    assert.equal(resolveAssetUrl("/api/assets/one"), result.result.asset.url);
+    assert.equal(count(null), "—");
+    assert.equal(count(0), "0");
+    assert.equal(count(12400), "12.4K");
   } finally {
     globalThis.fetch = savedFetch;
   }

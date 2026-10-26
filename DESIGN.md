@@ -302,13 +302,15 @@ components:
 
 # Design System: ShortForge
 
+Updated October 27, 2026: native Concat launch and the October 26 performance/quality changes. The existing palette and geometry remain; pagination, refresh and failure states below are part of the interaction contract. See [PRODUCT.md](PRODUCT.md), [PRD.md](PRD.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Overview
 
 **Creative North Star: "The framed paper workshop"**
 
 ShortForge carries the Voxy brand world extracted from voxy-psi.vercel.app on October 25, 2026, replacing the previous violet Pinterest direction. A white outer frame separates inset, rounded warm-paper navigation and work regions. Ink-on-paper typography does the talking: Source Serif 4 speaks for page headings and stat numerals, Inter runs the interface, and Geist Mono marks data — counts, statuses, source pills, and keyboard hints. Gold #F2C94C is the single signature accent: the logo tile, primary actions, the featured overview tile, progress fills, and the active-tab underline. Butter #FFF67E is the marker — text selection, the active navigation item, and highlighted blockquotes behave like highlighted text on a page. Gold never appears as small text on light ground; ink and gold always pair as surface and label.
 
-Light, dark, and system themes preserve the same geometry. Dark mode inverts the world: warm ink #1A1A17 grounds, paper text, the same gold accent with ink labels, and a gold focus ring. The frame deepens to #121210. Studio keeps its own separate editing scope, and Scout shares the paper-and-gold world through its own scoped tokens — neither inherits the dashboard's serif display voice or theme switcher.
+Light, dark, and system themes preserve the same geometry. Dark mode inverts the world: warm ink #1A1A17 grounds, paper text, the same gold accent with ink labels, and a gold focus ring. The frame deepens to #121210. Studio's launch/status page belongs to the dashboard; actual editing occurs in Concat's native window and retains Concat's own interface. Scout shares the paper-and-gold world through its own popup tokens and follows the operating-system color scheme.
 
 **Key Characteristics:**
 
@@ -317,7 +319,7 @@ Light, dark, and system themes preserve the same geometry. Dark mode inverts the
 - Butter marker highlights: active navigation, text selection, and blockquotes read as highlighted text.
 - A 212px desktop navigation rail, 64px utility bar, 16px outer inset, and 24px content gutters.
 - Four actionable Library overview counts and at most five compact media cards per row; mono data labels everywhere numbers report facts.
-- Persistent paired themes, grid/table choice, visible ink-or-gold focus rings, useful unavailable states, and a separate Studio tab.
+- Persistent paired themes, grid/table choice, visible ink-or-gold focus rings, useful unavailable states, and same-tab Studio launch progress for the native editor.
 
 This replaces the previous violet Pinterest specification (its research and ship evidence remain in docs/design/ and .impeccable/review/pinterest-dashboard/ as history). The [active dashboard contract](.impeccable/surfaces/dashboard-src-library-library-tsx.md) retains the surface strategy; the October 25 finish review captured the new world at .impeccable/review/desktop.png, desktop-dark.png, and mobile.png with verdict "ship". No Voxy raster ships as application artwork; the palette and type voices were re-derived as tokens.
 
@@ -351,7 +353,7 @@ The frontmatter preserves runtime color values and custom-property names without
 
 **The Marker Rule.** Butter highlights selection, active navigation, and quoted material. It never backs buttons or large surfaces.
 
-**The Paired Surface Rule.** Switch dashboard surface and ink tokens together while preserving geometry. Selected chips read as raised via a 1px inset border ring in both themes. Keep the editor-scoped and popup-scoped palettes separate from the dashboard themes.
+**The Paired Surface Rule.** Switch dashboard surface and ink tokens together while preserving geometry. Selected chips read as raised via a 1px inset border ring in both themes. Keep popup tokens scoped to the extension and leave Concat's native theme independent of the dashboard.
 
 ### Scout popup scope
 
@@ -383,7 +385,7 @@ The desktop application has a solid 16px outer inset. Its fixed sidebar is 212px
 
 The rail groups navigation and Preferences; it starts directly at Library with no workspace selector or promotional device panel. At desktop heights of 800px or less, the lower rail tightens spacing.
 
-The Library's heading and two actions precede four overview controls: All videos, Archived, Exported, and Inspiration. Wide-screen overview tiles have 14px gaps, 16px padding, and 14px corners. All videos is the featured gold tile with serif numerals; the applied overview filter also shows as an active state — an ink ring around the gold tile, an inner ring plus aria-pressed on the others. Clicking any tab resets the rights filter so the tab state never contradicts the results. Tabs, grid/table choice, selection, search, rights, and sort controls sit directly above the collection.
+The Library's heading and Add a video action precede four overview controls: All videos, Archived, Exported, and Inspiration. Wide-screen overview tiles have 14px gaps, 16px padding, and 14px corners. All videos is the featured gold tile with serif numerals; the applied overview filter also shows as an active state — an ink ring around the gold tile, an inner ring plus aria-pressed on the others. Clicking any tab resets the rights filter so the tab state never contradicts the results. Tabs, grid/table choice, selection, search, rights, and sort controls sit directly above the collection.
 
 The media grid has five columns maximum and 22px row / 16px column gaps. Cards have a 6px inset and a 6:5 thumbnail constrained to 142–160px height. At 440px and below, the image changes to 16:10 and 186–200px height. Titles wrap without starting a line with their separator (the "·" glues to the preceding word at render time). Metadata remains below the image.
 
@@ -400,7 +402,7 @@ The media grid has five columns maximum and 22px row / 16px column gaps. Cards h
 
 The application supports a 320px minimum viewport. Mobile navigation traps Tab while open, makes background content inert, closes with Escape, and restores focus. Tab strips scroll horizontally with hidden scrollbars; the table scrolls inside its container.
 
-Studio opens in its own browser tab and fills a 100dvh editor root with no dashboard rail, utility bar, frame padding, or theme selector. Its existing editor scope and responsive pane behavior remain separate from this dashboard layout and are untouched by the paper world.
+Studio shows launch progress in the current dashboard tab. Selecting Library media opens its persistent project in Concat's native desktop window on the engine's computer. The status page provides retry/open-again and Back to Library actions; it must not claim success until the current launch job confirms the requested clip. The sidebar can also launch Concat without a selected clip. There is no embedded timeline, streaming canvas or separate browser editor tab.
 
 ### Scout popup scope
 
@@ -428,7 +430,7 @@ Thumbnail source labels sit on the warm-ink scrim in Geist Mono; the play chip u
 
 Shared actions have a 40px minimum height, 9px 15px padding, ten-pixel corners, and a 13px label. Primary fill is gold with **ink labels**, darkening 12% toward ink on hover. Secondary actions use surface-raised and a warm border; ghost actions gain the elevated fill on hover. Danger actions use danger-button with warm-paper labels. Disabled controls share a single 0.45 opacity with a not-allowed cursor.
 
-Library heading actions use a compact 38px minimum on wide screens, growing to 40px at 650px. Add a video opens import; Open Studio launches the separate editor tab.
+Library heading actions use a compact 38px minimum on wide screens, growing to 40px at 650px. Add a video opens import; the Studio navigation item opens the native-editor launch page in the current tab.
 
 ### Links and text actions
 
@@ -442,9 +444,29 @@ Neutral permission badges use elevated, muted, five-pixel corners, 3px 8px paddi
 
 Shared section cards use sixteen-pixel corners, solid surface, thin border, and 28px padding; section headings leave 22px below. Overview controls use fourteen-pixel corners; the featured total tile is gold with serif numerals and reports its active filter with the ring treatment. Counts derive from real records; unavailable counts show an em dash.
 
-Media cards use fourteen-pixel corners, dedicated surface and border, no shadow, six-pixel padding, and a nine-pixel image inset. Warm-white chips (checkbox, more menu) and warm-ink mono pills (source) sit on imagery. Edit opens eligible media in Studio; both view and like counts missing shows the saved date; failed thumbnails show the source-aware icon fallback. The first five images load eagerly, the rest lazily.
+Media cards use fourteen-pixel corners, dedicated surface and border, no shadow, six-pixel padding, and a nine-pixel image inset. Warm-white chips (checkbox, more menu) and warm-ink mono pills (source) sit on imagery. Edit opens Library media through Studio's native Concat handoff; rights remain recorded metadata and do not disable editing; both view and like counts missing shows the saved date; failed thumbnails show the source-aware icon fallback. The first five images on each rendered page load eagerly, the rest lazily.
 
-The table shows the same records; its container has twelve-pixel corners and internal overflow; previews are 58px by 43px. Search, filters, and view changes preserve selections.
+The table shows the same records; its container has twelve-pixel corners and internal overflow; previews are 58px by 43px. Search, filters, sorting, page changes and grid/table changes preserve selections. Both views render at most 50 entries per page.
+
+### Pagination and bulk work
+
+The grid and table share a 50-entry page. Search, rights/workflow filters, sorting and overview counts operate on the complete loaded Library. Search/filter/sort changes return to page one; shrinking results clamp the current page. Grid/table switches keep the page and selection.
+
+When multiple pages exist, the selection control says **Select page**, with accessible name **Select all videos on this page**. It selects or deselects only the current page; the bulk bar reports the total selection across all pages and filters. Keep the indeterminate checkbox state. Returning to a page restores its checked items. A clip is dropped from selection only when it leaves the loaded Library or a completed action explicitly handles it.
+
+Place Previous, **Page X of Y**, and Next in the workspace footer. Use the existing secondary buttons, disable unavailable directions, give the navigation an accessible label and announce page status with `role="status"`. The footer and navigation wrap on phones; the page indicator is at least 12px. Counts continue to describe the full filtered result, not just the page size.
+
+Archive shows busy state, processes bounded batches and retains failed clips with an honest success/failure count. Delete requires a modal naming the full selection; multi-page deletion retains unhandled clips if a batch fails. Preserve retry and cancel paths. CSV uses the complete selection.
+
+### Refresh and trustworthy status
+
+Initial loading shows skeletons. A genuinely empty response shows the empty Library; a connection failure must not masquerade as zero saved videos. On later failures retain the last loaded records with an unavailable/stale indication. An unchanged refresh must not rebuild the grid or reset selection, scroll or the chosen view.
+
+Periodic Library and engine-health checks pause while the dashboard is hidden and resume when visible. Explicit actions may request a refresh; do not show HTTP caching or implementation details as user-facing workflow choices. Reuse the compact-number formatter so repeated counts do not stall selection.
+
+Scout progress, counters and badges change only when their displayed values change. A rejected no-speech candidate can finish before OCR; say that speech was detected or could not be verified, never that unscanned captions were absent. Faster media conversion preserves compatible streams; it is not upscaling or a promise to repair source footage.
+
+The performance measurements and regression evidence live in [the results report](docs/PERFORMANCE-RESULTS-2026-10-26.md). Preserve keyboard/focus/reduced-motion behaviour while optimizing; browser fixtures alone do not establish full screen-reader compliance.
 
 ### Inputs / Fields
 
@@ -474,14 +496,14 @@ Scout shares the Voxy palette (paper frame, ink text, gold actions, butter selec
 - Do pair gold strictly with ink labels; use the butter marker only for selection, active navigation, and quotes.
 - Do set headings, section titles, and stat numerals in Source Serif 4; keep data in Geist Mono and everything else in Inter.
 - Do keep Library counts derived from records, show unavailable counts honestly, and retain source and permission labels.
-- Do preserve compact media geometry, responsive controls, visible ink/gold focus rings, keyboard tabs, and selection across filters.
-- Do keep Studio in its separate editing workspace and Scout tokens scoped to the extension.
+- Do preserve compact media geometry, responsive controls, visible ink/gold focus rings, keyboard tabs, and selection across filters and pages.
+- Do keep Studio launch progress in the dashboard, editing in native Concat, and Scout tokens scoped to the extension.
 
 ### Don't:
 
 - Don't restore the violet direction, lavender actions, or white-on-gold labels; don't put gold text on light surfaces.
 - Don't invent media records, metrics, accounts, or claims removed from the product (script rewriting and AI voice creation stay out of the interface).
 - Don't overlay titles and creator metadata on footage or stretch compact cards into tall portrait panels.
-- Don't apply dashboard themes, outer gutters, or navigation chrome to the separate Studio editor, or the paper world to Scout's popup.
+- Don't rebuild or restyle Concat's native editor as a dashboard canvas; don't share dashboard CSS globals with the independently scoped Scout popup.
 - Don't remove working import, discovery, editing, selection, or theme controls on narrow screens.
 - Don't add entrance motion that delays access to the collection or shadows to flat content surfaces.

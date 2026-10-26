@@ -53,6 +53,11 @@ export function App() {
   const [healthChecked, setHealthChecked] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const refreshing = useRef(false);
+  const refreshAgain = useRef(false);
+  const clipSnapshot = useRef("");
+  const active = useRef(false);
+  const refreshController = useRef<AbortController | null>(null);
   const [importing, setImporting] = useState(false);
   const [detail, setDetail] = useState<Clip | null>(null);
   const [studioClip, setStudioClip] = useState(() => {
@@ -71,15 +76,38 @@ export function App() {
   useEffect(() => {
     if (page !== "studio") localStorage.setItem("shortforge-page", page);
   }, [page]);
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async function refreshClips() {
+    if (refreshing.current) {
+      refreshAgain.current = true;
+      return;
+    }
+    refreshing.current = true;
+    const controller = new AbortController();
+    refreshController.current = controller;
     try {
-      const data = await api<{ clips: Clip[] }>("/clips");
-      setClips(data.clips);
+      const data = await api<{ clips: Clip[] }>("/clips", {
+        signal: AbortSignal.any([
+          controller.signal,
+          AbortSignal.timeout(15000),
+        ]),
+      });
+      if (!active.current || controller.signal.aborted) return;
+      const snapshot = JSON.stringify(data.clips);
+      if (snapshot !== clipSnapshot.current) {
+        clipSnapshot.current = snapshot;
+        setClips(data.clips);
+      }
       setError("");
     } catch (e) {
-      setError((e as Error).message);
+      if (active.current && !controller.signal.aborted)
+        setError((e as Error).message);
     } finally {
-      setLoading(false);
+      refreshing.current = false;
+      if (active.current && !controller.signal.aborted) setLoading(false);
+      if (refreshAgain.current) {
+        refreshAgain.current = false;
+        if (active.current) void refreshClips();
+      }
     }
   }, []);
   const openStudio = useCallback((id = "") => {
@@ -94,18 +122,48 @@ export function App() {
     setPage("studio");
   }, []);
   useEffect(() => {
+    active.current = true;
     refresh();
-    const timer = setInterval(refresh, 5000);
-    const check = () =>
-      api<Health>("/health")
-        .then(setHealth)
-        .catch(() => setHealth(null))
-        .finally(() => setHealthChecked(true));
+    const poll = () => {
+      if (!document.hidden && !refreshing.current) void refresh();
+    };
+    const timer = setInterval(poll, 5000);
+    let checking = false;
+    let stopped = false;
+    const check = async () => {
+      if (checking || document.hidden) return;
+      checking = true;
+      try {
+        const next = await api<Health>("/health", {
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!stopped)
+          setHealth((current) =>
+            JSON.stringify(current) === JSON.stringify(next) ? current : next,
+          );
+      } catch {
+        if (!stopped) setHealth(null);
+      } finally {
+        checking = false;
+        if (!stopped) setHealthChecked(true);
+      }
+    };
     check();
     const h = setInterval(check, 12000);
+    const resume = () => {
+      poll();
+      void check();
+    };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("focus", resume);
     return () => {
+      active.current = false;
+      stopped = true;
+      refreshController.current?.abort();
       clearInterval(timer);
       clearInterval(h);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("focus", resume);
     };
   }, [refresh]);
   useEffect(() => {

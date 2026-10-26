@@ -184,12 +184,11 @@ def normalize_browser_video(path: Path) -> Path:
     audio_line = next(
         (line for line in inspection.stderr.splitlines() if "Audio:" in line), ""
     )
-    compatible = (
-        "Video: h264" in video_line
-        and "yuv420p" in video_line
-        and (not audio_line or "Audio: aac" in audio_line)
+    video_compatible = "Video: h264" in video_line and bool(
+        re.search(r"\byuv420p\b", video_line)
     )
-    if path.suffix.lower() == ".mp4" and compatible:
+    audio_compatible = not audio_line or "Audio: aac" in audio_line
+    if path.suffix.lower() == ".mp4" and video_compatible and audio_compatible:
         return path
     output = path.with_name(path.stem + "-playable.mp4")
     command = [
@@ -207,8 +206,8 @@ def normalize_browser_video(path: Path) -> Path:
         "-map",
         "0:a:0?",
     ]
-    if compatible:
-        command += ["-c", "copy"]
+    if video_compatible:
+        command += ["-c:v", "copy"]
     else:
         command += [
             "-vf",
@@ -223,11 +222,8 @@ def normalize_browser_video(path: Path) -> Path:
             "yuv420p",
             "-threads",
             "2",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
         ]
+    command += ["-c:a", "copy"] if audio_compatible else ["-c:a", "aac", "-b:a", "192k"]
     command += ["-movflags", "+faststart", str(output)]
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=1800)

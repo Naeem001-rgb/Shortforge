@@ -784,3 +784,143 @@ def test_engine_restart_turns_abandoned_download_into_retryable_failure(
         monkeypatch.setattr(media, "download_job", lambda *args: None)
         retried = restarted.post(f"/api/clips/{clip['id']}/download").json()
         assert retried["status"] == "queued" and retried["id"] != old["id"]
+
+
+def test_library_etag_tracks_mutations_and_filters(client):
+    clip = import_one(client, title="Original")
+    first = client.get("/api/clips")
+    etag = first.headers["etag"]
+    assert first.headers["cache-control"] == "private, no-cache"
+    for validator in (etag, f'"old", W/{etag}', "*"):
+        unchanged = client.get("/api/clips", headers={"If-None-Match": validator})
+        assert unchanged.status_code == 304 and unchanged.content == b""
+    filtered = client.get("/api/clips?q=missing", headers={"If-None-Match": etag})
+    assert filtered.status_code == 200 and filtered.json() == {"clips": []}
+    client.patch(f"/api/clips/{clip['id']}", json={"title": "Changed"})
+    changed = client.get("/api/clips", headers={"If-None-Match": etag})
+    assert changed.status_code == 200 and changed.headers["etag"] != etag
+    assert changed.json()["clips"][0]["title"] == "Changed"
+    client.delete(f"/api/clips/{clip['id']}")
+    removed = client.get(
+        "/api/clips", headers={"If-None-Match": changed.headers["etag"]}
+    )
+    assert removed.status_code == 200 and removed.json() == {"clips": []}
+
+
+def test_cached_source_probe_does_not_hold_writer_lock(client, monkeypatch):
+    from engine.studio import editor_media
+
+    clip = upload_one(client)
+    entered, release = Event(), Event()
+    original = editor_media.probe_media
+
+    def probe(path):
+        entered.set()
+        assert release.wait(10)
+        return original(path)
+
+    monkeypatch.setattr(editor_media, "probe_media", probe)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        downloading = pool.submit(client.post, f"/api/clips/{clip['id']}/download")
+        try:
+            assert entered.wait(5)
+            update = pool.submit(
+                client.patch,
+                f"/api/clips/{clip['id']}",
+                json={"title": "Still responsive"},
+            )
+            assert update.result(timeout=3).status_code == 200
+        finally:
+            release.set()
+        assert downloading.result(timeout=5).status_code == 200
+
+
+def test_source_changed_during_probe_is_not_reused(client, monkeypatch):
+    from engine.studio import editor_media
+
+    clip = upload_one(client)
+    original = editor_media.probe_media
+
+    def probe(path):
+        metadata = original(path)
+        path.write_bytes(path.read_bytes() + b"changed")
+        return metadata
+
+    monkeypatch.setattr(editor_media, "probe_media", probe)
+    response = client.post(f"/api/clips/{clip['id']}/download")
+    assert response.status_code == 409
+    assert "source changed" in response.json()["detail"]
+
+
+def test_upload_probe_does_not_block_other_requests(client, monkeypatch):
+    from engine.studio import editor_media
+
+    entered, release = Event(), Event()
+    original = editor_media.probe_media
+
+    def probe(path):
+        entered.set()
+        assert release.wait(10)
+        return original(path)
+
+    monkeypatch.setattr(editor_media, "probe_media", probe)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        uploading = pool.submit(
+            client.post,
+            "/api/upload",
+            files={"file": ("video.mp4", playable_video(), "video/mp4")},
+        )
+        try:
+            assert entered.wait(5)
+            response = pool.submit(client.get, "/api/clips")
+            assert response.result(timeout=3).status_code == 200
+        finally:
+            release.set()
+        assert uploading.result(timeout=5).status_code == 200
+
+
+def test_download_progress_is_throttled_without_losing_completion(client, monkeypatch):
+    from unittest.mock import Mock
+    import yt_dlp
+
+    clip = import_one(client)
+    job = db.new_job("download", clip["id"])
+    clock = iter(100 + index * 0.001 for index in range(1000))
+    monkeypatch.setattr(media, "time", SimpleNamespace(monotonic=lambda: next(clock)))
+    writes = Mock(wraps=db.update_job)
+    monkeypatch.setattr(db, "update_job", writes)
+    source = playable_video()
+
+    class Downloader:
+        def __init__(self, options):
+            self.options = options
+            self.path = Path(options["outtmpl"].replace("%(ext)s", "mp4"))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def extract_info(self, url, download):
+            self.path.write_bytes(source)
+            hook = self.options["progress_hooks"][0]
+            for index in range(1000):
+                hook(
+                    {
+                        "status": "downloading",
+                        "total_bytes": 1000,
+                        "downloaded_bytes": index,
+                    }
+                )
+            hook({"status": "finished"})
+            return {}
+
+        def prepare_filename(self, info):
+            return str(self.path)
+
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", Downloader)
+    media.download_job(job["id"], clip["id"])
+    assert db.get_job(job["id"])["status"] == "completed"
+    assert writes.call_count <= 6
+    assert any(call.kwargs.get("progress") == 95 for call in writes.call_args_list)

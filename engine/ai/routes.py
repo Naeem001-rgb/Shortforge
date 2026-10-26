@@ -113,7 +113,7 @@ def voices():
 
 
 @router.post("/voices/clone")
-async def clone_voice(
+def clone_voice(
     file: UploadFile = File(...),
     name: str = Form(...),
     consent: str = Form(...),
@@ -141,7 +141,7 @@ async def clone_voice(
     try:
         size = 0
         with path.open("wb") as destination:
-            while chunk := await file.read(1024 * 1024):
+            while chunk := file.file.read(1024 * 1024):
                 size += len(chunk)
                 if size > 20 * 1024 * 1024:
                     raise ValueError("Voice references must be smaller than 20 MB.")
@@ -170,7 +170,7 @@ async def clone_voice(
         path.unlink(missing_ok=True)
         raise HTTPException(400, str(exc)) from None
     finally:
-        await file.close()
+        file.file.close()
 
 
 @router.delete("/voices/{voice_id}")

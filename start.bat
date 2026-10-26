@@ -8,7 +8,7 @@ if not exist dashboard\node_modules call npm --prefix dashboard ci
 if not exist extension\node_modules call npm --prefix extension ci
 .venv\Scripts\python.exe scripts\setup-concat.py
 if errorlevel 1 echo Concat setup needs attention; Library and Scout will still start. Restart ShortForge to retry.
-call npm --prefix extension run build
+call npm --prefix extension run build -- --if-needed
 start "ShortForge Engine (close this window to stop engine)" .venv\Scripts\python.exe -m engine
 echo Open http://127.0.0.1:5173
 call npm --prefix dashboard run dev

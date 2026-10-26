@@ -506,15 +506,20 @@ def scan_video(
         samples = []
         small_samples = []
         total = math.ceil(duration / INTERVAL)
+        decoded = -1
         for index in range(total):
             # Middle of each bin, including a short final bin. Reads at the end
             # prevent a truncated download from being classed as caption-free.
             timestamp = min(index * INTERVAL + INTERVAL / 2, max(0, duration - 1 / fps))
-            if not capture.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000):
-                raise ValueError(
-                    "The video could not be sampled across its full duration."
-                )
-            ok, frame = capture.read()
+            target = min(math.floor(timestamp * fps + 0.5), int(frame_count) - 1)
+            # Decode forward once; seeking restarts decoding at a keyframe each time.
+            while decoded < target:
+                if not capture.grab():
+                    raise ValueError(
+                        "A sampled video frame could not be read. This clip was skipped."
+                    )
+                decoded += 1
+            ok, frame = capture.retrieve()
             if not ok or frame is None:
                 raise ValueError(
                     "A sampled video frame could not be read. This clip was skipped."
@@ -542,6 +547,12 @@ def scan_video(
                 samples.append(has_caption_text(reading, width, height))
             if progress:
                 progress(15 + 80 * (index + 1) / total)
+        while decoded < int(frame_count) - 1:
+            if not capture.grab():
+                raise ValueError(
+                    "The end of the video could not be read. This clip was skipped."
+                )
+            decoded += 1
         result = classify_samples(samples, duration, max_caption_seconds)
         result["policy"] = policy
         if policy == SMALL_TEXT_POLICY:
@@ -566,6 +577,15 @@ def check_in_worker(config: dict, directory: Path) -> dict:
         # Inspect the original A/V file. The OCR proxy deliberately has no audio.
         speech = inspect_speech(path, duration)
         (directory / "progress").write_text("14")
+        if speech.get("speech_status") != "absent":
+            result = unknown_result(
+                "",
+                config["url"],
+                "Caption analysis was not needed after the speech check.",
+                policy,
+            )
+            result["duration"] = duration
+            return combine_speech(result, speech)
     else:
         path, duration = download_source(config["url"], directory)
     proxy = normalize_source(path)
@@ -694,9 +714,9 @@ def run_worker(config: dict, directory: Path, cancel: Event, progress=None) -> d
             if progress:
                 try:
                     value = float((directory / "progress").read_text())
-                    if math.isfinite(value) and value != last_progress:
+                    if math.isfinite(value) and int(value) != last_progress:
                         progress(value)
-                        last_progress = value
+                        last_progress = int(value)
                 except (OSError, ValueError):
                     pass
         if cancel.is_set():

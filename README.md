@@ -11,7 +11,17 @@ cd ShortForge
 
 Open **http://127.0.0.1:5173**. The header should say **Engine connected**. Normal startup installs the app dependencies and automatically downloads and verifies Concat when it is missing on a supported platform. You do not need to install Concat separately. Later launches reuse the downloaded runtime and check for a yt-dlp update. Startup does not download speech models. Press Ctrl+C to stop the dashboard and engine; save your Concat edits before closing its window.
 
+Startup reuses the extension/dashboard build when inputs and output hashes are unchanged. An explicit `npm --prefix extension run build` forces a rebuild. The Library shows 50 videos per page; search covers all videos, and selections survive page/filter changes. See the [performance and quality results](docs/PERFORMANCE-RESULTS-2026-10-26.md).
+
 Windows users start with `start.bat`. See [Concat setup and supported platforms](docs/CONCAT.md#setup). The native runtime is downloaded during setup; it is not included in a Git clone or source archive. No paid service is required.
+
+## Project documents
+
+- [Product scope](PRODUCT.md) and [PRD](PRD.md): supported workflows, requirements and acceptance criteria.
+- [Architecture](ARCHITECTURE.md): runtime components, data ownership and request/job flows.
+- [Design system](DESIGN.md): current visual and interaction contract.
+- [Maintainer guide](AGENT.md): source map, setup, safeguards and checks.
+- [Performance results](docs/PERFORMANCE-RESULTS-2026-10-26.md): measured changes and verification limits.
 
 ## Your first edit
 

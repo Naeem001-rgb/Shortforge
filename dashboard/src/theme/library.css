@@ -540,6 +540,7 @@
 
 .library-workspace-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
@@ -950,4 +951,11 @@
     transition: none;
     animation: none;
   }
+}
+.library-pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
 }

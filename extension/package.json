@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc --noEmit && node build.mjs",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts tests/*.test.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.315",

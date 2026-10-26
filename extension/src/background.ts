@@ -64,15 +64,21 @@ async function syncTabProtection() {
     }
   }
 }
+let badgeColor: string | undefined;
+let badgeText: string | undefined;
 async function save() {
   await syncTabProtection();
   await chrome.storage.local.set({ scout: state });
-  await chrome.action.setBadgeBackgroundColor({
-    color: state.status === "paused" ? "#946600" : "#006EDC",
-  });
-  await chrome.action.setBadgeText({
-    text: state.matched ? String(state.matched) : "",
-  });
+  const color = state.status === "paused" ? "#946600" : "#006EDC";
+  const text = state.matched ? String(state.matched) : "";
+  if (color !== badgeColor) {
+    await chrome.action.setBadgeBackgroundColor({ color });
+    badgeColor = color;
+  }
+  if (text !== badgeText) {
+    await chrome.action.setBadgeText({ text });
+    badgeText = text;
+  }
 }
 async function api(path: string, body?: object) {
   let response: Response;
@@ -647,8 +653,11 @@ async function handle(
     if (message.jobId !== state.captionCheck?.jobId)
       throw new Error("Caption check changed. Resume to check again.");
     const job = await api(`/jobs/${encodeURIComponent(String(message.jobId))}`);
-    state.reason = `Checking ${state.settings.captionFilter === "small-text-no-speech" ? "text and speech" : "on-screen captions"}… ${Math.round(Number(job.progress) || 0)}%`;
-    await save();
+    const reason = `Checking ${state.settings.captionFilter === "small-text-no-speech" ? "text and speech" : "on-screen captions"}… ${Math.round(Number(job.progress) || 0)}%`;
+    if (state.reason !== reason) {
+      state.reason = reason;
+      await save();
+    }
     return { running: true, job };
   }
   if (

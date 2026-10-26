@@ -4,6 +4,7 @@ import importlib.util
 import os
 from pathlib import Path
 import shutil
+import time
 
 from fastapi import HTTPException
 
@@ -148,15 +149,18 @@ def download_job(job_id: str, clip_id: str):
         db.update_job(job_id, status="running", progress=1)
         output = db.DATA_DIR / "downloads" / clip_id / job_id
         output.mkdir(parents=True, exist_ok=True)
+        last_progress, last_update = -1, 0.0
 
         def progress(hook):
+            nonlocal last_progress, last_update
             if hook["status"] == "downloading":
                 total = hook.get("total_bytes") or hook.get("total_bytes_estimate")
                 if total:
-                    db.update_job(
-                        job_id,
-                        progress=min(90, hook.get("downloaded_bytes", 0) / total * 90),
-                    )
+                    value = min(90, hook.get("downloaded_bytes", 0) / total * 90)
+                    now = time.monotonic()
+                    if int(value) != last_progress and now - last_update >= 0.5:
+                        db.update_job(job_id, progress=value)
+                        last_progress, last_update = int(value), now
             elif hook["status"] == "finished":
                 db.update_job(job_id, progress=95)
 

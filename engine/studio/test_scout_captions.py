@@ -253,7 +253,7 @@ def test_missing_frame_and_ocr_errors_fail_closed(tmp_path, monkeypatch):
         cv2.CAP_PROP_FPS: 10,
         cv2.CAP_PROP_FRAME_COUNT: 100,
     }.get(key, 0)
-    capture.read.return_value = (False, None)
+    capture.grab.return_value = False
     monkeypatch.setattr(cv2, "VideoCapture", lambda _: capture)
     with pytest.raises(ValueError, match="could not be read"):
         scout.scan_video(tmp_path / "bad.mp4", 10, 3, reader=Mock())
@@ -764,3 +764,102 @@ def test_real_chinese_annotations_are_allowed_but_large_captions_count(tmp_path)
     assert outcome["small_text_seconds"] == 1, outcome
     assert outcome["caption_seconds"] == 1, outcome
     assert outcome["status"] == "persistent", outcome
+
+
+@pytest.mark.parametrize("rate", ["10", "30", "30000/1001"])
+def test_sequential_samples_match_previous_seek_pixels(tmp_path, rate):
+    import hashlib
+    import math
+    import subprocess
+    from engine.studio.editor_media import ffmpeg_binary
+
+    cv2 = pytest.importorskip("cv2")
+    path = tmp_path / "timing.mp4"
+    subprocess.run(
+        [
+            ffmpeg_binary(),
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc2=s=64x96:r={rate}:d=1.1",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    capture = cv2.VideoCapture(str(path))
+    fps = capture.get(cv2.CAP_PROP_FPS)
+    duration = capture.get(cv2.CAP_PROP_FRAME_COUNT) / fps
+    expected = []
+    try:
+        for index in range(math.ceil(duration / scout.INTERVAL)):
+            timestamp = min(
+                index * scout.INTERVAL + scout.INTERVAL / 2, max(0, duration - 1 / fps)
+            )
+            assert capture.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
+            ok, frame = capture.read()
+            assert ok
+            expected.append(hashlib.sha256(frame).hexdigest())
+    finally:
+        capture.release()
+    actual = []
+
+    def read(frame):
+        actual.append(hashlib.sha256(frame).hexdigest())
+        return SimpleNamespace(txts=None)
+
+    outcome = scout.scan_video(path, duration, 3, reader=read)
+    assert actual == expected
+    assert outcome["frames_scanned"] == len(expected)
+    assert outcome["status"] == "clear"
+
+
+@pytest.mark.parametrize("status,seconds", [("present", 1), ("unknown", None)])
+def test_speech_rejection_skips_ocr_without_fabricating_coverage(
+    tmp_path, monkeypatch, status, seconds
+):
+    from engine.studio import scout_speech
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"audio fixture")
+    monkeypatch.setattr(scout, "download_source", Mock(return_value=(source, 10)))
+    speech = {**speech_result(), "speech_status": status, "speech_seconds": seconds}
+    monkeypatch.setattr(scout_speech, "inspect_speech", Mock(return_value=speech))
+    normalize, scan = Mock(), Mock()
+    monkeypatch.setattr(scout, "normalize_source", normalize)
+    monkeypatch.setattr(scout, "scan_video", scan)
+    result = scout.check_in_worker(
+        {"url": "unused", "policy": scout.SMALL_TEXT_POLICY, "max_caption_seconds": 3},
+        tmp_path,
+    )
+    assert result["status"] == ("speech" if status == "present" else "unknown")
+    assert result["frames_scanned"] == 0 and result["caption_seconds"] is None
+    normalize.assert_not_called()
+    scan.assert_not_called()
+
+
+def test_truncated_tail_after_last_sample_is_rejected(tmp_path, monkeypatch):
+    cv2 = pytest.importorskip("cv2")
+    np = pytest.importorskip("numpy")
+    capture = Mock()
+    capture.get.side_effect = lambda key: {
+        cv2.CAP_PROP_FPS: 10,
+        cv2.CAP_PROP_FRAME_COUNT: 10,
+    }.get(key, float("nan"))
+    capture.grab.side_effect = [True] * 9 + [False]
+    capture.retrieve.return_value = (True, np.zeros((96, 64, 3), dtype=np.uint8))
+    monkeypatch.setattr(cv2, "VideoCapture", lambda _: capture)
+    with pytest.raises(ValueError, match="end of the video"):
+        scout.scan_video(
+            tmp_path / "truncated.mp4",
+            1,
+            3,
+            reader=Mock(return_value=SimpleNamespace(txts=None)),
+        )
+    capture.release.assert_called_once()

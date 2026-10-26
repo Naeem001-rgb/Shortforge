@@ -1,6 +1,7 @@
 """The public core API for local footage, YouTube videos and Instagram Reels."""
 
 import asyncio
+import hashlib
 import json
 import mimetypes
 from pathlib import Path
@@ -16,6 +17,7 @@ from fastapi import (
     Form,
     HTTPException,
     Request,
+    Response,
     UploadFile,
 )
 from fastapi.responses import FileResponse, StreamingResponse
@@ -132,6 +134,7 @@ def health():
 
 @router.get("/clips")
 def list_clips(
+    request: Request,
     q: str = "",
     license_status: str | None = None,
     workflow_status: str | None = None,
@@ -178,7 +181,21 @@ def list_clips(
                 f"SELECT * FROM clips{where} ORDER BY {orders[sort]}", values
             )
         ]
-    return {"clips": [public_clip(clip) for clip in clips]}
+    content = json.dumps(
+        {"clips": [public_clip(clip) for clip in clips]},
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    etag = '"' + hashlib.sha256(content).hexdigest() + '"'
+    headers = {"ETag": etag, "Cache-Control": "private, no-cache"}
+    validators = [
+        value.strip().removeprefix("W/")
+        for value in request.headers.get("if-none-match", "").split(",")
+    ]
+    if etag in validators or "*" in validators:
+        return Response(status_code=304, headers=headers)
+    return Response(content, media_type="application/json", headers=headers)
 
 
 @router.post("/clips")
@@ -339,13 +356,13 @@ def video_header_valid(header: bytes, suffix: str) -> bool:
 
 
 @router.post("/upload")
-async def upload(file: UploadFile = File(...), title: str = Form("")):
+def upload(file: UploadFile = File(...), title: str = Form("")):
     suffix = Path(file.filename or "").suffix.lower()
     if suffix not in {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}:
-        await file.close()
+        file.file.close()
         raise HTTPException(422, "Choose an MP4, MOV, WebM, MKV, M4V, or AVI video.")
     if len(title) > 1000:
-        await file.close()
+        file.file.close()
         raise HTTPException(422, "Use a video title under 1,000 characters.")
     clip_id = str(uuid4())
     path = db.DATA_DIR / "uploads" / f"{clip_id}{suffix}"
@@ -354,7 +371,7 @@ async def upload(file: UploadFile = File(...), title: str = Form("")):
     total = 0
     try:
         with path.open("wb") as destination:
-            while chunk := await file.read(1024 * 1024):
+            while chunk := file.file.read(1024 * 1024):
                 if total == 0 and not video_header_valid(chunk[:32], suffix):
                     raise HTTPException(
                         422,
@@ -371,12 +388,12 @@ async def upload(file: UploadFile = File(...), title: str = Form("")):
         try:
             # A valid container header alone does not mean the file can play.
             # Validate video contents before registering a Library item.
-            metadata = await run_in_threadpool(probe_media, path)
+            metadata = probe_media(path)
             if metadata["media_type"] != "video":
                 raise ValueError(
                     "This file contains no video. Choose a video file to add to your Library."
                 )
-            path = await run_in_threadpool(normalize_browser_video, path)
+            path = normalize_browser_video(path)
         except (ValueError, OSError, subprocess.SubprocessError) as exc:
             raise HTTPException(
                 422,
@@ -417,7 +434,7 @@ async def upload(file: UploadFile = File(...), title: str = Form("")):
         path.unlink(missing_ok=True)
         raise
     finally:
-        await file.close()
+        file.file.close()
 
 
 @router.post("/clips/{clip_id}/enrich")
@@ -451,6 +468,17 @@ def prevent_duplicate_job(clip_id: str, job_type: str):
 @router.post("/clips/{clip_id}/download")
 def download(clip_id: str, background_tasks: BackgroundTasks):
     clip = db.get_clip(clip_id)
+    from engine.studio.editor_media import probe_media
+
+    candidate, asset, source_version = None, None, None
+    try:
+        candidate, path = media.get_source(clip_id)
+        stat = path.stat()
+        if probe_media(path)["media_type"] == "video":
+            asset = candidate
+            source_version = (stat.st_mtime_ns, stat.st_size)
+    except (HTTPException, ValueError, OSError, subprocess.SubprocessError):
+        pass
     # Serialize check + insert across tabs/threads so one clip has one fetch.
     # A failed job is retained for diagnosis and a later request can retry.
     with db.connect() as conn:
@@ -467,24 +495,27 @@ def download(clip_id: str, background_tasks: BackgroundTasks):
             "SELECT * FROM assets WHERE clip_id=? AND kind='source' ORDER BY created_at DESC LIMIT 1",
             (clip_id,),
         ).fetchone()
-        asset = (
-            db.asset_dict(source)
-            if source and db.resolve_data_path(source["path"]).is_file()
-            else None
-        )
         if asset:
-            from engine.studio.editor_media import probe_media
-
             try:
-                if (
-                    probe_media(db.resolve_data_path(asset["path"]))["media_type"]
-                    != "video"
-                ):
-                    asset = None
-            except (ValueError, OSError, subprocess.SubprocessError):
-                # Old imports and interrupted writes can leave an unusable file.
-                # Preserve it for relinking, but let Retry fetch a fresh source.
-                asset = None
+                stat = db.resolve_data_path(asset["path"]).stat()
+                unchanged = (
+                    source
+                    and source["id"] == asset["id"]
+                    and source["path"] == asset["path"]
+                    and (stat.st_mtime_ns, stat.st_size) == source_version
+                )
+            except OSError:
+                unchanged = False
+            if not unchanged:
+                raise HTTPException(
+                    409, "The source changed while it was checked. Please retry."
+                )
+        elif source and db.resolve_data_path(source["path"]).is_file():
+            # A newly registered source must be validated outside the writer lock.
+            if candidate is None or source["id"] != candidate["id"]:
+                raise HTTPException(
+                    409, "The source changed while it was checked. Please retry."
+                )
         if asset:
             rows = conn.execute(
                 "SELECT * FROM jobs WHERE clip_id=? AND type='download' AND status='completed'",
@@ -591,12 +622,12 @@ def job_detail(job_id: str):
 
 @router.get("/jobs/{job_id}/events")
 async def job_events(job_id: str, request: Request):
-    db.get_job(job_id)
+    await run_in_threadpool(db.get_job, job_id)
 
     async def stream():
         previous = None
         while not await request.is_disconnected():
-            job = db.get_job(job_id)
+            job = await run_in_threadpool(db.get_job, job_id)
             payload = json.dumps(job)
             if payload != previous:
                 yield f"data: {payload}\n\n"

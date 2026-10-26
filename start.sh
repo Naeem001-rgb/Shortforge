@@ -11,7 +11,7 @@ if [ ! -d extension/node_modules ]; then npm --prefix extension ci; fi
 if ! .venv/bin/python scripts/setup-concat.py; then
   printf '\nConcat setup needs attention; Library and Scout will still start.\n'
 fi
-npm --prefix extension run build
+npm --prefix extension run build -- --if-needed
 .venv/bin/python -m engine &
 ENGINE_PID=$!
 trap 'kill "$ENGINE_PID" 2>/dev/null || true' EXIT INT TERM

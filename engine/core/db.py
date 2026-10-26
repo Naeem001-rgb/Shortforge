@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS voices (
 );
 CREATE INDEX IF NOT EXISTS assets_by_clip ON assets(clip_id, created_at);
 CREATE INDEX IF NOT EXISTS clips_by_created ON clips(created_at);
+CREATE INDEX IF NOT EXISTS jobs_by_clip_type_status ON jobs(clip_id, type, status);
 """
 
 

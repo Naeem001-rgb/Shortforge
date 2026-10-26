@@ -54,7 +54,9 @@ input[type="checkbox"]:indeterminate {
 .segmented .selected,
 .theme-toggle .selected {
   background: var(--surface-raised);
-  box-shadow: inset 0 0 0 1px var(--border), var(--shadow-sm);
+  box-shadow:
+    inset 0 0 0 1px var(--border),
+    var(--shadow-sm);
 }
 .page-heading h1 {
   font-size: 34px;

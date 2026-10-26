@@ -1,5 +1,6 @@
 // These representative semantic fixtures are not a claim of live Instagram access.
 import assert from "node:assert/strict";
+import { build } from "esbuild";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium } from "../../dashboard/node_modules/playwright/index.mjs";
@@ -104,6 +105,64 @@ async function readScan(page) {
 }
 const browser = await chromium.launch({ headless: true });
 try {
+  {
+    const built = await build({
+      entryPoints: ["src/instagram.ts"],
+      bundle: true,
+      write: false,
+      format: "iife",
+      globalName: "instagramTest",
+    });
+    const page = await fixture(browser, { body: reel() });
+    await page.addScriptTag({ content: built.outputFiles[0].text });
+    const result = await page.evaluate(() => {
+      document.querySelector("video").removeAttribute("poster");
+      const payload = {
+        code: "FIRST_12345",
+        payload_marker: true,
+        like_count: 6201,
+        play_count: 56001,
+        display_url: "https://cdn.example.test/payload.jpg",
+      };
+      const script = document.createElement("script");
+      script.type = "application/json";
+      script.textContent = JSON.stringify(payload);
+      document.body.append(script, script.cloneNode(true));
+      const parse = JSON.parse;
+      let reads = 0;
+      JSON.parse = (raw, ...args) => {
+        if (raw.includes("payload_marker")) reads++;
+        return parse(raw, ...args);
+      };
+      try {
+        const first = instagramTest.readInstagramClip();
+        const firstReads = reads;
+        script.textContent = JSON.stringify({ ...payload, like_count: 7000 });
+        const second = instagramTest.readInstagramClip();
+        return { first, second, firstReads, reads };
+      } finally {
+        JSON.parse = parse;
+      }
+    });
+    assert.equal(result.first.likes, 6201);
+    assert.equal(result.first.views, 56001);
+    assert.equal(
+      result.first.thumbnail_url,
+      "https://cdn.example.test/payload.jpg",
+    );
+    assert.equal(
+      result.firstReads,
+      1,
+      "Counts and cover reuse one parse and stop before unused payloads",
+    );
+    assert.equal(
+      result.second.likes,
+      7000,
+      "The next read sees fresh page data",
+    );
+    assert.equal(result.reads, 2);
+    await page.close();
+  }
   {
     const page = await fixture(browser, { body: reel(), start: true });
     const { messages, clicks } = await readScan(page);

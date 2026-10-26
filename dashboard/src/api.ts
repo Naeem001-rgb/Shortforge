@@ -67,6 +67,7 @@ export const API_ORIGIN =
 export const resolveAssetUrl = (url: string) =>
   url.startsWith("/api/") ? `${API_ORIGIN}${url}` : url;
 export function resolveResponseAssets<T>(value: T): T {
+  if (!API_ORIGIN) return value;
   if (Array.isArray(value)) return value.map(resolveResponseAssets) as T;
   if (value && typeof value === "object") {
     return Object.fromEntries(
@@ -80,13 +81,12 @@ export function resolveResponseAssets<T>(value: T): T {
   }
   return value;
 }
+const compactNumber = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 export const count = (value: number | null) =>
-  value == null
-    ? "—"
-    : Intl.NumberFormat("en", {
-        notation: "compact",
-        maximumFractionDigits: 1,
-      }).format(value);
+  value == null ? "—" : compactNumber.format(value);
 export async function api<T>(
   path: string,
   options: RequestInit = {},

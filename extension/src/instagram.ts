@@ -117,25 +117,30 @@ function* mediaInPayload(
 }
 function* instagramPayloadMedia(
   shortcode: string,
+  cache = new Map<HTMLElement, unknown>(),
 ): Generator<InstagramMediaPayload> {
   if (!shortcode) return;
   for (const script of all(document, INSTAGRAM.payload)) {
     const raw = script.textContent || "";
     if (!raw.includes(shortcode)) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      continue;
+    if (!cache.has(script)) {
+      try {
+        cache.set(script, JSON.parse(raw));
+      } catch {
+        continue;
+      }
     }
-    yield* mediaInPayload(parsed, shortcode);
+    yield* mediaInPayload(cache.get(script), shortcode);
   }
 }
-export function instagramPayloadCounts(shortcode: string): {
+export function instagramPayloadCounts(
+  shortcode: string,
+  payload: Iterable<InstagramMediaPayload> = instagramPayloadMedia(shortcode),
+): {
   likes: number | null;
   views: number | null;
 } {
-  for (const media of instagramPayloadMedia(shortcode)) {
+  for (const media of payload) {
     // A creator can switch counts off; that is unknown, never zero.
     if (media.like_and_view_counts_disabled === true)
       return { likes: null, views: null };
@@ -155,10 +160,14 @@ export function instagramPayloadCounts(shortcode: string): {
 }
 
 /** Read the matching Reel's cover, even when Instagram omits video.poster. */
-export function instagramThumbnail(root: HTMLElement, shortcode = ""): string {
+export function instagramThumbnail(
+  root: HTMLElement,
+  shortcode = "",
+  payload: Iterable<InstagramMediaPayload> = instagramPayloadMedia(shortcode),
+): string {
   const video = first(root, INSTAGRAM.video) as HTMLVideoElement | null;
   if (video?.poster) return video.poster;
-  for (const media of instagramPayloadMedia(shortcode)) {
+  for (const media of payload) {
     const candidates = media.image_versions2?.candidates;
     const cover = (Array.isArray(candidates) ? [...candidates] : [])
       .filter((image) => image && typeof image.url === "string")
@@ -361,8 +370,15 @@ export function readInstagramClip(
   const title = captionTitle(description, account.handle);
   const credit = detectCredit(description, account.handle);
   // Exact counts from the page's own payload first; the rail only fills the gap.
-  const payload = instagramPayloadCounts(id.slice(3));
-  const dom = instagramCounts(root);
+  const payloadCache = new Map<HTMLElement, unknown>();
+  const payload = instagramPayloadCounts(
+    id.slice(3),
+    instagramPayloadMedia(id.slice(3), payloadCache),
+  );
+  const dom =
+    payload.likes == null || payload.views == null
+      ? instagramCounts(root)
+      : { likes: null, views: null };
   return {
     video_id: id,
     url: `https://www.instagram.com/reel/${id.slice(3)}/`,
@@ -374,6 +390,13 @@ export function readInstagramClip(
     views: payload.views ?? dom.views ?? gridViews ?? null,
     credit_target: credit?.target || "",
     credit_snippet: credit?.snippet || "",
-    thumbnail_url: instagramThumbnail(root, id.slice(3)) || gridThumbnail || "",
+    thumbnail_url:
+      instagramThumbnail(
+        root,
+        id.slice(3),
+        instagramPayloadMedia(id.slice(3), payloadCache),
+      ) ||
+      gridThumbnail ||
+      "",
   };
 }
