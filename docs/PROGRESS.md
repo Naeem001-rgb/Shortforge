@@ -1,5 +1,27 @@
 # ShortForge progress
 
+## October 30, 2026 — Codebase audit, security and concurrency
+
+Completed parallel security, performance and reachability reviews with coordinating review and aggregate verification. Restricted local media demuxers to prevent disguised video/voice manifests from making network requests; made voice-reference registration atomic and cleaned failed uploads. Upgraded vulnerable dependencies and raised runtime security floors. Startup now checks lockfile/package/binary consistency, repairs incomplete installs and fails before launch when required setup fails.
+
+Unified Library/Studio download claims, made transcription/extraction duplicate rejection atomic, batched enrichment reads and limited thumbnail worker admission to three. The retained temporary-data benchmark measured a 100-clip local lookup at 40.974 ms before versus 2.480 ms after, and thumbnail contention at 40 versus 3 occupied workers. These are local-stage and injected-contention measurements. Removed obsolete CSS/progress branches, corrected the packaged dashboard path and included two missing font notices. Supported optional services and saved user data were retained.
+
+Validation: **400 backend tests passed, five optional native/model checks skipped; 93 extension tests and 23 dashboard browser tests passed**. Both builds and type checks passed. Advisory scans found no known vulnerabilities in the three npm projects or 47 installed Python packages after updates. See the [audit report](AUDIT-2026-10-30.md) for reproduction, package versions, fixture results and verification limits.
+
+## October 28, 2026 — Project cleanup and smaller extension builds
+
+Consolidated FFmpeg/FFprobe lookup in the existing core media helpers while retaining the Studio error contract. Voice probing now uses the same validated FFprobe override, system lookup and adjacent-binary fallback as other media operations. Removed the unused dashboard voice type, eight unused theme tokens and an unused Studio rule. Both TypeScript projects now reject unused locals and parameters.
+
+The extension's background, content and popup scripts are minified by the existing esbuild dependency. Building the same source with the same dependencies measured **100,348 bytes before and 57,456 bytes after (42.7% smaller)** for those three scripts combined. This is a bundle-size reduction, not a measured runtime speedup. Existing content/output fingerprint checks still reuse a verified build.
+
+Moved pytest from runtime to development requirements and scoped default pytest discovery to `engine/`, excluding the managed upstream checkout. Added a [documentation index](README.md), moved retired editor guides and records into the [browser-editor archive](archive/browser-editor/README.md), and corrected current testing, voice, media and publishing guides. Saved Library data, Concat projects, credentials, models, third-party notices and supported API routes were preserved.
+
+Validation: **350 backend tests passed, five optional native/model checks skipped**; extension unit tests, **23 dashboard browser tests**, both production builds, type checks, Python lint/formatting and Prettier passed. The actual packaged extension, YouTube parsing and Instagram parsing fixtures passed. The public OpenAPI schema is unchanged, current Markdown links resolve, and `git diff --check` passes. The first backend run exposed a mock that disabled every optional module when intending to disable only yt-dlp; after narrowing that fixture, the complete suite passed.
+
+The built popup fixture and verified-build reuse check also passed. Removed 1,887,621 bytes of generated Python/test caches and the empty directories left by the documentation moves.
+
+Windows startup, live logged-in platforms, real Google authorization/uploads, optional model inference and native Concat editing/export were not exercised in this cleanup.
+
 ## October 27, 2026 — Current product, requirements and architecture documents
 
 Replaced the stale original `AGENT.md` brief with current maintenance guidance, expanded `PRODUCT.md`, and updated `DESIGN.md` for native Concat, 50-entry pages, selection, refresh and partial-failure behaviour. Added root `PRD.md` and `ARCHITECTURE.md` with source/test references, acceptance criteria, runtime/data flows, measured performance and deferred scope. Marked the old browser-editor architecture historical and linked the current documents from README. The documents distinguish retained AI/YouTube APIs from current dashboard features and do not claim native export, live-platform or Windows verification from fixtures.
@@ -44,7 +66,7 @@ Verification: the full backend suite passed 394 tests and 25 subtests, with 2 op
 
 Polished the existing dark timeline editor around the user's CapCut/Premiere/Filmora references, prioritizing core editing and reliability. Added consistent workspace controls, readable project/save status, accessible shortcuts, resettable layout, compact source tools, actual frame-rate settings, a clearer import state, cached media thumbnails and a mobile tool strip. The timeline fills its viewport and initially fits the footage; filmstrips follow each clip's source interval. Fixed batch-upload busy state and typing spaces in project names. Removed 1,714 duplicate stylesheet lines. Existing effects, captions, audio tools, editing and export are preserved; this is not a claim of complete competitor feature parity.
 
-Validation: 338 backend tests plus 25 subtests passed (2 optional cases skipped); 26 browser cases passed (2 optional long-export cases skipped); 5 focused cases passed again after the final functional changes. Actual MP4 output, preview/export frame and audio agreement, persistence, media recovery, trim/split/drag, and 100+ undo operations were checked. Desktop, laptop, 1920px user viewport, and phone screenshots show no document overflow or page errors. Lint and the dashboard/extension builds passed. See [the change and verification notes](editor/STUDIO-POLISH.md) for details and a four-step user check.
+Validation: 338 backend tests plus 25 subtests passed (2 optional cases skipped); 26 browser cases passed (2 optional long-export cases skipped); 5 focused cases passed again after the final functional changes. Actual MP4 output, preview/export frame and audio agreement, persistence, media recovery, trim/split/drag, and 100+ undo operations were checked. Desktop, laptop, 1920px user viewport, and phone screenshots show no document overflow or page errors. Lint and the dashboard/extension builds passed. See [the change and verification notes](archive/browser-editor/STUDIO-POLISH.md) for details and a four-step user check.
 
 ## October 8, 2026 — Instagram previews recovered
 

@@ -1,39 +1,44 @@
 """Media utilities with no mandatory model or network dependencies."""
 
 import json
-import os
 from pathlib import Path
 import re
-import shutil
 import subprocess
 import wave
 
+from engine.core.media import find_ffmpeg, find_ffprobe
+
+LOCAL_MEDIA_FORMATS = "wav,mp3,mov,ogg,flac,matroska,avi"
+
 
 def ffmpeg_binary() -> str:
-    configured = os.environ.get("FFMPEG_PATH")
-    if configured and Path(configured).is_file():
-        return str(Path(configured).resolve())
-    executable = shutil.which("ffmpeg")
+    executable = find_ffmpeg()
     if executable:
         return executable
-    try:
-        import imageio_ffmpeg
-
-        return imageio_ffmpeg.get_ffmpeg_exe()
-    except (ImportError, RuntimeError):
-        raise ValueError(
-            "FFmpeg is missing. Run the ShortForge setup command or install FFmpeg, then restart the app."
-        ) from None
+    raise ValueError(
+        "FFmpeg is missing. Run the ShortForge setup command or install FFmpeg, then restart the app."
+    )
 
 
-def probe_media(path: Path) -> dict:
-    ffprobe = os.environ.get("FFPROBE_PATH") or shutil.which("ffprobe")
+def probe_media(path: Path, *, input_format: str | None = None) -> dict:
+    # Some manifest demuxers do not propagate protocol restrictions to nested
+    # requests. Admit ordinary media containers as well as local protocols.
+    input_options = [
+        "-protocol_whitelist",
+        "file,pipe",
+        "-format_whitelist",
+        LOCAL_MEDIA_FORMATS,
+    ]
+    if input_format:
+        input_options.extend(["-f", input_format])
+    ffprobe = find_ffprobe()
     if ffprobe:
         process = subprocess.run(
             [
                 ffprobe,
                 "-v",
                 "error",
+                *input_options,
                 "-show_format",
                 "-show_streams",
                 "-of",
@@ -57,7 +62,7 @@ def probe_media(path: Path) -> dict:
             }
     # The small packaged FFmpeg binary does not ship ffprobe.
     process = subprocess.run(
-        [ffmpeg_binary(), "-hide_banner", "-i", str(path)],
+        [ffmpeg_binary(), "-hide_banner", *input_options, "-i", str(path)],
         capture_output=True,
         text=True,
         timeout=30,

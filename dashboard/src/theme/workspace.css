@@ -6,10 +6,6 @@ body {
   background: var(--workspace-gradient);
   background-attachment: scroll;
 }
-::selection {
-  background: var(--marker);
-  color: var(--marker-ink);
-}
 h1,
 h2,
 h3 {
@@ -94,9 +90,6 @@ input[type="checkbox"]:indeterminate {
   border-radius: 14px;
   width: 84px;
   height: 84px;
-}
-.scout-chips svg {
-  color: var(--success);
 }
 .modal {
   background: var(--surface-raised);

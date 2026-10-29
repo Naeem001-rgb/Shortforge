@@ -10,7 +10,7 @@ import subprocess
 
 from engine.core import db
 from engine.core.media import find_ffprobe
-from .media import ffmpeg_binary
+from .media import LOCAL_MEDIA_FORMATS, ffmpeg_binary
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
@@ -68,6 +68,8 @@ def _probe(path: str, modified: int, size: int) -> dict:
                 "error",
                 "-protocol_whitelist",
                 "file,pipe",
+                "-format_whitelist",
+                LOCAL_MEDIA_FORMATS,
                 "-show_format",
                 "-show_streams",
                 "-of",
@@ -120,6 +122,8 @@ def _probe(path: str, modified: int, size: int) -> dict:
                 "-hide_banner",
                 "-protocol_whitelist",
                 "file,pipe",
+                "-format_whitelist",
+                LOCAL_MEDIA_FORMATS,
                 "-i",
                 path,
             ],
@@ -171,6 +175,8 @@ def normalize_browser_video(path: Path) -> Path:
             "-hide_banner",
             "-protocol_whitelist",
             "file,pipe",
+            "-format_whitelist",
+            LOCAL_MEDIA_FORMATS,
             "-i",
             str(path),
         ],
@@ -199,6 +205,8 @@ def normalize_browser_video(path: Path) -> Path:
         "-y",
         "-protocol_whitelist",
         "file,pipe",
+        "-format_whitelist",
+        LOCAL_MEDIA_FORMATS,
         "-i",
         str(path),
         "-map",
@@ -270,6 +278,8 @@ def media_thumbnail(path: Path, metadata: dict) -> Path:
                 str(min(0.5, metadata["duration"] / 2)),
                 "-protocol_whitelist",
                 "file,pipe",
+                "-format_whitelist",
+                LOCAL_MEDIA_FORMATS,
                 "-i",
                 str(path),
                 "-frames:v",

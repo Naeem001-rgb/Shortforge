@@ -1,2 +1,4 @@
-# Formatting and linting only; not needed to run ShortForge.
+# Runtime packages plus checks for contributors.
+-r engine/requirements.txt
+pytest>=8,<10
 ruff==0.15.7

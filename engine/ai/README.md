@@ -1,6 +1,8 @@
 # Writing and voice integrations
 
-Nothing here downloads a speech model, installs a library, or calls a paid provider on startup. Provider requests run only when the user presses the relevant action. Script text is sent to the selected cloud provider; local audio references stay on the computer.
+These are retained backend services. The dashboard has no script/voice panel or Publish kit, and generation does not add media to Concat automatically. See the [API contract](../../shared/contract/API.md).
+
+Nothing here downloads a speech model, installs a library, or calls a paid provider on startup. Provider requests run only for an explicit API request. Script text is sent to the selected cloud provider; local audio references stay on the computer.
 
 ## Gemini
 
@@ -8,7 +10,7 @@ Set `gemini_api_key` and `gemini_model` in Settings. The default model is `gemin
 
 ## Piper: default CPU narration
 
-The [Piper engine](https://github.com/OHF-Voice/piper1-gpl) is GPL-3.0. Install `piper-tts` into the engine's Python environment separately, then obtain a voice `.onnx` file and matching `.onnx.json` file. Select the `.onnx` path in Settings. The app invokes the [documented CLI](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md) locally and passes the requested speed through as Piper's inverse `--length_scale`. `POST /api/tts` accepts a speed of 0.7–1.2; nothing narrows that range per provider. Read that voice's `MODEL_CARD` before choosing it for monetized videos: the [official voice documentation](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md) explains that each voice can have different restrictions. No speech-model files are bundled. Studio separately bundles an openly licensed subtitle font.
+The [Piper engine](https://github.com/OHF-Voice/piper1-gpl) is GPL-3.0. Install `piper-tts` into the engine's Python environment separately, then obtain a voice `.onnx` file and matching `.onnx.json` file. Set the `.onnx` path with the `piper_model` field of `PUT /api/settings`. The app invokes the [documented CLI](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/CLI.md) locally and passes the requested speed through as Piper's inverse `--length_scale`. `POST /api/tts` accepts a speed of 0.7–1.2; nothing narrows that range per provider. Read that voice's `MODEL_CARD` before choosing it for monetized videos: the [official voice documentation](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md) explains that each voice can have different restrictions. No speech-model files are bundled.
 
 ## eSpeak: basic voice without a model download
 
@@ -44,6 +46,6 @@ Generated voiceovers are aligned against the newly generated audio using the ins
 
 ## Tests
 
-From the project root, run `.venv/bin/python -m unittest engine.ai.test_writing engine.ai.test_voice engine.studio.test_studio -v` on Linux/macOS, or `.venv\Scripts\python.exe -m unittest engine.ai.test_writing engine.ai.test_voice engine.studio.test_studio -v` on Windows. `engine.ai.test_voice` covers the provider adapters described above. Its eSpeak case is skipped when the executable is absent rather than reporting a false pass; the ElevenLabs cases are contract tests against a stubbed HTTP layer, so they need no key and make no live request.
+From the project root, run `.venv/bin/python -m unittest engine.ai.test_writing engine.ai.test_voice -v` on Linux/macOS, or `.venv\Scripts\python.exe -m unittest engine.ai.test_writing engine.ai.test_voice -v` on Windows. `engine.ai.test_voice` covers the provider adapters described above. Its eSpeak case is skipped when the executable is absent rather than reporting a false pass; the ElevenLabs cases are contract tests against a stubbed HTTP layer, so they need no key and make no live request.
 
-The whole backend suite is `.venv/bin/python -m pytest engine/core/tests engine/studio engine/ai -q` (about seven minutes), which is what has to be green before pushing.
+The whole backend suite is `.venv/bin/python -m pytest engine/core/tests engine/studio engine/ai -q`, which is what has to be green before pushing.

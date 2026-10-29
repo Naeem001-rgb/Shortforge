@@ -1,6 +1,5 @@
 """Writing and voice API. Provider calls happen only after an explicit action."""
 
-from datetime import datetime, timezone
 import json
 from pathlib import Path
 import subprocess
@@ -23,6 +22,14 @@ from .voice import (
 from .writing import original_script, rewrite_script
 
 router = APIRouter(prefix="/api")
+AUDIO_REFERENCE_FORMATS = {
+    ".wav": "wav",
+    ".mp3": "mp3",
+    ".m4a": "mov",
+    ".ogg": "ogg",
+    ".flac": "flac",
+    ".webm": "matroska",
+}
 
 
 class RewriteRequest(BaseModel):
@@ -119,26 +126,27 @@ def clone_voice(
     consent: str = Form(...),
     reference_text: str = Form(""),
 ):
-    if consent != "true":
-        raise HTTPException(
-            400,
-            "Confirm that this is your voice or you have the speaker's permission to clone it.",
-        )
-    if not name.strip() or len(name) > 80 or len(reference_text) > 5000:
-        raise HTTPException(
-            400,
-            "Add a voice name (up to 80 characters). The optional sample transcript must be under 5,000 characters.",
-        )
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in {".wav", ".mp3", ".m4a", ".ogg", ".flac", ".webm"}:
-        raise HTTPException(
-            400, "Use a WAV, MP3, M4A, OGG, FLAC or WebM voice recording."
-        )
-    identity = str(uuid4())
-    directory = db.DATA_DIR / "voices"
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{identity}{suffix}"
+    path = None
+    saved = False
     try:
+        if consent != "true":
+            raise HTTPException(
+                400,
+                "Confirm that this is your voice or you have the speaker's permission to clone it.",
+            )
+        if not name.strip() or len(name) > 80 or len(reference_text) > 5000:
+            raise HTTPException(
+                400,
+                "Add a voice name (up to 80 characters). The optional sample transcript must be under 5,000 characters.",
+            )
+        suffix = Path(file.filename or "").suffix.lower()
+        if suffix not in AUDIO_REFERENCE_FORMATS:
+            raise HTTPException(
+                400, "Use a WAV, MP3, M4A, OGG, FLAC or WebM voice recording."
+            )
+        identity = str(uuid4())
+        path = db.resolve_data_path(Path("voices") / f"{identity}{suffix}")
+        path.parent.mkdir(parents=True, exist_ok=True)
         size = 0
         with path.open("wb") as destination:
             while chunk := file.file.read(1024 * 1024):
@@ -146,31 +154,58 @@ def clone_voice(
                 if size > 20 * 1024 * 1024:
                     raise ValueError("Voice references must be smaller than 20 MB.")
                 destination.write(chunk)
-        media = probe_media(path)
+        # Force the declared audio container. A DASH/HLS/concat document with an
+        # audio suffix must not reference other local files or remote services.
+        media = probe_media(path, input_format=AUDIO_REFERENCE_FORMATS[suffix])
         if not media["audio"] or not 6 <= media["duration"] <= 30:
             raise ValueError(
                 "Use a clear 6–30 second voice recording with one speaker and no background music."
             )
-        asset = db.add_asset(None, "reference", path)
+        created_at = db.now()
+        asset = {
+            "id": str(uuid4()),
+            "path": str(path.relative_to(db.DATA_DIR.resolve())),
+            "created_at": created_at,
+        }
         row = {
             "id": identity,
             "name": name.strip(),
             "reference_asset_id": asset["id"],
             "reference_text": reference_text.strip(),
             "consent": 1,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": created_at,
         }
+        profile = profile_view(row, db.get_settings())
         with db.connect() as connection:
+            connection.execute(
+                "INSERT INTO assets (id,clip_id,kind,path,created_at) VALUES (:id,NULL,'reference',:path,:created_at)",
+                asset,
+            )
             connection.execute(
                 "INSERT INTO voices (id,name,reference_asset_id,reference_text,consent,created_at) VALUES (:id,:name,:reference_asset_id,:reference_text,:consent,:created_at)",
                 row,
             )
-        return profile_view(row, db.get_settings())
+        saved = True
+        return profile
     except ValueError as exc:
-        path.unlink(missing_ok=True)
         raise HTTPException(400, str(exc)) from None
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            400,
+            "Reading this voice recording took too long. Try another 6–30 second recording.",
+        ) from None
+    except (OSError, subprocess.SubprocessError):
+        raise HTTPException(
+            400,
+            "This voice recording could not be read. Try another WAV, MP3, M4A, OGG, FLAC or WebM file.",
+        ) from None
     finally:
         file.file.close()
+        if path is not None and not saved:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass  # A cleanup error must not hide the original upload error.
 
 
 @router.delete("/voices/{voice_id}")

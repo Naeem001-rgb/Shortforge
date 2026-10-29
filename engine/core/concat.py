@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 from threading import Thread
+import time
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 VERSION = "0.2.8"
 SETUP_HINT = "Restart ShortForge with start.sh or start.bat to finish automatic Concat setup, then try Studio again."
 JOB_TYPE = "studio-open"
+SOURCE_WAIT_SECONDS = 30 * 60
 router = APIRouter(prefix="/api/studio")
 
 
@@ -126,24 +128,32 @@ def project_folder(clip_id: str) -> Path:
 
 
 def source_for_clip(clip_id: str, progress) -> Path:
-    try:
-        _, source = media.get_source(clip_id)
-        from engine.studio.editor_media import probe_media
-
-        if probe_media(source)["media_type"] == "video":
-            return source
-    except (HTTPException, ValueError, OSError, subprocess.SubprocessError):
-        pass
+    child, claimed = media.claim_download(clip_id)
     progress(10)
-    child = db.new_job("download", clip_id)
-    media.download_job(child["id"], clip_id)
+    if claimed:
+        media.download_job(child["id"], clip_id)
+    # An API request may already own acquisition. Waiting never holds a database
+    # transaction, and a timeout must leave that owner's download intact.
+    deadline = time.monotonic() + SOURCE_WAIT_SECONDS
     downloaded = db.get_job(child["id"])
+    while downloaded["status"] in {"queued", "running"}:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(
+                "The source video is still downloading. Wait for it to finish, then try Studio again."
+            )
+        time.sleep(min(0.5, remaining))
+        downloaded = db.get_job(child["id"])
     if downloaded["status"] != "completed":
         raise RuntimeError(
             downloaded.get("error")
             or "The source video could not be downloaded. Try again or upload your own footage."
         )
     _, source = media.get_source(clip_id)
+    from engine.studio.editor_media import probe_media
+
+    if probe_media(source)["media_type"] != "video":
+        raise RuntimeError("The downloaded source has no readable video. Try again.")
     return source
 
 

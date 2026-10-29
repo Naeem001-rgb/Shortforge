@@ -73,7 +73,7 @@ The default limits are **30 clips**, **5,000 likes**, and **10,000 views**. All 
 
 Credit is discovery metadata, not reuse permission. External clips keep unknown rights while local editing is enabled. Record source permissions before publishing reused footage.
 
-The build packages the dashboard's React code, fonts and styles locally under `dist/studio`. The Concat native runtime is installed separately by ShortForge's automatic setup and is not bundled into the extension. Manifest V3 uses a strict `script-src 'self'` policy with no remote code or eval. Engine requests use loopback host permissions; content scripts run on YouTube and Instagram. Scout also uses storage, tabs, and alarms permissions. Long media jobs run in the local engine and remain available when the popup closes or the dashboard reloads.
+The build packages the dashboard's React code, fonts and styles locally under `dist/dashboard`. The Concat native runtime is installed separately by ShortForge's automatic setup and is not bundled into the extension. Manifest V3 uses a strict `script-src 'self'` policy with no remote code or eval. Engine requests use loopback host permissions; content scripts run on YouTube and Instagram. Scout also uses storage, tabs, and alarms permissions. Long media jobs run in the local engine and remain available when the popup closes or the dashboard reloads.
 
 ## Tested and remaining limits
 

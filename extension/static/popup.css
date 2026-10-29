@@ -14,12 +14,12 @@
   --text: #1a1a17;
   --muted: #57534a;
   --line: #e5e1d3;
-  --accent: #8a6914;
-  --button: #f2c94c;
-  --button-hover: #e5ba32;
-  --selected: #f7edcb;
-  --selected-border: #e0c56a;
-  --selection-mark: #f2c94c;
+  --accent: #4c651d;
+  --button: #b5e550;
+  --button-hover: #a2cd49;
+  --selected: #edf6d9;
+  --selected-border: #6b8f29;
+  --selection-mark: #b5e550;
   --selection-dot: #1a1a17;
   --danger: #b04228;
   --danger-surface: #f8e4da;
@@ -52,7 +52,7 @@ body {
 }
 ::selection {
   color: #1a1a17;
-  background: #fff67e;
+  background: var(--button);
 }
 ::-webkit-scrollbar {
   width: 6px;
@@ -159,7 +159,7 @@ label {
   margin: 9px 0 0;
   overflow-wrap: anywhere;
 }
-/* Four native choices remain visible; the selected setting carries the violet. */
+/* Four native choices remain visible; the selected setting carries the accent. */
 .discovery {
   min-width: 0;
   margin: 0;
@@ -636,12 +636,12 @@ time {
     --text: #faf7ee;
     --muted: #b3aea0;
     --line: #3b3a33;
-    --accent: #f2c94c;
-    --button: #f2c94c;
-    --button-hover: #e5ba32;
-    --selected: #3d3926;
-    --selected-border: #8a7524;
-    --selection-mark: #f2c94c;
+    --accent: #b5e550;
+    --button: #b5e550;
+    --button-hover: #a2cd49;
+    --selected: #303b22;
+    --selected-border: #718f32;
+    --selection-mark: #b5e550;
     --selection-dot: #1a1a17;
     --danger: #e89a7d;
     --danger-surface: #3f2a21;

@@ -1,5 +1,7 @@
 # Local soundtrack and vocal tools
 
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../CONCAT.md).
+
 Studio's **Extract audio** decodes the selected media's full original soundtrack to stereo 44.1 kHz WAV with FFmpeg. It does not use a model. It creates a separate media asset, and Studio mutes the original video when placing the extracted audio on the timeline. **Mute original audio** removes the whole soundtrack from playback/export without changing the source file.
 
 **Isolate voice** and **Remove voice** run the actual local Demucs `htdemucs` model. The first action uses the vocal estimate. The second uses the original soundtrack minus that estimate, retaining background music and ambient sound as far as the model permits. Both stems remain in the project's media bin. This is vocal/music demixing, not perfect speech-only isolation: singing may also be removed, and some voice or music can bleed into the other stem. Preview the result before exporting.

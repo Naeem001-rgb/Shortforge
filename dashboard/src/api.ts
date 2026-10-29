@@ -49,15 +49,6 @@ export type Job = {
   result?: Record<string, unknown>;
 };
 export type Settings = Record<string, string | number | boolean>;
-export type Voice = {
-  id: string;
-  name: string;
-  provider: string;
-  language: string;
-  description: string;
-  available: boolean;
-  cloned: boolean;
-};
 // Web development uses Vite's proxy; the packaged extension connects directly
 // to the local engine. Provider keys never belong in this connection setting.
 export const API_ORIGIN =

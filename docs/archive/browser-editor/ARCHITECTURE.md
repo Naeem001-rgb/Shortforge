@@ -1,7 +1,6 @@
 # Historical browser-editor architecture
 
-> Retired with the custom browser editor. This page preserves the old design; it is not the architecture of current ShortForge. Use the root [ARCHITECTURE.md](../../ARCHITECTURE.md) for the native Concat workflow and current performance/storage boundaries.
-
+> Retired with the custom browser editor. This page preserves the old design; it is not the architecture of current ShortForge. Use the root [ARCHITECTURE.md](../../../ARCHITECTURE.md) for the native Concat workflow and current performance/storage boundaries.
 
 ## Four layers
 1. **Document**: plain JSON in editorModel.ts and validated Pydantic counterparts. Version 1 documents migrate by supplying defaults; extensions use additive optional fields until the v2 migration is introduced. IDs are stable. Time is seconds; transform x/y is percent of canvas from its centre; scale is multiplicative; rotation is degrees.

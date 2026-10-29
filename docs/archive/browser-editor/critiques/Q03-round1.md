@@ -1,4 +1,6 @@
 ⚠️ DEGRADED: single-context (delegated reviewer instructed not to spawn; runtime slots full).
+
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../../CONCAT.md).
 # Q03 — Owner guide, phase summaries, decisions/licenses/known issues — Round 1
 
 **4.2/10 · FIX.** Compliance 3, correctness 5, UX 4, performance 6, code quality 5. Weighted 35/25/20/10/10; raw 4.20, ceiling 6. Required unverified criteria count as failed; this is not a PASS.

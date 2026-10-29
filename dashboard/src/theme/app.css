@@ -958,13 +958,6 @@ input[type="file"]::file-selector-button {
   align-items: center;
   gap: 5px;
 }
-.clip-stats > .icon-button {
-  margin-left: auto;
-  width: 32px;
-}
-.clip-meta > .button {
-  justify-content: space-between;
-}
 .skeleton {
   height: 320px;
   border-radius: 14px;
@@ -1420,12 +1413,6 @@ details a:hover {
   text-transform: capitalize;
   flex: 1;
 }
-.job-progress.completed {
-  color: var(--success);
-}
-.job-progress.failed {
-  color: var(--danger);
-}
 progress {
   width: 100%;
   height: 5px;
@@ -1735,13 +1722,6 @@ progress::-moz-progress-bar {
   .clip-meta h3 {
     font-size: 14px;
   }
-  .clip-meta > .button {
-    font-size: 14px;
-    padding: 8px;
-  }
-  .clip-meta > .button > svg {
-    width: 13px;
-  }
   .clip-meta .badge {
     font-size: 12px;
     padding: 3px 5px;
@@ -1752,10 +1732,6 @@ progress::-moz-progress-bar {
   .clip-stats {
     gap: 7px;
     font-size: 12px;
-  }
-  .clip-stats > .icon-button {
-    width: 26px;
-    padding: 4px;
   }
   .source-pill {
     font-size: 12px;
@@ -1921,12 +1897,8 @@ progress::-moz-progress-bar {
     font-size: 16px;
   }
   .clip-meta .badge,
-  .clip-meta > .button,
   .source-pill {
     font-size: 12px;
-  }
-  .clip-meta > .button {
-    min-height: 42px;
   }
   .import-tabs > button {
     font-size: 14px;

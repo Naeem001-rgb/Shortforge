@@ -9,9 +9,11 @@ import sys
 import tempfile
 from threading import Lock, Semaphore
 
+from anyio import CapacityLimiter
 from fastapi import HTTPException
 import httpx
 from PIL import Image, ImageOps
+from starlette.concurrency import run_in_threadpool
 
 from . import db, media
 from .source_urls import canonical_clip_url, instagram_thumbnail_url
@@ -19,6 +21,7 @@ from .source_urls import canonical_clip_url, instagram_thumbnail_url
 
 _locks = [Lock() for _ in range(32)]
 _lookups = Semaphore(3)
+_requests = CapacityLimiter(3)
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 
@@ -130,3 +133,10 @@ def clip_thumbnail(clip_id: str) -> Path:
                     headers={"Cache-Control": "no-store"},
                 ) from exc
         return target
+
+
+async def thumbnail_path(clip_id: str) -> Path:
+    # Queue before borrowing request workers. Waiting on the synchronous locks
+    # or remote-lookup slots must not occupy the whole engine worker pool.
+    async with _requests:
+        return await run_in_threadpool(clip_thumbnail, clip_id)

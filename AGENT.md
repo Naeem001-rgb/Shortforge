@@ -10,13 +10,13 @@ ShortForge is a local, single-user video discovery and Library workspace that op
 |---|---|
 | [PRODUCT.md](PRODUCT.md) | Users, product scope, constraints and current capabilities |
 | [PRD.md](PRD.md) | Requirements and observable acceptance criteria |
-| [DESIGN.md](DESIGN.md) | Current paper-and-gold visual system and interaction rules |
+| [DESIGN.md](DESIGN.md) | Current paper-and-lime visual system and interaction rules |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Runtime components, data ownership and execution flows |
 | [shared/contract/API.md](shared/contract/API.md) | API shapes and integration contracts |
 | [docs/CONCAT.md](docs/CONCAT.md) | Native editor setup, saved projects and verification limits |
 | [Performance results](docs/PERFORMANCE-RESULTS-2026-10-26.md) | Measured improvements, checks and deferred work |
 
-Follow the user's requested scope. Verify behaviour in the implementation when a historical document disagrees. Files under `docs/editor/` largely describe the removed browser editor; they are not instructions to restore it.
+Follow the user's requested scope. Verify behaviour in the implementation when a historical document disagrees. Files under `docs/archive/browser-editor/` describe the removed browser editor; they are not instructions to restore it.
 
 ## 2. Preserve these behaviours
 
@@ -57,7 +57,7 @@ Keep request validation, file bounds, asset ownership, error cleanup, accessibil
 
 Use temporary data directories for tests and generated fixtures for media. Do not test destructive actions against the user's Library. Keep API keys, OAuth tokens, `.env`, user media, runtime binaries and downloaded models out of commits and public logs. Preserve the loopback host/origin protections and MV3 CSP.
 
-Use the existing paper-and-gold tokens and shared controls. Preserve light/dark/system themes, keyboard navigation, focus restoration and reduced motion. The old violet browser-editor brief is historical. Do not infer full accessibility certification from browser smoke tests.
+Use the existing paper-and-lime tokens and shared controls. Preserve light/dark/system themes, keyboard navigation, focus restoration and reduced motion. The old violet browser-editor brief is historical. Do not infer full accessibility certification from browser smoke tests.
 
 Update relevant contracts and `docs/PROGRESS.md` when behaviour changes. Report measured evidence and remaining limits; do not claim complete CapCut parity, perfect caption/speech detection or a tested native export when only the handoff was exercised.
 
@@ -73,7 +73,7 @@ The launchers use `npm --prefix extension run build -- --if-needed`. Reuse requi
 
 ## 6. Validation before shipping
 
-Run checks appropriate to changed behaviour. For a release touching the app, extension and backend, all three suites and the relevant build/type checks must pass. Use an isolated data directory; on Windows substitute `.venv\Scripts\python.exe` for `.venv/bin/python`.
+Install contributor tools with `.venv/bin/python -m pip install -r requirements-dev.txt`; pytest is not a runtime dependency. Run checks appropriate to changed behaviour. For a release touching the app, extension and backend, all three suites and the relevant build/type checks must pass. Use an isolated data directory; on Windows substitute `.venv\Scripts\python.exe` for `.venv/bin/python`.
 
 ```bash
 SHORTFORGE_DATA_DIR="$(mktemp -d)" .venv/bin/python -m pytest engine/core/tests engine/studio engine/ai -q -ra

@@ -1,6 +1,6 @@
 # ShortForge architecture
 
-Updated October 27, 2026. Current implementation after the native Concat transition and October 26 performance/quality changes.
+Updated October 30, 2026. Current implementation after the native Concat transition, performance improvements and the [codebase audit](docs/AUDIT-2026-10-30.md).
 
 ShortForge combines a React dashboard, Chrome MV3 discovery extension and loopback FastAPI engine with local SQLite/media storage; the engine prepares persistent projects and opens native Concat for editing.
 
@@ -46,7 +46,7 @@ The dashboard manages discovery, Library data, settings and launch status. The n
 
 ## Startup and packaging
 
-The launchers install Python requirements, attempt a yt-dlp update, install missing npm dependencies and run [scripts/setup-concat.py](scripts/setup-concat.py). That setup uses the pinned [release manifest](vendor/concat-release.json), verifies downloads and reuses a working runtime. It does not install optional speech models. Supported platform paths and setup failures are documented in [docs/CONCAT.md](docs/CONCAT.md).
+The launchers enforce a patched pip version, install Python requirements with security floors, attempt a yt-dlp update, validate npm installations against the lockfiles through [setup-node.mjs](scripts/setup-node.mjs), and run [scripts/setup-concat.py](scripts/setup-concat.py). That setup uses the pinned [release manifest](vendor/concat-release.json), verifies downloads and reuses a working runtime. Matching npm installations are reused; stale or incomplete installs run `npm ci` with development and platform-optional packages included. Dependency/build failures stop startup. It does not install optional speech models. Supported platform paths and setup failures are documented in [docs/CONCAT.md](docs/CONCAT.md).
 
 `npm --prefix extension run build -- --if-needed` still runs the extension type check. `build.mjs` fingerprints source, static files, configuration, package/installed dependency metadata, relevant build environment and generated output. A matching cache under `extension/node_modules/` permits reuse; modified/missing output or a malformed cache rebuilds. An explicit build without the flag always rebuilds. A rebuild bundles content/background/popup scripts, copies static assets, type-checks/builds the dashboard and externalizes inline bootstrap scripts for MV3 CSP.
 
@@ -85,8 +85,14 @@ This is **client-side pagination**. The server still reads/serializes the list t
 
 1. Core upload and AI voice-reference handlers are synchronous FastAPI endpoints, so blocking reads/writes/probes run in the framework's worker pool. Header/content validation, size limits, media probing and cleanup remain at their existing boundaries.
 2. `normalize_browser_video()` checks video and audio compatibility independently. Supported H.264/eight-bit `yuv420p` video and AAC audio can be copied; incompatible streams are converted. Generated MP4 output retains faststart and is probed before use. Failed output is removed. Compatible streams do not undergo an extra lossy encode.
-3. `/clips/{id}/download` probes an existing source before acquiring the SQLite writer transaction. Inside `BEGIN IMMEDIATE`, it checks for an active download, verifies source identity/path/mtime/size, and reuses a valid source or creates one queued job. A changed source returns `409` for retry.
+3. `/clips/{id}/download` and Concat source preparation share `media.claim_download()`, which probes an existing source before acquiring the SQLite writer transaction. Inside `BEGIN IMMEDIATE`, it checks for an active download, verifies source identity/path/mtime/size, and reuses a valid source or creates one queued job. A changed source returns `409` for retry.
 4. `download_job()` acquires through yt-dlp, normalizes/validates the result and registers the asset. Intermediate downloading updates require a changed whole percentage and at least 0.5 seconds since the last written update; completion/failure is written separately.
+
+Studio executes only a download it has newly claimed; otherwise it waits outside transactions for the owner, up to 30 minutes, then validates the source. A wait timeout does not cancel the owner. Transcription and script extraction use `db.new_job(..., unique_active=True)` to atomically reject duplicate active jobs with HTTP 409.
+
+Local media probes, normalization and video thumbnails restrict both protocols and input demuxers. Reference recordings force the accepted audio container, register the asset/profile atomically and remove failed uploads. The checks reject media manifests even when they imitate a video file signature.
+
+Enrichment reads requested clips with one query before preserving input order and provider batches. The async Instagram thumbnail route admits at most three lookups before borrowing default request workers, so queued covers do not occupy the entire pool. Existing cache and retry responses are unchanged.
 
 See [source URL validation](engine/core/source_urls.py), [core tests](engine/core/tests/test_core.py) and [media packet/codec tests](engine/studio/test_media_normalization.py).
 
@@ -121,8 +127,8 @@ Provider keys and OAuth credentials stay server-side; public settings/validation
 
 ## Evidence, boundaries and deferred work
 
-[PRD.md](PRD.md) maps required behaviour to tests. [Performance results](docs/PERFORMANCE-RESULTS-2026-10-26.md) records measurements and the distinction between complete workflows and individual stages. [AGENT.md](AGENT.md) provides setup/check commands. [DESIGN.md](DESIGN.md) governs current UI behaviour.
+[PRD.md](PRD.md) maps required behaviour to tests. [The October 30 audit](docs/AUDIT-2026-10-30.md) and [earlier performance results](docs/PERFORMANCE-RESULTS-2026-10-26.md) record measurements and the distinction between complete workflows and individual stages. [AGENT.md](AGENT.md) provides setup/check commands. [DESIGN.md](DESIGN.md) governs current UI behaviour.
 
-The removed custom editor and streaming implementation appear in older documents; [docs/editor/ARCHITECTURE.md](docs/editor/ARCHITECTURE.md) is explicitly historical. Core/AI files retaining an `editor` name or legacy table do not establish a current browser editor. Optional native-runtime/model checks, live platform calls, Windows execution and native export quality have separate verification requirements.
+The removed custom editor and streaming implementation appear in the [browser-editor archive](docs/archive/browser-editor/ARCHITECTURE.md). Core/AI files retaining an `editor` name or legacy table do not establish a current browser editor. Optional native-runtime/model checks, live platform calls, Windows execution and native export quality have separate verification requirements.
 
 Server-side pagination/revision tracking, persistent model workers, a global job scheduler, bundle/font restructuring, health-hash caching and a Concat publishing handoff remain deferred. No such service is implied by this architecture diagram.

@@ -1,5 +1,7 @@
 # Remove burned-in captions
 
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../CONCAT.md).
+
 Select the video on the Studio timeline. In **Basic**, click **Remove burned-in captions**.
 
 1. Drag a box closely around the captions in the original picture. The percentage fields provide a keyboard alternative. Keep other text outside the box.
@@ -36,7 +38,7 @@ The explicit installer downloads a 28 MB model, checks its SHA-256, and atomical
 Model: [MI-GAN, official project](https://github.com/Picsart-AI-Research/MI-GAN), [author's ONNX pipeline](https://huggingface.co/andraniksargsyan/migan).
 Pinned revision: `406830d0fa60666da0071c342ad2fbc8f30c5c64`.
 File: `migan_pipeline_v2.onnx`, SHA-256 `6f1f3530a1a2324b19752018ce756088b07973cda8d7d890034ace5c8a48c40b`.
-The upstream repository and weights are MIT licensed; see [the local notice](licenses/MI-GAN.txt).
+The upstream repository and weights are MIT licensed; see [the local notice](../../licenses/MI-GAN.txt).
 
 ## Verification
 

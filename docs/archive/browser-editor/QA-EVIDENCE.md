@@ -1,5 +1,7 @@
 # Studio QA builder evidence — 2026-10-02
 
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../CONCAT.md).
+
 This records test building and direct measurements, not independent critic scores or whole-product acceptance. The QA lane changed only the two new test specifications and this evidence file. Feature fixes were made by the implementation lane.
 
 ## Environment and fixtures

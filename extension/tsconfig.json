@@ -5,6 +5,8 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     // "node" is here only so the test files can import node:test and node:assert.
     "types": ["chrome", "node"],
     "skipLibCheck": true,

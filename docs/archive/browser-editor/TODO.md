@@ -1,5 +1,7 @@
 # Studio task ledger
 
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../CONCAT.md).
+
 Acceptance criteria are written before feature code. Status: planned, building, review, PASS, closed-known-issue. Round scores are independent critic scores, not builder estimates. P2 is deferred until P0/P1 reviews finish. Review may batch related tasks but must score each row.
 
 | ID | Task | Priority | Phase | Owner | Dependencies | Testable acceptance criteria | Status | R1 | R2 |

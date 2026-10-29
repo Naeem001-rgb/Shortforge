@@ -578,6 +578,7 @@ def test_bulk_delete_keeps_going_when_one_clip_is_already_gone(client):
 def test_download_is_idempotent_for_inflight_and_cached_sources(client, monkeypatch):
     clip = import_one(client)
     source_bytes = playable_video()
+    tool_available = media.tool_available
     monkeypatch.setattr(media, "tool_available", lambda name: True)
     monkeypatch.setattr(media, "find_ffmpeg", lambda: "/fake/ffmpeg")
     started = []
@@ -596,7 +597,10 @@ def test_download_is_idempotent_for_inflight_and_cached_sources(client, monkeypa
     path.write_bytes(source_bytes)
     asset = db.add_asset(clip["id"], "source", path)
     db.update_job(started[0], status="completed", progress=100, result={"asset": asset})
-    monkeypatch.setattr(media, "tool_available", lambda name: False)
+    # Cached sources still need media probing; only the downloader is unavailable.
+    monkeypatch.setattr(
+        media, "tool_available", lambda name: name != "yt_dlp" and tool_available(name)
+    )
     cached = fetch(0)
     assert cached["id"] == started[0]
     assert cached["status"] == "completed"

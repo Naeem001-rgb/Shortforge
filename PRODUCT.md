@@ -44,7 +44,7 @@ Do not advertise the removed custom browser editor, browser streaming, WebCodecs
 
 ## Brand commitments
 
-Preserve the paper-and-gold visual system established October 25: warm paper `#FAF7EE`, white content surfaces, ink `#1A1A17`, gold `#F2C94C` actions with ink labels, and butter `#FFF67E` selection/navigation markers. Pair light/dark/system themes. Bundle Source Serif 4 for display/numerals, Inter for controls and Geist Mono for data; retain Lucide icons and factual source/permission labels.
+Preserve the paper visual system established October 25, with the user-selected lime accent updated October 30: warm paper `#FAF7EE`, white content surfaces, ink `#1A1A17`, and lime `#b5e550` actions and selection/navigation markers with ink labels. Pair light/dark/system themes. Bundle Source Serif 4 for display/numerals, Inter for controls and Geist Mono for data; retain Lucide icons and factual source/permission labels.
 
 Keep the 212px desktop rail, 64px utility bar, four Library overview controls and at most five compact cards per row. Pagination must wrap on narrow screens. Empty, loading, stale/unavailable and partial-failure states must remain distinguishable. Scout uses the same palette through its own popup tokens; Concat keeps its native interface. [DESIGN.md](DESIGN.md) is the detailed contract.
 

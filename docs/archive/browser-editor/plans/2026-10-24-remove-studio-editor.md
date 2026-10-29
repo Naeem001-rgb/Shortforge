@@ -1,5 +1,7 @@
 # Remove Studio Editor — Implementation Plan
 
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../../CONCAT.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL. Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Completely remove the CapCut-like studio editor (frontend + its backend services) while keeping Library, Scout, Settings, and the Python engine fully functional.

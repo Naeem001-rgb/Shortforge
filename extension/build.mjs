@@ -97,6 +97,7 @@ async function main() {
     entryPoints: ["src/background.ts", "src/content.ts", "src/popup.ts"],
     outdir: "dist",
     bundle: true,
+    minify: true,
     target: "chrome120",
     format: "iife",
   });

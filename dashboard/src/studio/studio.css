@@ -40,25 +40,11 @@
 .studio-opened > svg {
   color: var(--success);
 }
-.studio-launch-status strong {
-  font-size: 14px;
-  font-weight: 600;
-}
-.studio-launch-status p {
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.6;
-}
 .studio-session-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 24px;
-}
-.studio-about {
-  margin-top: 20px;
-  font-size: 12px;
 }
 @media (max-width: 560px) {
   .studio-session {

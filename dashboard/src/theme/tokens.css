@@ -1,8 +1,8 @@
 /*
  * ShortForge design tokens — "Voxy paper" visual world.
- * Warm cream paper ground, ink text, gold accent; butter marker highlights,
+ * Warm cream paper ground, ink text, lime accent and marker highlights,
  * meadow/terracotta/periwinkle as functional families. Dark theme inverts the
- * same world: ink ground with paper text. Colors come from voxy-psi.vercel.app.
+ * same world: ink ground with paper text. Paper palette from voxy-psi.vercel.app.
  */
 :root {
   font-family:
@@ -10,9 +10,6 @@
     Inter, "Segoe UI", sans-serif;
   color-scheme: light;
   /* Type voices */
-  --font-ui:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Variable",
-    Inter, "Segoe UI", sans-serif;
   --font-display:
     "Source Serif 4 Variable", "Source Serif 4", Georgia, "Times New Roman",
     serif;
@@ -33,30 +30,25 @@
   --text: #1a1a17;
   --muted: #57534a;
   --border: #e5e1d3;
-  /* Brand gold — used on surfaces, never as small text on light ground */
-  --accent: #f2c94c;
-  --button-bg: #f2c94c;
+  /* Brand lime — used on surfaces, never as small text on light ground */
+  --accent: #b5e550;
+  --button-bg: #b5e550;
   --on-accent: #1a1a17;
-  --accent-soft: #f7edcb;
-  --marker: #fff67e;
+  --accent-soft: #edf6d9;
+  --marker: #b5e550;
   --marker-ink: #1a1a17;
   /* Functional families (text-safe shades of the brand accents) */
-  --secondary: #6f8f3f;
   --info: #5b54c4;
   --info-soft: #eae8f8;
-  --teal: #3e7d5c;
   --success: #487113;
-  --success-soft: #eaf2dc;
   --danger: #b04228;
   --danger-button: #a93e27;
   --on-danger: #fff3ea;
-  --danger-soft: #f8e4da;
   --warning: #8a5416;
-  --warning-soft: #f5e8d2;
   /* Featured surfaces */
-  --feature-bg: #f2c94c;
+  --feature-bg: #b5e550;
   --feature-ink: #1a1a17;
-  --feature-muted: #62500f;
+  --feature-muted: #435321;
   --hero-bg: #e9e6f7;
   --hero-ink: #26243a;
   --hero-muted: #5d5a72;
@@ -69,11 +61,9 @@
   --media-scrim-strong: rgba(26, 26, 23, 0.72);
   --backdrop: rgba(26, 26, 23, 0.45);
   --workspace-gradient: var(--bg);
-  --library-gradient: var(--bg);
   /* Focus and shadows */
   --ring: #1a1a17;
   --shadow-sm: 0 2px 4px rgba(26, 26, 23, 0.05);
-  --shadow-card: 0 10px 30px -14px rgba(26, 26, 23, 0.16);
   --shadow: 0 24px 60px -20px rgba(26, 26, 23, 0.28);
 }
 :root[data-theme="dark"] {
@@ -92,38 +82,31 @@
   --text: #faf7ee;
   --muted: #b3aea0;
   --border: #3b3a33;
-  /* Brand gold */
-  --accent: #f2c94c;
-  --button-bg: #f2c94c;
+  /* Brand lime */
+  --accent: #b5e550;
+  --button-bg: #b5e550;
   --on-accent: #1a1a17;
-  --accent-soft: #3d3926;
-  --marker: #fff67e;
+  --accent-soft: #303b22;
+  --marker: #b5e550;
   --marker-ink: #1a1a17;
   /* Functional families */
-  --secondary: #a9c97e;
   --info: #b7b2ec;
   --info-soft: #2e2d42;
-  --teal: #7fbf9f;
   --success: #a9c97e;
-  --success-soft: #2c331f;
   --danger: #e89a7d;
   --danger-button: #b44a2e;
   --on-danger: #fff3ea;
-  --danger-soft: #3f2a21;
   --warning: #e0b36a;
-  --warning-soft: #3a2f1c;
   /* Featured surfaces */
-  --feature-bg: #f2c94c;
+  --feature-bg: #b5e550;
   --feature-ink: #1a1a17;
-  --feature-muted: #62500f;
+  --feature-muted: #435321;
   --hero-bg: #2b2937;
   --hero-ink: #efedfa;
   --hero-muted: #aca8c4;
   --workspace-gradient: var(--bg);
-  --library-gradient: var(--bg);
   /* Focus and shadows */
-  --ring: #f2c94c;
+  --ring: #b5e550;
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.14);
-  --shadow-card: 0 10px 30px -14px rgba(0, 0, 0, 0.4);
   --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
 }

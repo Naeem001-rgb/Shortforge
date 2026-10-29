@@ -39,7 +39,7 @@ from .source_urls import (
     instagram_thumbnail_url,
     is_youtube_clip,
 )
-from .thumbnails import clip_thumbnail, public_clip
+from .thumbnails import public_clip, thumbnail_path
 
 
 router = APIRouter(prefix="/api")
@@ -47,7 +47,20 @@ MAX_UPLOAD = 500 * 1024 * 1024
 
 
 def enrich_clips(clip_ids: list[str], *, strict: bool = False):
-    clips = [db.get_clip(clip_id) for clip_id in clip_ids]
+    if not clip_ids:
+        return
+    with db.connect() as conn:
+        by_id = {
+            row["id"]: dict(row)
+            for row in conn.execute(
+                f"SELECT * FROM clips WHERE id IN ({','.join('?' for _ in clip_ids)})",
+                clip_ids,
+            )
+        }
+    try:
+        clips = [by_id[clip_id] for clip_id in clip_ids]
+    except KeyError:
+        raise HTTPException(404, "Clip not found.") from None
     external = {clip["video_id"]: clip for clip in clips if is_youtube_clip(clip)}
     if not external:
         return
@@ -263,9 +276,9 @@ def import_clips(batch: ClipBatch, background_tasks: BackgroundTasks):
 
 
 @router.get("/clips/{clip_id}/thumbnail")
-def preview_clip(clip_id: str):
+async def preview_clip(clip_id: str):
     return FileResponse(
-        clip_thumbnail(clip_id),
+        await thumbnail_path(clip_id),
         media_type="image/jpeg",
         headers={"Cache-Control": "private, max-age=86400"},
     )
@@ -453,108 +466,10 @@ def enrich_clip(clip_id: str):
     return db.get_clip(clip_id)
 
 
-def prevent_duplicate_job(clip_id: str, job_type: str):
-    with db.connect() as conn:
-        row = conn.execute(
-            "SELECT id FROM jobs WHERE clip_id = ? AND type = ? AND status IN ('queued','running')",
-            (clip_id, job_type),
-        ).fetchone()
-    if row:
-        raise HTTPException(
-            409, "This clip already has that job running. Wait for it to finish."
-        )
-
-
 @router.post("/clips/{clip_id}/download")
 def download(clip_id: str, background_tasks: BackgroundTasks):
-    clip = db.get_clip(clip_id)
-    from engine.studio.editor_media import probe_media
-
-    candidate, asset, source_version = None, None, None
-    try:
-        candidate, path = media.get_source(clip_id)
-        stat = path.stat()
-        if probe_media(path)["media_type"] == "video":
-            asset = candidate
-            source_version = (stat.st_mtime_ns, stat.st_size)
-    except (HTTPException, ValueError, OSError, subprocess.SubprocessError):
-        pass
-    # Serialize check + insert across tabs/threads so one clip has one fetch.
-    # A failed job is retained for diagnosis and a later request can retry.
-    with db.connect() as conn:
-        conn.execute("BEGIN IMMEDIATE")
-        row = conn.execute(
-            "SELECT * FROM jobs WHERE clip_id=? AND type='download' AND status IN ('queued','running') LIMIT 1",
-            (clip_id,),
-        ).fetchone()
-        if row:
-            job = dict(row)
-            job["result"] = json.loads(job["result"]) if job["result"] else None
-            return job
-        source = conn.execute(
-            "SELECT * FROM assets WHERE clip_id=? AND kind='source' ORDER BY created_at DESC LIMIT 1",
-            (clip_id,),
-        ).fetchone()
-        if asset:
-            try:
-                stat = db.resolve_data_path(asset["path"]).stat()
-                unchanged = (
-                    source
-                    and source["id"] == asset["id"]
-                    and source["path"] == asset["path"]
-                    and (stat.st_mtime_ns, stat.st_size) == source_version
-                )
-            except OSError:
-                unchanged = False
-            if not unchanged:
-                raise HTTPException(
-                    409, "The source changed while it was checked. Please retry."
-                )
-        elif source and db.resolve_data_path(source["path"]).is_file():
-            # A newly registered source must be validated outside the writer lock.
-            if candidate is None or source["id"] != candidate["id"]:
-                raise HTTPException(
-                    409, "The source changed while it was checked. Please retry."
-                )
-        if asset:
-            rows = conn.execute(
-                "SELECT * FROM jobs WHERE clip_id=? AND type='download' AND status='completed'",
-                (clip_id,),
-            ).fetchall()
-            for row in rows:
-                result = json.loads(row["result"] or "{}")
-                if result.get("asset", {}).get("id") == asset["id"]:
-                    return {**dict(row), "result": result}
-        else:
-            if not clip["url"]:
-                raise HTTPException(
-                    400, "Import footage into this project to start editing."
-                )
-            canonical_clip_url(clip["url"], clip["video_id"])
-            if not media.tool_available("yt_dlp"):
-                raise HTTPException(
-                    503,
-                    "Install yt-dlp in the engine environment to download source videos.",
-                )
-            if not media.find_ffmpeg():
-                raise HTTPException(
-                    503,
-                    "Install FFmpeg or set FFMPEG_PATH to its executable, then restart ShortForge.",
-                )
-        job = {
-            "id": str(uuid4()),
-            "type": "download",
-            "clip_id": clip_id,
-            "status": "completed" if asset else "queued",
-            "progress": 100 if asset else 0,
-            "error": None,
-            "result": {"asset": asset} if asset else None,
-        }
-        conn.execute(
-            "INSERT INTO jobs VALUES (:id,:type,:clip_id,:status,:progress,:error,:result)",
-            {**job, "result": json.dumps(job["result"]) if asset else None},
-        )
-    if not asset:
+    job, claimed = media.claim_download(clip_id)
+    if claimed:
         background_tasks.add_task(media.download_job, job["id"], clip_id)
     return job
 
@@ -572,8 +487,7 @@ def transcribe(
             503,
             "Transcription needs optional faster-whisper and a local base/small model. See the setup guide. Nothing was downloaded.",
         )
-    prevent_duplicate_job(clip_id, "transcribe")
-    job = db.new_job("transcribe", clip_id)
+    job = db.new_job("transcribe", clip_id, unique_active=True)
     background_tasks.add_task(
         media.transcribe_job, job["id"], clip_id, path, body.model
     )
@@ -588,8 +502,7 @@ def extract_script(
 ):
     # Text extraction is independent of permission to download or reuse footage.
     db.get_clip(clip_id)
-    prevent_duplicate_job(clip_id, "extract-script")
-    job = db.new_job("extract-script", clip_id)
+    job = db.new_job("extract-script", clip_id, unique_active=True)
     background_tasks.add_task(
         script_extraction.extract_script_job,
         job["id"],

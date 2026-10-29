@@ -1,6 +1,8 @@
 # Editing in Studio
 
-**Historical guide:** the custom editor described below was removed. Since October 25, Studio opens the selected Library video in Concat's native desktop window. Use [the current Concat guide](CONCAT.md) for setup, saving and export.
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../CONCAT.md).
+
+**Historical guide:** the custom editor described below was removed. Since October 25, Studio opens the selected Library video in Concat's native desktop window. Use [the current Concat guide](../../CONCAT.md) for setup, saving and export.
 
 Studio uses a familiar desktop video-editor arrangement: import and audio tools on the left, a synchronized player in the center, properties on the right, and a timeline below. The interaction references were CapCut's official [editing guide](https://www.capcut.com/resource/how-to-use-capcut) and [audio extraction guide](https://www.capcut.com/resource/extract-audio-from-video-online). ShortForge implements its own local editor and does not claim complete CapCut parity.
 

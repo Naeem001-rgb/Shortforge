@@ -1,10 +1,13 @@
 """Optional media tools. Importing the engine never downloads a model."""
 
 import importlib.util
+import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import time
+from uuid import uuid4
 
 from fastapi import HTTPException
 
@@ -31,7 +34,7 @@ def find_ffmpeg() -> str | None:
             import imageio_ffmpeg
 
             return imageio_ffmpeg.get_ffmpeg_exe()
-        except RuntimeError:
+        except (ImportError, RuntimeError):
             return None
     return None
 
@@ -69,6 +72,105 @@ def get_source(clip_id: str) -> tuple[dict, Path]:
             404, "The source video is missing from the data folder. Import it again."
         )
     return asset, path
+
+
+def claim_download(clip_id: str) -> tuple[dict, bool]:
+    """Reuse a source/job or atomically claim one download across API and Studio.
+
+    The boolean is true only for a newly queued job the caller must execute.
+    Slow media validation stays outside the writer transaction.
+    """
+    clip = db.get_clip(clip_id)
+    from engine.studio.editor_media import probe_media
+
+    candidate, asset, source_version = None, None, None
+    try:
+        candidate, path = get_source(clip_id)
+        stat = path.stat()
+        if probe_media(path)["media_type"] == "video":
+            asset = candidate
+            source_version = (stat.st_mtime_ns, stat.st_size)
+    except (HTTPException, ValueError, OSError, subprocess.SubprocessError):
+        pass
+    with db.connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if (
+            conn.execute("SELECT 1 FROM clips WHERE id=?", (clip_id,)).fetchone()
+            is None
+        ):
+            raise HTTPException(404, "Clip not found.")
+        row = conn.execute(
+            "SELECT * FROM jobs WHERE clip_id=? AND type='download' AND status IN ('queued','running') LIMIT 1",
+            (clip_id,),
+        ).fetchone()
+        if row:
+            job = dict(row)
+            job["result"] = json.loads(job["result"]) if job["result"] else None
+            return job, False
+        source = conn.execute(
+            "SELECT * FROM assets WHERE clip_id=? AND kind='source' ORDER BY created_at DESC LIMIT 1",
+            (clip_id,),
+        ).fetchone()
+        if asset:
+            try:
+                stat = db.resolve_data_path(asset["path"]).stat()
+                unchanged = (
+                    source
+                    and source["id"] == asset["id"]
+                    and source["path"] == asset["path"]
+                    and (stat.st_mtime_ns, stat.st_size) == source_version
+                )
+            except OSError:
+                unchanged = False
+            if not unchanged:
+                raise HTTPException(
+                    409, "The source changed while it was checked. Please retry."
+                )
+        elif source and db.resolve_data_path(source["path"]).is_file():
+            # A newly registered source must be validated outside the writer lock.
+            if candidate is None or source["id"] != candidate["id"]:
+                raise HTTPException(
+                    409, "The source changed while it was checked. Please retry."
+                )
+        if asset:
+            rows = conn.execute(
+                "SELECT * FROM jobs WHERE clip_id=? AND type='download' AND status='completed'",
+                (clip_id,),
+            ).fetchall()
+            for row in rows:
+                result = json.loads(row["result"] or "{}")
+                if result.get("asset", {}).get("id") == asset["id"]:
+                    return {**dict(row), "result": result}, False
+        else:
+            if not clip["url"]:
+                raise HTTPException(
+                    400, "Import footage into this project to start editing."
+                )
+            canonical_clip_url(clip["url"], clip["video_id"])
+            if not tool_available("yt_dlp"):
+                raise HTTPException(
+                    503,
+                    "Install yt-dlp in the engine environment to download source videos.",
+                )
+            if not find_ffmpeg():
+                raise HTTPException(
+                    503,
+                    "Install FFmpeg or set FFMPEG_PATH to its executable, then restart ShortForge.",
+                )
+        job = {
+            "id": str(uuid4()),
+            "type": "download",
+            "clip_id": clip_id,
+            "status": "completed" if asset else "queued",
+            "progress": 100 if asset else 0,
+            "error": None,
+            "result": {"asset": asset} if asset else None,
+        }
+        conn.execute(
+            "INSERT INTO jobs VALUES (:id,:type,:clip_id,:status,:progress,:error,:result)",
+            {**job, "result": json.dumps(job["result"]) if asset else None},
+        )
+    return job, asset is None
 
 
 def transcribe_file(path: Path, model_name: str | None = None) -> dict:

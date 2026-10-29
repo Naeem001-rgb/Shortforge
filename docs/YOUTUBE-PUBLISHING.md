@@ -1,6 +1,6 @@
-# Publish a finished edit to YouTube
+# YouTube channel setup and retained upload services
 
-ShortForge can upload a saved export to a connected YouTube channel with your title, description and tags. You review the export, destination channel, visibility and audience before pressing Publish. Rendering or downloading a video never publishes it. Gemini suggestions are optional; you can type all post details yourself.
+Settings can connect YouTube channels to the local engine. The former **Publish to YouTube** and **Publish kit** interfaces were removed with the browser editor. Concat exports are not handed to these backend services; upload a finished Concat file through YouTube Studio yourself. Opening, editing or exporting a video never publishes it.
 
 ## One-time Google setup
 
@@ -14,21 +14,11 @@ The normal callback is `http://127.0.0.1:8787/api/youtube/oauth/callback`. If yo
 
 Google may show an unverified-app screen for your personal testing client. Only authorize a project you created and recognize. Testing-mode authorizations can expire and require reconnecting. If Google blocks sign-in, check your test-user email, enabled API, client application type and requested scopes. Public distribution can require Google's OAuth verification; this personal local setup does not claim that verification.
 
-## Publish in five steps
+## Retained backend uploads
 
-1. Finish editing, open **Export**, and export your video. Wait until the export is saved to project history.
-2. Click **Publish to YouTube**. Select and preview the specific saved export. Changes made after that export require a new export.
-3. Enter the title, description and tags, or apply suggestions from the optional Publish kit. Select the connected destination channel.
-4. Choose Private, Unlisted or Public, the audience designation, and the altered/synthetic-content setting. Review the details, then click Publish.
-5. Keep the local engine running. The screen shows upload progress, then YouTube processing, and provides the video link. You can leave and return to the Publish kit to see upload history.
+The [YouTube API contract](../shared/contract/YOUTUBE.md) documents the retained upload and recovery endpoints for registered export assets. Existing upload records and recovery safeguards remain in the engine. There is no current dashboard upload workflow; the previous interface is [archived](archive/browser-editor/YOUTUBE-PUBLISHING.md).
 
-Private is the initial visibility. Uploaded does not mean public: visibility is shown separately and YouTube can still be processing or reviewing a video. YouTube decides whether an eligible video appears as a Short; uploading does not override its format rules.
-
-## Interrupted uploads and connections
-
-Uploads use YouTube's resumable protocol. **Retry** continues the original upload after checking the bytes YouTube received, with the original title and settings. Repeated Publish clicks for the same export and channel return the existing upload. A lost final response can mean the video already exists; if the session can no longer confirm that, the screen asks you to check YouTube Studio instead of blindly creating another video.
-
-Restarting the engine marks interrupted uploads for recovery. Reconnect a revoked/expired channel before retrying. If the export file was removed or changed, recovery requires attention rather than sending a different video under the old upload. Upload history is local to the project.
+## Disconnecting
 
 Disconnect removes the channel's credentials from ShortForge and does not delete YouTube videos. To revoke the application's Google authorization as well, use [Google account connections](https://myaccount.google.com/connections). Saving a different Google client disconnects the old local channels so credentials cannot silently change the upload destination.
 

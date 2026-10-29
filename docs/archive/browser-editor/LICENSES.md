@@ -1,5 +1,7 @@
 # Licenses and attribution
 
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../CONCAT.md).
+
 No third-party editor branding, templates, code, sounds or proprietary visual assets were copied. The official CapCut and Descript pages consulted while designing the layout are UX references only; `docs/EDITOR.md` links the two CapCut guides that informed it.
 
 ## Bundled browser dependencies
@@ -40,7 +42,7 @@ FastAPI and Pydantic are MIT; SQLite is public domain; Python runtime uses PSF l
 
 Local transcription uses faster-whisper1.2.1 (MIT), CTranslate2 (MIT), PyAV15.1.0 (BSD-3-Clause) and a tiny.en Whisper model (OpenAI Whisper MIT). `engine/studio/setup_transcription.py` creates a separate Python environment and model cache under `data/`, and accepts Python 3.11, 3.12 or 3.13. The model is not remotely executed and is not extension-hosted code. PyAV/FFmpeg-linked binary distribution retains upstream license obligations. Optional Demucs separation (MIT code/model terms in existing separation module) remains in its separate existing runtime.
 
-Burned-in caption clean-up is a shipped feature and carries its own attribution. The reconstruction model is **MI-GAN** by Picsart AI Research, used through the author's ONNX pipeline; code and weights are MIT, the full notice is kept verbatim at [`docs/licenses/MI-GAN.txt`](../licenses/MI-GAN.txt), and the exact pinned revision, filename and SHA-256 are recorded in [`docs/CAPTION-REMOVAL.md`](../CAPTION-REMOVAL.md). Text detection uses RapidOCR (Apache-2.0) with the PaddleOCR PP-OCRv6 detection and recognition models (Apache-2.0), on onnxruntime (MIT), OpenCV (Apache-2.0) and NumPy (BSD-3-Clause). None of these weights are committed or redistributed: `engine/studio/setup_inpainting.py` installs the single 28 MB MI-GAN file under `data/models/inpainting/` after checking its SHA-256, and RapidOCR caches its own models under `data/` on first scan. The feature writes new MP4 assets and never overwrites a source file.
+Burned-in caption clean-up is a shipped feature and carries its own attribution. The reconstruction model is **MI-GAN** by Picsart AI Research, used through the author's ONNX pipeline; code and weights are MIT, the full notice is kept verbatim at [`docs/licenses/MI-GAN.txt`](../../licenses/MI-GAN.txt), and the exact pinned revision, filename and SHA-256 are recorded in [`docs/CAPTION-REMOVAL.md`](CAPTION-REMOVAL.md). Text detection uses RapidOCR (Apache-2.0) with the PaddleOCR PP-OCRv6 detection and recognition models (Apache-2.0), on onnxruntime (MIT), OpenCV (Apache-2.0) and NumPy (BSD-3-Clause). None of these weights are committed or redistributed: `engine/studio/setup_inpainting.py` installs the single 28 MB MI-GAN file under `data/models/inpainting/` after checking its SHA-256, and RapidOCR caches its own models under `data/` on first scan. The feature writes new MP4 assets and never overwrites a source file.
 
 ## QA-only licensed footage / tools (not shipped)
 

@@ -294,8 +294,9 @@ def save_script(clip_id: str, original_text: str, rewritten_text: str) -> dict:
     return script
 
 
-def new_job(type: str, clip_id: str | None) -> dict:
-    if clip_id is not None:
+def new_job(type: str, clip_id: str | None, *, unique_active: bool = False) -> dict:
+    """Create a job, optionally rejecting an active match in the same transaction."""
+    if clip_id is not None and not unique_active:
         get_clip(clip_id)
     job = {
         "id": str(uuid4()),
@@ -307,6 +308,24 @@ def new_job(type: str, clip_id: str | None) -> dict:
         "result": None,
     }
     with connect() as conn:
+        if unique_active:
+            conn.execute("BEGIN IMMEDIATE")
+            if (
+                clip_id is not None
+                and conn.execute(
+                    "SELECT 1 FROM clips WHERE id=?", (clip_id,)
+                ).fetchone()
+                is None
+            ):
+                raise HTTPException(404, "Clip not found.")
+            if conn.execute(
+                "SELECT 1 FROM jobs WHERE clip_id IS ? AND type=? AND status IN ('queued','running') LIMIT 1",
+                (clip_id, type),
+            ).fetchone():
+                raise HTTPException(
+                    409,
+                    "This clip already has that job running. Wait for it to finish.",
+                )
         conn.execute(
             "INSERT INTO jobs VALUES (:id,:type,:clip_id,:status,:progress,:error,:result)",
             job,

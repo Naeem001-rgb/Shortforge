@@ -1,5 +1,7 @@
 # Studio workspace finish — October 8, 2026
 
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../CONCAT.md).
+
 The editor keeps its familiar media / preview / inspector / timeline arrangement, with a consistent dark workspace, clearer type, finer panel boundaries and a readable mobile tool strip. The user selected **core editing and reliability** as the priority. This release improves the existing editor; it does not claim complete CapCut, Premiere Pro or Filmora feature parity.
 
 ## What changed

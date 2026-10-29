@@ -1,5 +1,7 @@
 # Studio media contract and compatibility renderer
 
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../CONCAT.md).
+
 The local API preserves version 1 JSON and supplies additive defaults. A project
 supports 5,000 timeline items, 4,096 named tracks, track IDs through 65,535, speed
 0.1–10, and a ten-minute timeline. Media source limits remain 24 hours and 8K.

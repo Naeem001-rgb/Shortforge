@@ -2,13 +2,16 @@
 
 from io import BytesIO
 import json
+from threading import Event, Lock
 from types import SimpleNamespace
 
+import anyio
 import httpx
 from PIL import Image
 import pytest
 
 from engine.core import db, thumbnails
+from engine.core.app import app
 
 # The `client` fixture comes from conftest.py; pytest supplies it automatically.
 from engine.core.tests.test_source_urls import import_reel
@@ -120,3 +123,84 @@ def test_invalid_images_are_not_served_or_cached(client, monkeypatch, url, body)
     assert not thumbnails.cache_path(clip["id"]).exists()
     if "127.0.0.1" in url:
         assert requests == []
+
+
+def test_queued_thumbnails_leave_workers_for_health_checks(client, monkeypatch):
+    # Use distinct lock stripes so all three lookup slots can be exercised.
+    clips, stripes = [], set()
+    for index in range(100):
+        clip_id = f"thumbnail-{index}"
+        stripe = int(thumbnails.cache_path(clip_id).stem[:8], 16) % len(
+            thumbnails._locks
+        )
+        if stripe not in stripes:
+            stripes.add(stripe)
+            clips.append(clip_id)
+        if len(clips) == 6:
+            break
+    with db.connect() as conn:
+        conn.executemany(
+            "INSERT INTO clips(id,video_id,url,created_at) VALUES(?,?,?,?)",
+            [
+                (
+                    clip_id,
+                    f"ig:Fixture{index}",
+                    f"https://www.instagram.com/reel/Fixture{index}/",
+                    db.now(),
+                )
+                for index, clip_id in enumerate(clips)
+            ],
+        )
+    release, occupied = Event(), Event()
+    lock = Lock()
+    active = 0
+
+    def unavailable(_):
+        nonlocal active
+        with lock:
+            active += 1
+            if active == 3:
+                occupied.set()
+        assert release.wait(5)
+        raise ValueError("Unavailable fixture thumbnail")
+
+    monkeypatch.setattr(thumbnails, "remote_thumbnail", unavailable)
+
+    async def exercise():
+        # Three thumbnails may work; a fourth default worker stays available.
+        limiter = anyio.to_thread.current_default_thread_limiter()
+        original = limiter.total_tokens
+        limiter.total_tokens = 4
+        responses = []
+        try:
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://localhost"
+            ) as session:
+
+                async def request(clip_id):
+                    responses.append(
+                        await session.get(f"/api/clips/{clip_id}/thumbnail")
+                    )
+
+                async with anyio.create_task_group() as group:
+                    try:
+                        for clip_id in clips:
+                            group.start_soon(request, clip_id)
+                        with anyio.fail_after(3):
+                            while not occupied.is_set():
+                                await anyio.sleep(0.005)
+                        with anyio.fail_after(1):
+                            response = await session.get("/api/health")
+                        assert response.status_code == 200
+                    finally:
+                        release.set()
+            assert len(responses) == len(clips)
+            assert all(response.status_code == 404 for response in responses)
+            assert all(
+                response.headers["cache-control"] == "no-store"
+                for response in responses
+            )
+        finally:
+            limiter.total_tokens = original
+
+    anyio.run(exercise)

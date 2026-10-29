@@ -8,3 +8,6 @@ extend-exclude = ["data", "vendor/concat"]
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
+
+[tool.pytest.ini_options]
+testpaths = ["engine"]

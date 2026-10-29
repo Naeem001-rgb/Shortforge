@@ -1,4 +1,6 @@
 ⚠️ DEGRADED: single-context (delegated reviewer instructed not to spawn; runtime slots full).
+
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../../CONCAT.md).
 # Q02 — Whole-product acceptance — Round 1
 
 **5.0/10 · FIX.** Compliance 6, correctness 7, UX 7, performance 4, code quality 6. Weighted 35/25/20/10/10 = **6.25**, capped at 5 because required regression checks fail; incomplete P0 criteria independently cap the result at 6. The requested ≥7 acceptance is not achieved. Keep this architecture and fix the gaps; a visual rebuild is unnecessary.

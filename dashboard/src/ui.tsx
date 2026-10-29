@@ -148,31 +148,11 @@ export function JobProgress({ job }: { job: Job | null }) {
   return (
     <div className={`job-progress ${job.status}`} role="status">
       <div>
-        {job.status === "completed" ? (
-          <Check size={17} />
-        ) : job.status === "failed" ? (
-          <AlertCircle size={17} />
-        ) : (
-          <LoaderCircle size={17} className="spin" />
-        )}
-        <strong>
-          {job.status === "completed"
-            ? "Ready"
-            : job.status === "failed"
-              ? "Job stopped"
-              : `${job.type.replaceAll("_", " ")} in progress`}
-        </strong>
+        <LoaderCircle size={17} className="spin" />
+        <strong>{job.type.replaceAll("_", " ")} in progress</strong>
         <span>{Math.round(job.progress)}%</span>
       </div>
       <progress max="100" value={job.progress} />
-      {job.result &&
-        ["timing_note", "audio_note", "caption_note", "trim_note"].map((key) =>
-          job.result?.[key] ? (
-            <p className="help-text" key={key}>
-              {String(job.result[key])}
-            </p>
-          ) : null,
-        )}
     </div>
   );
 }

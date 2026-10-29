@@ -1,5 +1,7 @@
 # Caption styling: export-parity spec
 
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../CONCAT.md).
+
 Everything in this file is implemented twice and must stay in step:
 
 | Side | File | What it does |

@@ -2,12 +2,12 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 if [ ! -x .venv/bin/python ]; then python3 -m venv .venv; fi
+.venv/bin/python -m pip install -q 'pip>=26.2,<27'
 .venv/bin/python -m pip install -q -r engine/requirements.txt
 if ! .venv/bin/python -m pip install -q --upgrade yt-dlp; then
   echo 'Could not check for a yt-dlp update. Continuing with installed version.'
 fi
-if [ ! -d dashboard/node_modules ]; then npm --prefix dashboard ci; fi
-if [ ! -d extension/node_modules ]; then npm --prefix extension ci; fi
+node scripts/setup-node.mjs
 if ! .venv/bin/python scripts/setup-concat.py; then
   printf '\nConcat setup needs attention; Library and Scout will still start.\n'
 fi

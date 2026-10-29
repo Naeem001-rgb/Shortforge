@@ -1,5 +1,7 @@
 # Decisions
 
+> Historical browser-editor documentation. These interfaces were removed. See [current Studio setup](../../CONCAT.md).
+
 - **D01 / authority**: The latest master brief supersedes the old no-AI-workflow/no-upload/mandatory-rights-lock directions. Unknown source status is preserved and flagged in credits; no automatic ownership assertion is made.
 - **D02 / reuse**: Keep React/Vite and local Python services. A destructive deletion of tested media services would lose working extraction, speech and export. Replace the interface and upgrade modules in isolation instead.
 - **D03 / delivery**: Build a full-tab, URL-addressable Studio; package it in the extension if the existing Vite API routing can be made explicit. Long jobs stay out of the extension service worker.

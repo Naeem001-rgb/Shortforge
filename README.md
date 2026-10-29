@@ -11,7 +11,7 @@ cd ShortForge
 
 Open **http://127.0.0.1:5173**. The header should say **Engine connected**. Normal startup installs the app dependencies and automatically downloads and verifies Concat when it is missing on a supported platform. You do not need to install Concat separately. Later launches reuse the downloaded runtime and check for a yt-dlp update. Startup does not download speech models. Press Ctrl+C to stop the dashboard and engine; save your Concat edits before closing its window.
 
-Startup reuses the extension/dashboard build when inputs and output hashes are unchanged. An explicit `npm --prefix extension run build` forces a rebuild. The Library shows 50 videos per page; search covers all videos, and selections survive page/filter changes. See the [performance and quality results](docs/PERFORMANCE-RESULTS-2026-10-26.md).
+Startup checks JavaScript packages against the lockfiles and repairs stale or incomplete installs. It reuses the extension/dashboard build when inputs and output hashes are unchanged. An explicit `npm --prefix extension run build` forces a rebuild. The Library shows 50 videos per page; search covers all videos, and selections survive page/filter changes. See the [performance and quality results](docs/PERFORMANCE-RESULTS-2026-10-26.md).
 
 Windows users start with `start.bat`. See [Concat setup and supported platforms](docs/CONCAT.md#setup). The native runtime is downloaded during setup; it is not included in a Git clone or source archive. No paid service is required.
 
@@ -21,7 +21,8 @@ Windows users start with `start.bat`. See [Concat setup and supported platforms]
 - [Architecture](ARCHITECTURE.md): runtime components, data ownership and request/job flows.
 - [Design system](DESIGN.md): current visual and interaction contract.
 - [Maintainer guide](AGENT.md): source map, setup, safeguards and checks.
-- [Performance results](docs/PERFORMANCE-RESULTS-2026-10-26.md): measured changes and verification limits.
+- [Codebase audit](docs/AUDIT-2026-10-30.md): security fixes, cleanup, concurrency improvements and validation.
+- [Performance results](docs/PERFORMANCE-RESULTS-2026-10-26.md): earlier measured changes and verification limits.
 
 ## Your first edit
 
@@ -50,7 +51,8 @@ This is a local, single-user workflow and requires a graphical desktop session. 
 Formatting is automatic, so you never have to argue with indentation. From the project root:
 
 ```bash
-npm install          # once, installs the formatter
+npm ci               # once, installs the formatter
+.venv/bin/python -m pip install -r requirements-dev.txt # test and lint tools
 npm run format       # tidy every JavaScript, TypeScript, CSS and JSON file
 npm run format:py    # tidy every Python file
 npm run lint:py      # look for Python mistakes without changing anything
@@ -68,7 +70,7 @@ cd .. && .venv/bin/python -m pytest engine/core/tests engine/studio engine/ai -q
 
 ## Verification and project map
 
-See [TESTING.md](docs/TESTING.md), [PROGRESS.md](docs/PROGRESS.md), and [design research](docs/design-notes.md).
+See the [documentation index](docs/README.md), [TESTING.md](docs/TESTING.md), and [PROGRESS.md](docs/PROGRESS.md). Retired browser-editor guides live in [the archive](docs/archive/browser-editor/README.md).
 
 - `dashboard/`: React + TypeScript + Vite, Library, Settings and Concat launch status.
 - `engine/core/`: FastAPI, SQLite, jobs, files, Concat project preparation and desktop launch.
