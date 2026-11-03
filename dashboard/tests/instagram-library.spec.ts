@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test("Instagram imports retain their source and details without YouTube enrichment", async ({
   page,
@@ -20,7 +20,7 @@ test("Instagram imports retain their source and details without YouTube enrichme
   });
   expect(response.ok()).toBeTruthy();
   const clip = (await response.json()).clips[0];
-  await context.route("**/api/clips/*/thumbnail", (route) =>
+  await context.route("**/api/clips/*/thumbnail*", (route) =>
     route.fulfill({
       contentType: "image/png",
       body: Buffer.from(

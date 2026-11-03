@@ -17,6 +17,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from . import db, media
 from .concat_rpc import ConcatRPC
+from .sandbox import (
+    clean_environment,
+    network_isolation_available,
+    offline_editor_command,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -81,6 +86,12 @@ def binary_version(path: str, modified: int, size: int) -> str:
 
 
 def capability() -> dict:
+    if not network_isolation_available():
+        return {
+            "available": False,
+            "editor": "Concat",
+            "message": "This Concat release needs offline isolation. Install the free bubblewrap package on Linux, then restart ShortForge. A patched native release is required on unsupported platforms.",
+        }
     binary = find_binary()
     if binary is None:
         return {"available": False, "editor": "Concat", "message": SETUP_HINT}
@@ -93,12 +104,13 @@ def capability() -> dict:
         "available": True,
         "editor": "Concat",
         "version": version,
-        "message": "Concat is ready.",
+        "message": "Concat is ready for offline editing.",
+        "network_isolated": True,
     }
 
 
 def runtime_env() -> dict[str, str]:
-    env = os.environ.copy()
+    env = clean_environment(desktop=True)
     for key in db.SECRET_SETTINGS:
         env.pop(key.upper(), None)
     # AppImages can also be explicitly configured without FUSE installed.
@@ -253,7 +265,7 @@ def launch_desktop(binary: Path, project: Path | None):
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("ab") as output:
         process = subprocess.Popen(
-            command,
+            offline_editor_command(command),
             env=runtime_env(),
             stdin=subprocess.DEVNULL,
             stdout=output,

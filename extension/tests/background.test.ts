@@ -132,6 +132,7 @@ async function harness(
     chrome,
     console,
     AbortSignal,
+    Headers,
     setTimeout,
     Date,
     URL,

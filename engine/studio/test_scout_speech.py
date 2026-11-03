@@ -239,8 +239,8 @@ def test_ffprobe_verification_rejects_incomplete_or_ambiguous_tracks(monkeypatch
         audio["start_time"] = "1"
     monkeypatch.setattr(speech, "ffprobe_binary", lambda: "ffprobe")
     monkeypatch.setattr(
-        speech.subprocess,
-        "run",
+        speech,
+        "run_media",
         lambda *a, **k: SimpleNamespace(
             returncode=0,
             stdout=json.dumps({"streams": streams}),

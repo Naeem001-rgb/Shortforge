@@ -235,7 +235,7 @@ def delete_voice(voice_id: str):
 def voice_job(job_id: str, payload: TTSRequest, reference_path: Path | None):
     try:
         db.update_job(job_id, status="running", progress=10)
-        directory = db.DATA_DIR / "voiceovers"
+        directory = db.DATA_DIR / "voiceovers" / job_id
         directory.mkdir(parents=True, exist_ok=True)
         path = synthesize(
             payload.text,
@@ -325,6 +325,6 @@ def tts(payload: TTSRequest, background: BackgroundTasks):
         if voice["provider"] == payload.provider
     }:
         raise HTTPException(400, "Choose a voice belonging to the selected provider.")
-    job = db.new_job("tts", payload.clip_id)
+    job = db.new_job("tts", payload.clip_id, unique_active=True)
     background.add_task(voice_job, job["id"], payload, reference_path)
     return job

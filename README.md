@@ -9,11 +9,11 @@ cd ShortForge
 ./start.sh
 ```
 
-Open **http://127.0.0.1:5173**. The header should say **Engine connected**. Normal startup installs the app dependencies and automatically downloads and verifies Concat when it is missing on a supported platform. You do not need to install Concat separately. Later launches reuse the downloaded runtime and check for a yt-dlp update. Startup does not download speech models. Press Ctrl+C to stop the dashboard and engine; save your Concat edits before closing its window.
+The launcher opens a privately connected window at **http://127.0.0.1:8787**. The header should say **Engine connected**. Normal startup installs the app dependencies and automatically downloads and verifies Concat when it is missing on a supported platform. You do not need to install Concat separately. Later launches reuse verified runtimes and the reviewed dependency lock. Startup does not download speech models. Press Ctrl+C to stop the dashboard and engine; save your Concat edits before closing its window.
 
 Startup checks JavaScript packages against the lockfiles and repairs stale or incomplete installs. It reuses the extension/dashboard build when inputs and output hashes are unchanged. An explicit `npm --prefix extension run build` forces a rebuild. The Library shows 50 videos per page; search covers all videos, and selections survive page/filter changes. See the [performance and quality results](docs/PERFORMANCE-RESULTS-2026-10-26.md).
 
-Windows users start with `start.bat`. See [Concat setup and supported platforms](docs/CONCAT.md#setup). The native runtime is downloaded during setup; it is not included in a Git clone or source archive. No paid service is required.
+Windows users start with `start.bat`. See [Concat setup and supported platforms](docs/CONCAT.md#setup). The native runtime is downloaded during setup; it is not included in a Git clone or source archive. No paid service is required. See [security and connection recovery](docs/SECURITY.md).
 
 ## Project documents
 
@@ -83,4 +83,4 @@ See the [documentation index](docs/README.md), [TESTING.md](docs/TESTING.md), an
 - `docs/`: the click-by-click testing checklist, the progress log and the design records.
 - `data/`: private local database, source footage, references and exports; ignored by Git.
 
-Keys can be saved in Settings or `.env` (copy `.env.example`). Do not share `data/` or `.env`. No analytics, hosted account, or subscription is built into ShortForge.
+Keys saved in Settings are encrypted; their key is kept in the system keyring or outside the project. `.env` remains an optional local configuration source (copy `.env.example`). Do not share `data/` or `.env`. No analytics, hosted account, or subscription is built into ShortForge.

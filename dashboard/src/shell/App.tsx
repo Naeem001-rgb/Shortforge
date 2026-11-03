@@ -424,6 +424,7 @@ export function App() {
               key={`${studioClip}:${studioAttempt}`}
               clip={clips.find((clip) => clip.id === studioClip)}
               clipId={studioClip}
+              autoOpen={studioAttempt > 0}
               onComplete={() => void refresh()}
               onBack={() => navigate("library")}
             />

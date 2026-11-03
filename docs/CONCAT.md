@@ -12,6 +12,10 @@ ShortForge opens the real [Concat editor](https://github.com/jub0t/Concat) in it
 
 Save in Concat before closing its window. Closing the browser tab does not close the native editor. Opening Studio does not download Concat's optional AI models.
 
+## Offline security boundary
+
+Concat 0.2.8 has unresolved upstream dependency advisories. ShortForge now requires network isolation before launching it. Linux uses bubblewrap; macOS has a sandbox-exec path that still needs platform execution checks. An unsupported platform, including Windows with this affected release, reports Studio unavailable instead of silently running it online. Local editing and exports work in the verified Linux integration; native online updates/model downloads are unavailable. See [security boundaries](SECURITY.md).
+
 ## Setup
 
 Run `./start.sh` on Linux/macOS or `start.bat` on Windows. Normal setup automatically downloads the pinned official Concat 0.2.8 release, checks its SHA-256 checksum, and installs a project-managed runtime when no working installation is found. You do not install Concat separately. The first download requires internet access; later starts reuse the installed runtime and cached archive under `data/runtime/concat/`.

@@ -13,11 +13,13 @@ import "./studio.css";
 export function StudioPage({
   clip,
   clipId,
+  autoOpen,
   onComplete,
   onBack,
 }: {
   clip?: Clip;
   clipId: string;
+  autoOpen: boolean;
   onComplete: () => void;
   onBack: () => void;
 }) {
@@ -29,16 +31,18 @@ export function StudioPage({
   } = useJob(onComplete, `concat-desktop:${clipId || "new"}`);
   const requested = useRef(false);
   const [requestedJob, setRequestedJob] = useState<string | null>(null);
+  const [started, setStarted] = useState(false);
   const opening = useCallback(async () => {
+    setStarted(true);
     setRequestedJob(null);
     const next = await start("/studio/open", { clip_id: clipId || null });
     setRequestedJob(next?.id ?? null);
   }, [clipId, start]);
   useEffect(() => {
-    if (requested.current) return;
+    if (requested.current || !autoOpen) return;
     requested.current = true;
     void opening();
-  }, [opening]);
+  }, [opening, autoOpen]);
   const current = job?.id === requestedJob ? job : null;
   const opened =
     current?.status === "completed" &&
@@ -63,14 +67,16 @@ export function StudioPage({
           <h2>{clip?.title || "Concat Studio"}</h2>
         </div>
         <p className="studio-session-copy">
-          {opened
-            ? "Continue editing in the Concat desktop window. Save there to keep your changes."
-            : clipId
-              ? "Preparing your saved video and reopening its edit."
-              : "Starting Concat so you can create a project or import a video."}
+          {!started
+            ? "Choose Open Concat to continue in your desktop editor."
+            : opened
+              ? "Continue editing in the Concat desktop window. Save there to keep your changes."
+              : clipId
+                ? "Preparing your saved video and reopening its edit."
+                : "Starting Concat so you can create a project or import a video."}
         </p>
         {error && <Notice>{error}</Notice>}
-        {!error && (
+        {!error && started && (
           <div
             className={`studio-launch-status ${opened ? "studio-opened" : ""}`}
             role="status"
@@ -92,7 +98,9 @@ export function StudioPage({
               ? "Opening Concat…"
               : error
                 ? "Try again"
-                : "Open Concat again"}
+                : started
+                  ? "Open Concat again"
+                  : "Open Concat"}
           </button>
           <button className="button secondary" onClick={onBack}>
             <ArrowLeft size={16} />

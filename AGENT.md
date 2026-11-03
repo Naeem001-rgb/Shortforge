@@ -1,6 +1,6 @@
 # ShortForge — maintainer and agent guide
 
-Updated October 27, 2026. This replaces the original build brief, which mixed retired editor features with current requirements. Historical decisions remain in Git history and [docs/PROGRESS.md](docs/PROGRESS.md).
+Updated November 2, 2026. This replaces the original build brief, which mixed retired editor features with current requirements. Historical decisions remain in Git history and [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ShortForge is a local, single-user video discovery and Library workspace that opens the native Concat desktop editor. The user works on a CPU laptop and prefers free software, plain explanations and the smallest complete change.
 
@@ -55,7 +55,7 @@ Read the touched code and search every caller before editing shared behaviour. I
 
 Keep request validation, file bounds, asset ownership, error cleanup, accessibility and durable state. Media probing must stay outside SQLite write transactions; revalidate source identity/version before reuse and retain atomic duplicate-job checks. Worker-thread uploads and event-stream database reads must not move back onto the event loop.
 
-Use temporary data directories for tests and generated fixtures for media. Do not test destructive actions against the user's Library. Keep API keys, OAuth tokens, `.env`, user media, runtime binaries and downloaded models out of commits and public logs. Preserve the loopback host/origin protections and MV3 CSP.
+Use temporary data directories for tests and generated fixtures for media. Do not test destructive actions against the user's Library. Keep API keys, OAuth tokens, `.env`, user media, runtime binaries and downloaded models out of commits and public logs. Preserve bearer authentication, exact origin/client pairing, restart revocation, signed media links, body/work limits, encrypted credentials, loopback binding and CSP. A Studio URL must never auto-launch a program. See [security boundaries and recovery](docs/SECURITY.md).
 
 Use the existing paper-and-lime tokens and shared controls. Preserve light/dark/system themes, keyboard navigation, focus restoration and reduced motion. The old violet browser-editor brief is historical. Do not infer full accessibility certification from browser smoke tests.
 
@@ -65,9 +65,9 @@ Update relevant contracts and `docs/PROGRESS.md` when behaviour changes. Report 
 
 Python 3.11+ is the engine compatibility target; use the project `.venv`. Node/npm build the TypeScript extension and React/Vite dashboard. FFmpeg may come from `FFMPEG_PATH`, the system installation or bundled `imageio-ffmpeg`. SQLite and media stay under `data/`, overridable by `SHORTFORGE_DATA_DIR` for isolated runs.
 
-Normal startup: `./start.sh` on Linux/macOS, `start.bat` on Windows. Engine: `127.0.0.1:8787`; development dashboard: `127.0.0.1:5173`. The extension also bundles the dashboard and talks directly to the local engine.
+Normal startup: `./start.sh` on Linux/macOS, `start.bat` on Windows. The engine serves the built dashboard at `127.0.0.1:8787`; the launcher opens a private one-use connection link. Vite at `127.0.0.1:5173` is development-only. The extension is paired by the dashboard and talks directly to the authenticated engine.
 
-Startup installs required dependencies, checks for a yt-dlp update and runs pinned Concat setup. Concat's runtime download is verified against the repository's release manifest. Optional OCR/speech/AI setup remains separate. See [docs/CONCAT.md](docs/CONCAT.md) for platform details.
+Startup installs the reviewed hash-locked Python dependencies and verifies pinned media/Concat runtimes. It does not upgrade yt-dlp during normal launch. Concat's runtime download is verified against the repository's release manifest, and the unpatched native release must run offline. Optional OCR/speech/AI setup remains separate. See [docs/CONCAT.md](docs/CONCAT.md) for platform details.
 
 The launchers use `npm --prefix extension run build -- --if-needed`. Reuse requires matching input/environment/dependency metadata and output hashes; a missing, modified or malformed cache must rebuild. `npm --prefix extension run build` always rebuilds. Do not replace this with a `dist exists` check.
 

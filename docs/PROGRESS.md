@@ -1,5 +1,17 @@
 # ShortForge progress
 
+## November 2, 2026 — Local security hardening
+
+Added authenticated local clients, exact origin checks, one-use browser/Scout pairing and restart revocation. The normal launcher now serves the production dashboard on port 8787 and opens a private local redirect file, keeping the connection secret out of process arguments and HTTP URL logs. Scout's existing extension ID, preferences and pending clips are retained. Media links carry scoped, expiring signatures; cached jobs refresh those links after restart.
+
+Closed the Content-Type request-size bypass, prevented native launches from bare Studio URLs, added framing/CSP protections and strengthened CSV formula escaping. Added bounded work admission, upload queues, request rates, storage-growth checks and media-process budgets. Saved API/OAuth credentials, PKCE verifiers and upload-session URLs are encrypted. The existing Library/asset records and credential values were verified unchanged during migration; this Linux installation uses Secret Service for its key.
+
+Installed hash-verified FFmpeg/ffprobe 8.1.3 and disabled obsolete binary fallback. Linux media/voice workers use restricted filesystems and environments; native Concat is network-isolated with engine credentials hidden. Concat 0.2.8 still has upstream dependency advisories, so offline isolation is a mitigation rather than a claim that its binary is patched. Unsupported native-isolation platforms remain unavailable. Routine startup uses a reviewed, universal Python hash lock and does not upgrade yt-dlp automatically.
+
+Validation: **430 backend tests passed, three optional speech-model checks skipped**, with both real Concat checks enabled; **93 extension unit tests and 28 dashboard browser tests passed**. Real unpacked-extension pairing (including the private-file handoff), packaged-dashboard checks, builds, type checks, formatting, Python/package consistency and whitespace checks passed. Optional local speech models were not downloaded. The connection UI received a scoped **ship** review; its incumbent design system was preserved.
+
+The advisory check found zero known npm/Python advisories across the three npm projects and 50 installed Python distributions. Seventeen Concat source packages still have security-related or maintenance advisories; their applicability depends on the shipped binary and enabled features. `npm run security:check` reports them instead of hiding them. See [security boundaries, recovery and remaining limits](SECURITY.md).
+
 ## October 30, 2026 — Codebase audit, security and concurrency
 
 Completed parallel security, performance and reachability reviews with coordinating review and aggregate verification. Restricted local media demuxers to prevent disguised video/voice manifests from making network requests; made voice-reference registration atomic and cleaned failed uploads. Upgraded vulnerable dependencies and raised runtime security floors. Startup now checks lockfile/package/binary consistency, repairs incomplete installs and fails before launch when required setup fails.

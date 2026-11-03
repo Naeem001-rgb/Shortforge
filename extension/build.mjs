@@ -49,6 +49,7 @@ async function main() {
     "package.json",
     "package-lock.json",
     "node_modules/.package-lock.json",
+    fileURLToPath(new URL("../shared/engine-client.ts", import.meta.url)),
     ...[
       "src",
       "public",

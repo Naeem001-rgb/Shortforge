@@ -254,7 +254,9 @@ def test_refresh_reuses_refresh_grant_and_confirms_destination(client, google):
     assert request["refresh_token"] == ["refresh-token-private"]
     with db.connect() as conn:
         assert (
-            conn.execute("SELECT refresh_token FROM youtube_channels").fetchone()[0]
+            db.reveal_secret(
+                conn.execute("SELECT refresh_token FROM youtube_channels").fetchone()[0]
+            )
             == "refresh-token-private"
         )
     assert auth.get_access_token(CHANNEL_ID) == "refreshed-token-private"
@@ -271,7 +273,9 @@ def test_refresh_must_not_change_channel(client, google):
         auth.get_access_token(CHANNEL_ID)
     with db.connect() as conn:
         assert (
-            conn.execute("SELECT access_token FROM youtube_channels").fetchone()[0]
+            db.reveal_secret(
+                conn.execute("SELECT access_token FROM youtube_channels").fetchone()[0]
+            )
             == "access-token-private"
         )
 

@@ -1,0 +1,48 @@
+.connection-page {
+  min-height: 100svh;
+  display: grid;
+  align-items: center;
+  padding: clamp(24px, 6vw, 80px);
+  background: var(--bg);
+}
+.connection-content {
+  width: min(100%, 560px);
+  margin-inline: auto;
+}
+.connection-content > svg {
+  color: var(--text);
+  margin-bottom: 24px;
+}
+.connection-content h1 {
+  font-size: clamp(30px, 5vw, 44px);
+  line-height: 1.15;
+  margin: 0 0 16px;
+}
+.connection-content > p {
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 0 0 24px;
+}
+.connection-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+.connection-manual {
+  margin-top: 32px;
+}
+.connection-manual summary {
+  cursor: pointer;
+  color: var(--muted);
+  padding-block: 8px;
+}
+.connection-manual form {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+  justify-items: start;
+}
+.connection-manual .field {
+  width: 100%;
+}

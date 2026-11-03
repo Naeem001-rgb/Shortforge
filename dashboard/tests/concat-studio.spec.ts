@@ -1,10 +1,5 @@
-import {
-  test,
-  expect,
-  type BrowserContext,
-  type Locator,
-  type Page,
-} from "@playwright/test";
+import { test, expect } from "./fixtures";
+import { type BrowserContext, type Locator, type Page } from "@playwright/test";
 import type { Clip } from "../src/api";
 
 const clip: Clip = {
@@ -153,7 +148,7 @@ for (const mobile of [false, true]) {
   });
 }
 
-test("direct Studio links and reload wait for the preparation job", async ({
+test("direct Studio links and reload require a launch action before waiting for the job", async ({
   page,
   context,
 }) => {
@@ -174,10 +169,12 @@ test("direct Studio links and reload wait for the preparation job", async ({
     route.fulfill({ json: completed(clip.id) }),
   );
   await page.goto(`/?studio=${clip.id}`);
+  await page.getByRole("button", { name: "Open Concat", exact: true }).click();
   await expect(
     page.getByText("Opened in Concat", { exact: true }),
   ).toBeVisible();
   await page.reload();
+  await page.getByRole("button", { name: "Open Concat", exact: true }).click();
   await expect(
     page.getByText("Opened in Concat", { exact: true }),
   ).toBeVisible();
@@ -204,6 +201,7 @@ test("an unavailable native editor explains the error and supports retry", async
       : route.fallback(),
   );
   await page.goto(`/?studio=${clip.id}`);
+  await page.getByRole("button", { name: "Open Concat", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(
     "Concat is not installed",
   );
@@ -232,6 +230,7 @@ test("an unconfirmed native launch never claims the editor opened", async ({
       : route.fallback(),
   );
   await page.goto(`/?studio=${clip.id}`);
+  await page.getByRole("button", { name: "Open Concat", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(
     "could not confirm that Concat opened",
   );
@@ -258,6 +257,7 @@ test("a failed launch job shows its error", async ({ page, context }) => {
     }),
   );
   await page.goto(`/?studio=${clip.id}`);
+  await page.getByRole("button", { name: "Open Concat", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText(
     "could not start its desktop window",
   );
@@ -291,6 +291,9 @@ test("a saved completed job cannot claim success before the current launch respo
   try {
     const request = page.waitForRequest("**/api/studio/open");
     await page.goto(`/?studio=${clip.id}`);
+    await page
+      .getByRole("button", { name: "Open Concat", exact: true })
+      .click();
     await request;
     await expect(
       page.getByRole("button", { name: "Opening Concat…", exact: true }),

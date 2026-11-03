@@ -1,5 +1,9 @@
 # How to test ShortForge
 
+Security additions (November 2): normal startup serves the authenticated production dashboard at port 8787. Backend fixtures mint private temporary clients; browser fixtures use a separate test engine and data directory. Never disable authentication for a test server.
+
+Run `node extension/tests/security-pairing.mjs` with port 8787 free to exercise real launcher-code redemption, Scout pairing, packaged dashboard access, safe Studio links and restart revocation against disposable data. It refuses to stop an existing engine. `npm run security:check` performs free advisory/version checks; known Concat source warnings remain intentionally visible. See [SECURITY.md](SECURITY.md).
+
 Use generated footage and an isolated data directory for automated checks. Do not delete or modify the real Library to test cleanup.
 
 ## Setup and automated checks

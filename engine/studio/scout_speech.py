@@ -15,6 +15,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+from engine.core.sandbox import run_media
 
 from engine.core import db
 from .media import ffmpeg_binary
@@ -141,7 +142,7 @@ def _probe_source(path: Path, expected_duration: float) -> tuple[float, dict | N
     binary = ffprobe_binary()
     if not binary:
         return _probe_with_ffmpeg(path, expected_duration)
-    probe = subprocess.run(
+    probe = run_media(
         [
             binary,
             "-v",
@@ -260,7 +261,7 @@ def _probe_with_ffmpeg(
         "null",
         "-",
     ]
-    probe = subprocess.run(command, capture_output=True, text=True, timeout=90)
+    probe = run_media(command, capture_output=True, text=True, timeout=90)
     if probe.returncode or "progress=end" not in probe.stdout:
         raise ValueError("The complete original audio and video could not be verified.")
     header = probe.stderr.split("Stream mapping:", 1)[0]
@@ -338,7 +339,7 @@ def _decode_audio(path: Path, duration: float):
         "f32le",
         "pipe:1",
     ]
-    decoded = subprocess.run(command, capture_output=True, timeout=90)
+    decoded = run_media(command, capture_output=True, timeout=90)
     if decoded.returncode or not decoded.stdout or len(decoded.stdout) % 4:
         raise ValueError("The whole original audio track could not be decoded.")
     # Showinfo reports timestamps after resampling but before output. This also

@@ -23,34 +23,46 @@ def tool_available(module: str) -> bool:
 
 
 def find_ffmpeg() -> str | None:
+    from .media_runtime import managed_binary, supported_binary
+
     configured = os.getenv("FFMPEG_PATH")
     if configured and Path(configured).is_file():
-        return str(Path(configured).resolve())
+        if supported_binary(configured):
+            return str(Path(configured).resolve())
+    if managed := managed_binary("ffmpeg"):
+        return managed
     executable = shutil.which("ffmpeg")
-    if executable:
+    if executable and supported_binary(executable):
         return executable
     if tool_available("imageio_ffmpeg"):
         try:
             import imageio_ffmpeg
 
-            return imageio_ffmpeg.get_ffmpeg_exe()
+            bundled = imageio_ffmpeg.get_ffmpeg_exe()
+            return bundled if supported_binary(bundled) else None
         except (ImportError, RuntimeError):
-            return None
+            pass
     return None
 
 
 def find_ffprobe() -> str | None:
+    from .media_runtime import managed_binary, supported_binary
+
     configured = os.getenv("FFPROBE_PATH")
     if configured and Path(configured).is_file():
-        return str(Path(configured).resolve())
+        if supported_binary(configured):
+            return str(Path(configured).resolve())
+    if managed := managed_binary("ffprobe"):
+        return managed
     if executable := shutil.which("ffprobe"):
-        return executable
+        if supported_binary(executable):
+            return executable
     ffmpeg = find_ffmpeg()
     if ffmpeg:
         sibling = Path(ffmpeg).with_name(
             "ffprobe.exe" if os.name == "nt" else "ffprobe"
         )
-        if sibling.is_file():
+        if supported_binary(str(sibling)):
             return str(sibling)
     return None
 
@@ -140,7 +152,7 @@ def claim_download(clip_id: str) -> tuple[dict, bool]:
             for row in rows:
                 result = json.loads(row["result"] or "{}")
                 if result.get("asset", {}).get("id") == asset["id"]:
-                    return {**dict(row), "result": result}, False
+                    return {**dict(row), "result": {**result, "asset": asset}}, False
         else:
             if not clip["url"]:
                 raise HTTPException(
@@ -252,14 +264,25 @@ def download_job(job_id: str, clip_id: str):
         output = db.DATA_DIR / "downloads" / clip_id / job_id
         output.mkdir(parents=True, exist_ok=True)
         last_progress, last_update = -1, 0.0
+        started_at = time.monotonic()
 
         def progress(hook):
             nonlocal last_progress, last_update
+            now = time.monotonic()
+            if now - started_at > 1800:
+                raise RuntimeError(
+                    "The download exceeded 30 minutes. Try a shorter video or retry later."
+                )
+            if hook.get("downloaded_bytes", 0) > 500 * 1024 * 1024:
+                raise RuntimeError("The download exceeded the 500 MB limit.")
+            if shutil.disk_usage(output).free < 1024 * 1024 * 1024:
+                raise RuntimeError(
+                    "The download stopped to keep 1 GB of free disk space."
+                )
             if hook["status"] == "downloading":
                 total = hook.get("total_bytes") or hook.get("total_bytes_estimate")
                 if total:
                     value = min(90, hook.get("downloaded_bytes", 0) / total * 90)
-                    now = time.monotonic()
                     if int(value) != last_progress and now - last_update >= 0.5:
                         db.update_job(job_id, progress=value)
                         last_progress, last_update = int(value), now
@@ -280,6 +303,12 @@ def download_job(job_id: str, clip_id: str):
             "retries": 2,
             "max_filesize": 500 * 1024 * 1024,
             "restrictfilenames": True,
+            "cachedir": False,
+            "match_filter": lambda info, **_: (
+                "Live streams and videos over 24 hours are not supported."
+                if info.get("is_live") or (info.get("duration") or 0) > 86400
+                else None
+            ),
         }
         with yt_dlp.YoutubeDL(options) as downloader:
             info = downloader.extract_info(source_url, download=True)
@@ -297,6 +326,8 @@ def download_job(job_id: str, clip_id: str):
             raise RuntimeError(
                 "The source did not produce a downloadable video. Update yt-dlp or upload footage you own."
             )
+        if path.stat().st_size > 500 * 1024 * 1024:
+            raise RuntimeError("The downloaded video exceeded the 500 MB limit.")
         playable = normalize_browser_video(path)
         probe_media(playable)
         if playable != path:

@@ -246,7 +246,10 @@ export function LibraryPage({
   const csv = () => {
     const rows = clips.filter((c) => selectedIds.has(c.id));
     const safe = (s: string) =>
-      '"' + (/^[=+@\-\t\r]/.test(s) ? "'" : "") + s.replaceAll('"', '""') + '"';
+      '"' +
+      (/^\s*[=+@-]|^[\t\r\n]/u.test(s) ? "'" : "") +
+      s.replaceAll('"', '""') +
+      '"';
     const blob = new Blob(
       [
         "Title,URL,Creator,License\n" +

@@ -6,8 +6,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from engine.core import media
+from engine.core import media, media_runtime
 from engine.studio import media as studio_media
+
+
+@pytest.fixture(autouse=True)
+def isolated_lookup(monkeypatch):
+    monkeypatch.setattr(media_runtime, "managed_binary", lambda name: None)
+    monkeypatch.setattr(media_runtime, "supported_binary", lambda path: True)
 
 
 @pytest.mark.parametrize("source", ["configured", "system", "bundled", "missing"])
@@ -77,7 +83,7 @@ def test_probe_uses_ffmpeg_sibling_when_configured_ffprobe_is_missing(
             stdout='{"format":{"duration":"2"},"streams":[{"codec_type":"audio"}]}',
         )
 
-    monkeypatch.setattr(studio_media.subprocess, "run", run)
+    monkeypatch.setattr(studio_media, "run_media", run)
     assert studio_media.probe_media(tmp_path / "audio.wav") == {
         "duration": 2,
         "audio": True,

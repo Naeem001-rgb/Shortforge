@@ -1,5 +1,7 @@
 # ShortForge Scout and Studio
 
+After starting ShortForge, its connected dashboard automatically pairs the installed Chrome extension. If needed, choose **Settings → Connect Scout**. Reload an updated unpacked extension once in Chrome's Extensions page. Existing Scout settings and pending clips are retained. The production dashboard is now at **http://127.0.0.1:8787**; use the private window opened by the launcher after each engine restart. See [security and recovery](../docs/SECURITY.md).
+
 A local Chrome extension for collecting YouTube Shorts and Instagram Reels into ShortForge. Scout reads the page in your browser, checks your criteria, and saves matches in the same Library. It can scout the current video feed or a specific creator's account. The optional **Small Chinese text + no speech** filter checks audio locally for speech. Other modes do not check narration; no mode identifies AI voices.
 
 ## Scout an account and avoid persistent captions

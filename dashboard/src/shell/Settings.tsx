@@ -13,6 +13,7 @@ import type { Health, Settings } from "../api";
 import { api } from "../api";
 import { Notice } from "../ui";
 import { YouTubeSettings } from "./YouTubeSettings";
+import { ScoutConnection } from "./Connection";
 export function SettingsPage({ health }: { health: Health | null }) {
   const [settings, setSettings] = useState<Settings>({
     gemini_model: "",
@@ -94,6 +95,7 @@ export function SettingsPage({ health }: { health: Health | null }) {
       )}
       <div className="settings-layout">
         <div className="settings-main">
+          <ScoutConnection />
           <YouTubeSettings />
           <section className="settings-section">
             <div className="section-title">

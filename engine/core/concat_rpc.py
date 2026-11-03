@@ -5,8 +5,11 @@ from pathlib import Path
 from queue import Empty, Queue
 import subprocess
 import tempfile
+import os
+import signal
 from threading import Thread
 import time
+from .sandbox import offline_editor_command
 
 
 class ConcatRPC:
@@ -22,13 +25,14 @@ class ConcatRPC:
         self.errors = tempfile.TemporaryFile()
         try:
             self.process = subprocess.Popen(
-                [str(self.binary), "--mcp", "headless"],
+                offline_editor_command([str(self.binary), "--mcp", "headless"]),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=self.errors,
                 text=True,
                 encoding="utf-8",
                 env=self.env,
+                start_new_session=True,
             )
             self.reader = Thread(target=self._read, daemon=True)
             self.reader.start()
@@ -133,11 +137,23 @@ class ConcatRPC:
             try:
                 self.process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                self.process.terminate()
+                if os.name == "posix":
+                    try:
+                        os.killpg(self.process.pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                else:
+                    self.process.terminate()
                 try:
                     self.process.wait(timeout=3)
                 except subprocess.TimeoutExpired:
-                    self.process.kill()
+                    if os.name == "posix":
+                        try:
+                            os.killpg(self.process.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    else:
+                        self.process.kill()
                     self.process.wait(timeout=3)
             if hasattr(self, "reader"):
                 self.reader.join(timeout=1)

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 test("YouTube setup imports a Desktop client and manages connected channels", async ({
   page,

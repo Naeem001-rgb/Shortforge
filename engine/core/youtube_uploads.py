@@ -13,6 +13,7 @@ import time
 from typing import Literal
 from urllib.parse import urlsplit
 from uuid import uuid4
+from threading import BoundedSemaphore
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 import httpx
@@ -26,6 +27,7 @@ POLL_SECONDS = 30
 API_ROOT = "https://www.googleapis.com/youtube/v3"
 UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
 _WORKERS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="youtube-upload")
+_UPLOAD_SLOTS = BoundedSemaphore(4)
 _PUBLIC_FIELDS = (
     "id",
     "clip_id",
@@ -115,7 +117,10 @@ def _row(upload_id):
         ).fetchone()
     if row is None:
         raise HTTPException(404, "YouTube upload not found.")
-    return dict(row)
+    result = dict(row)
+    if result["session_url"]:
+        result["session_url"] = db.reveal_secret(result["session_url"])
+    return result
 
 
 def _public(row):
@@ -129,6 +134,8 @@ def _public(row):
 
 
 def _update(upload_id, **fields):
+    if fields.get("session_url"):
+        fields["session_url"] = db.protect_secret(fields["session_url"])
     fields["updated_at"] = db.now()
     with db.connect() as conn:
         conn.execute(
@@ -285,7 +292,26 @@ def retry_upload(upload_id: str, background: BackgroundTasks):
 def _schedule_upload(upload_id):
     # The worker's atomic SQLite claim prevents concurrent sends. A second
     # in-memory guard would lose retries arriving while an old worker exits.
-    _WORKERS.submit(_run_upload, upload_id)
+    if not _UPLOAD_SLOTS.acquire(blocking=False):
+        _update(
+            upload_id,
+            status="failed",
+            retryable=1,
+            error="The upload queue is full. Wait for an upload to finish, then retry.",
+        )
+        return
+
+    def work(upload_id):
+        try:
+            _run_upload(upload_id)
+        finally:
+            _UPLOAD_SLOTS.release()
+
+    try:
+        _WORKERS.submit(work, upload_id)
+    except BaseException:
+        _UPLOAD_SLOTS.release()
+        raise
 
 
 class UploadFailure(Exception):

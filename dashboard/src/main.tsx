@@ -8,8 +8,11 @@ import "./theme/tokens.css";
 import "./theme/app.css";
 import "./theme/workspace.css";
 import { App } from "./shell/App";
+import { Connection } from "./shell/Connection";
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <Connection>
+      <App />
+    </Connection>
   </React.StrictMode>,
 );

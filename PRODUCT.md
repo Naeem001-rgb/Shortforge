@@ -36,6 +36,8 @@ On the audit fixtures, the 1,000-video Library ready time fell from 1,293 ms to 
 
 ## Constraints
 
+The normal launcher opens an authenticated production dashboard on port 8787. Scout is paired to the same engine. External Studio links require a launch action; existing Library buttons continue to open saved edits. Security controls, encrypted-credential recovery and current native-platform restrictions are documented in [SECURITY.md](docs/SECURITY.md).
+
 Free software first, local storage, CPU-compatible core operation and server-side keys. Linux is the verified development environment; Windows/macOS startup/runtime paths exist but require their own execution checks. The app is a single-user local workflow, not a hosted editor for remote visitors.
 
 Credits and reuse permissions are recorded honestly; unknown rights do not block local editing or downloads. Scout never likes, comments, subscribes or bypasses platform challenges. User media, keys, tokens, models and native binaries stay out of Git. Concat maintains an independent project media copy, so deleting a Library source does not delete a saved Concat edit or reclaim its separate disk space.

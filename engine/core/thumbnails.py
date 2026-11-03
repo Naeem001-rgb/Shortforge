@@ -28,7 +28,12 @@ MAX_IMAGE_BYTES = 8 * 1024 * 1024
 def public_clip(clip: dict) -> dict:
     # The database keeps the original signed URL; clients use our durable URL.
     if (clip.get("video_id") or "").startswith("ig:"):
-        return {**clip, "thumbnail_url": f"/api/clips/{clip['id']}/thumbnail"}
+        from .security import media_url
+
+        return {
+            **clip,
+            "thumbnail_url": media_url(f"/api/clips/{clip['id']}/thumbnail"),
+        }
     return clip
 
 

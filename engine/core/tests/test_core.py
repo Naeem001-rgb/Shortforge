@@ -14,7 +14,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 import pytest
 
-from engine.core import db, media, routes, runtime, source_urls
+from engine.core import db, media, routes, runtime, source_urls, security
 from engine.core.app import app
 
 
@@ -330,8 +330,8 @@ def test_untrusted_websites_cannot_write_to_local_engine(client):
 def test_dashboard_and_extension_origins_work(client):
     for origin in (
         "http://localhost:5173",
-        "http://127.0.0.1:4173",
-        "chrome-extension://" + "a" * 32,
+        "http://127.0.0.1:8787",
+        security.scout_origin(),
     ):
         response = client.options(
             "/api/clips",
@@ -782,6 +782,9 @@ def test_engine_restart_turns_abandoned_download_into_retryable_failure(
     old = db.new_job("download", clip["id"])
     db.update_job(old["id"], status="running", progress=35)
     with TestClient(app, base_url="http://localhost") as restarted:
+        restarted.headers["Authorization"] = (
+            "Bearer " + security.local_client()["token"]
+        )
         failed = restarted.get(f"/api/jobs/{old['id']}").json()
         assert failed["status"] == "failed" and "restarted" in failed["error"]
         monkeypatch.setattr(media, "tool_available", lambda name: True)
@@ -889,7 +892,7 @@ def test_download_progress_is_throttled_without_losing_completion(client, monkey
 
     clip = import_one(client)
     job = db.new_job("download", clip["id"])
-    clock = iter(100 + index * 0.001 for index in range(1000))
+    clock = iter(100 + index * 0.001 for index in range(1003))
     monkeypatch.setattr(media, "time", SimpleNamespace(monotonic=lambda: next(clock)))
     writes = Mock(wraps=db.update_job)
     monkeypatch.setattr(db, "update_job", writes)

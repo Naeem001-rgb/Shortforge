@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { engineFetch } from "../../shared/engine-client";
 export type Clip = {
   id: string;
   video_id: string | null;
@@ -82,7 +83,7 @@ export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`${API_ORIGIN}/api${path}`, {
+  const response = await engineFetch(`/api${path}`, {
     ...options,
     headers:
       options.body instanceof FormData

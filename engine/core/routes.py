@@ -133,7 +133,7 @@ def enrich_clips(clip_ids: list[str], *, strict: bool = False):
 def health():
     return {
         "status": "ok",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "runtime": runtime.status(),
         "tools": {
             "ffmpeg": bool(media.find_ffmpeg()),
@@ -378,7 +378,7 @@ def upload(file: UploadFile = File(...), title: str = Form("")):
         file.file.close()
         raise HTTPException(422, "Use a video title under 1,000 characters.")
     clip_id = str(uuid4())
-    path = db.DATA_DIR / "uploads" / f"{clip_id}{suffix}"
+    path = db.DATA_DIR / "uploads" / clip_id / f"source{suffix}"
     original_path = path
     path.parent.mkdir(parents=True, exist_ok=True)
     total = 0
@@ -445,6 +445,10 @@ def upload(file: UploadFile = File(...), title: str = Form("")):
     except BaseException:
         original_path.unlink(missing_ok=True)
         path.unlink(missing_ok=True)
+        try:
+            original_path.parent.rmdir()
+        except OSError:
+            pass
         raise
     finally:
         file.file.close()
@@ -599,6 +603,6 @@ def update_settings(patch: SettingsPatch):
         for key, value in values.items():
             conn.execute(
                 "INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                (key, json.dumps(value)),
+                (key, db.setting_value(key, value)),
             )
     return db.public_settings()

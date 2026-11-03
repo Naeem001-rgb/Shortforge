@@ -1,6 +1,6 @@
 # ShortForge architecture
 
-Updated October 30, 2026. Current implementation after the native Concat transition, performance improvements and the [codebase audit](docs/AUDIT-2026-10-30.md).
+Updated November 2, 2026. Current implementation after the native Concat transition, performance improvements and [security hardening](docs/SECURITY.md).
 
 ShortForge combines a React dashboard, Chrome MV3 discovery extension and loopback FastAPI engine with local SQLite/media storage; the engine prepares persistent projects and opens native Concat for editing.
 
@@ -30,9 +30,9 @@ The dashboard manages discovery, Library data, settings and launch status. The n
 
 | Component | Implementation | Responsibility |
 |---|---|---|
-| Startup | [start.sh](start.sh), [start.bat](start.bat) | Dependencies, yt-dlp update check, Concat setup, extension build, engine and Vite startup |
-| Engine entry | [engine/__main__.py](engine/__main__.py) | Load local environment, discover bundled FFmpeg and run Uvicorn on `127.0.0.1:8787` |
-| HTTP application | [app.py](engine/core/app.py) | Lifespan recovery, request-size/host/origin boundaries, CORS and router registration |
+| Startup | [start.sh](start.sh), [start.bat](start.bat) | Reviewed dependency lock, verified media/Concat setup, extension build, authenticated engine and production dashboard |
+| Engine entry | [engine/__main__.py](engine/__main__.py) | Load private configuration, bind loopback and open the private-file browser connection handoff |
+| HTTP application | [app.py](engine/core/app.py) | Authentication, lifespan recovery, body/work limits, browser boundaries, CORS and production dashboard |
 | Core API/storage | [routes.py](engine/core/routes.py), [db.py](engine/core/db.py), [models.py](engine/core/models.py) | Validation, Library, uploads, downloads, jobs, settings, asset serving and SQLite helpers |
 | Dashboard shell | [App.tsx](dashboard/src/shell/App.tsx), [api.ts](dashboard/src/api.ts) | Navigation, themes, Library/health refresh, job state and asset URL handling |
 | Library | [Library.tsx](dashboard/src/library/Library.tsx) | Client-side search/filter/sort, 50-entry pages, selection, bulk actions and import/detail UI |
@@ -46,15 +46,15 @@ The dashboard manages discovery, Library data, settings and launch status. The n
 
 ## Startup and packaging
 
-The launchers enforce a patched pip version, install Python requirements with security floors, attempt a yt-dlp update, validate npm installations against the lockfiles through [setup-node.mjs](scripts/setup-node.mjs), and run [scripts/setup-concat.py](scripts/setup-concat.py). That setup uses the pinned [release manifest](vendor/concat-release.json), verifies downloads and reuses a working runtime. Matching npm installations are reused; stale or incomplete installs run `npm ci` with development and platform-optional packages included. Dependency/build failures stop startup. It does not install optional speech models. Supported platform paths and setup failures are documented in [docs/CONCAT.md](docs/CONCAT.md).
+The launchers install exact, hash-verified Python wheels from `engine/requirements-lock.txt`, validate npm installations through [setup-node.mjs](scripts/setup-node.mjs), and run the pinned media and Concat setup helpers. Routine launches do not upgrade packages. Matching installations/builds are reused. The engine serves the production dashboard and opens a one-use private connection link. Optional models are not downloaded. See [security and platform limits](docs/SECURITY.md).
 
 `npm --prefix extension run build -- --if-needed` still runs the extension type check. `build.mjs` fingerprints source, static files, configuration, package/installed dependency metadata, relevant build environment and generated output. A matching cache under `extension/node_modules/` permits reuse; modified/missing output or a malformed cache rebuilds. An explicit build without the flag always rebuilds. A rebuild bundles content/background/popup scripts, copies static assets, type-checks/builds the dashboard and externalizes inline bootstrap scripts for MV3 CSP.
 
-The Vite dashboard runs at port 5173 and proxies `/api` to the engine. The bundled extension dashboard runs from `extension/dist/dashboard` and resolves its local API URLs to the loopback engine. `api.ts` rewrites returned asset URLs for the extension context and avoids that traversal in the ordinary web context. Build output, runtime binaries, downloaded models and the managed upstream checkout are ignored by Git.
+The production dashboard runs at port 8787 with the engine. Vite at port 5173 is an optional development server. The bundled extension dashboard runs from `extension/dist/dashboard`. The shared engine client attaches the paired credential only to local API requests. `api.ts` resolves signed media URLs for the extension context. Build output, runtime binaries, downloaded models and the managed upstream checkout are ignored by Git.
 
 ## Data and ownership
 
-`SHORTFORGE_DATA_DIR` selects the storage root; it defaults to repository `data/`. [db.connect()](engine/core/db.py) opens SQLite with foreign keys, WAL and a 30-second connection timeout, applies idempotent schema creation and commits or rolls back the operation. The data directory/database receive restrictive permissions on non-Windows systems. No external database service or connection pool is required.
+`SHORTFORGE_DATA_DIR` selects the storage root; it defaults to repository `data/`. [db.connect()](engine/core/db.py) opens SQLite with foreign keys, WAL and a 30-second connection timeout, applies idempotent schema creation and commits or rolls back the operation. The data directory/database receive restrictive permissions on non-Windows systems. Saved credentials are encrypted through `private_storage.py`; the key is held in Secret Service or outside the project (DPAPI-protected on Windows). Connection-code/client hashes and a bounded audit are in `data/security/access.db`. No external database service or connection pool is required.
 
 | Stored data | Owner and purpose |
 |---|---|
@@ -119,11 +119,11 @@ The two-second launch check is not a test of native editing/export correctness. 
 
 ## Jobs, recovery and security boundaries
 
-FastAPI background tasks execute inside the engine process; SQLite records state but is not a durable task broker. On startup the application marks interrupted queued/running jobs failed and invokes the YouTube module's distinct upload recovery. Scout additionally has a subprocess, cancellation registry and concurrency slot. There is no global media-job scheduler. The async job event stream delegates database reads to the worker pool and reports terminal state without blocking the event loop on those reads.
+FastAPI background tasks execute inside the engine process; SQLite records state but is not a durable task broker. On startup the application marks interrupted queued/running jobs failed and invokes the YouTube module's distinct upload recovery. Scout additionally has a subprocess, cancellation registry and concurrency slot. A global admission limit now bounds expensive API requests to two, while YouTube uploads use a bounded queue. This remains in-process admission control, not a durable job scheduler. The async job event stream delegates database reads to the worker pool and reports terminal state without blocking the event loop on those reads.
 
-The engine binds to loopback, checks Host and browser Origin/cross-site headers, limits declared and streamed request bodies, validates model inputs and constrains asset paths. The Google OAuth callback is a specific exception with its own state/PKCE validation. The extension has local API host permissions and a CSP with locally bundled scripts. These controls describe a local single-user system; they are not multi-user authentication or a public-hosting design.
+The engine binds to loopback, authenticates paired clients, checks Host and exact browser Origin/cross-site headers, limits declared and streamed request bodies and work admission, validates model inputs and constrains asset paths. The normal launcher serves the production dashboard from the engine and opens an origin-bound, one-use connection link. Media URLs carry expiring signatures rather than full API credentials. The Google OAuth callback is a specific exception with its own state/PKCE validation. The extension has local API host permissions and a CSP with locally bundled scripts. These controls describe a local single-user system; they are not multi-user authentication or a public-hosting design.
 
-Provider keys and OAuth credentials stay server-side; public settings/validation errors do not echo their input values. Concat child environments remove configured provider-secret variables. Private data/runtime/model folders remain outside version control. Retained AI and YouTube upload endpoints require their own explicit invocation; no Concat export automatically invokes them.
+Provider keys and OAuth credentials stay server-side; public settings/validation errors do not echo their input values. Child environments retain only needed variables. Media/AI workers use Linux filesystem/network isolation where configured; Concat runs offline and cannot read the engine database or private-key files on Linux. Private data/runtime/model folders remain outside version control. Retained AI and YouTube upload endpoints require their own explicit invocation; no Concat export automatically invokes them.
 
 ## Evidence, boundaries and deferred work
 

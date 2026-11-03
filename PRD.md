@@ -12,6 +12,8 @@ The core experience must remain usable locally without paid services. Discovery,
 
 ## Goals
 
+The November 2 security update adds authenticated local clients, private launch links, exact origin checks, signed media URLs, encryption at rest, bounded work/body sizes and native-tool protections. Ordinary startup uses the production dashboard. See [security behavior and limits](docs/SECURITY.md); the dated baseline acceptance criteria below still apply within the authenticated workspace.
+
 - Make Library loading, selection and repeated refreshes responsive as the collection grows.
 - Reduce avoidable decoding, encoding, database and startup work while retaining validation and recovery.
 - Preserve compatible video/audio streams and existing Concat edits.

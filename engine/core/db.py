@@ -102,6 +102,7 @@ def connect():
     conn = sqlite3.connect(database, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA secure_delete = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
     if os.name != "nt":
@@ -147,8 +148,10 @@ def resolve_data_path(path: str | Path) -> Path:
 
 
 def asset_dict(row) -> dict:
+    from .security import media_url
+
     asset = dict(row)
-    asset["url"] = f"/api/assets/{asset['id']}"
+    asset["url"] = media_url(f"/api/assets/{asset['id']}")
     return asset
 
 
@@ -265,8 +268,72 @@ def get_settings() -> dict:
     with connect() as conn:
         for row in conn.execute("SELECT key,value FROM settings"):
             if row["key"] in DEFAULT_SETTINGS or row["key"] in SECRET_SETTINGS:
-                settings[row["key"]] = json.loads(row["value"])
+                value = json.loads(row["value"])
+                settings[row["key"]] = (
+                    reveal_secret(value) if row["key"] in SECRET_SETTINGS else value
+                )
     return settings
+
+
+def protect_secret(value: str) -> str:
+    from .private_storage import seal
+
+    return seal(DATA_DIR, value)
+
+
+def reveal_secret(value: str) -> str:
+    from .private_storage import unseal
+
+    return unseal(DATA_DIR, value)
+
+
+def setting_value(key: str, value) -> str:
+    return json.dumps(protect_secret(value) if key in SECRET_SETTINGS else value)
+
+
+def migrate_secrets() -> None:
+    """Encrypt legacy credentials atomically, without changing their values."""
+    from .private_storage import PREFIX
+
+    changed = False
+    with connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        for row in conn.execute("SELECT key,value FROM settings").fetchall():
+            if row["key"] not in SECRET_SETTINGS:
+                continue
+            value = json.loads(row["value"])
+            if value and not value.startswith(PREFIX):
+                conn.execute(
+                    "UPDATE settings SET value=? WHERE key=?",
+                    (setting_value(row["key"], value), row["key"]),
+                )
+                changed = True
+        tables = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+        for table, columns in (
+            ("youtube_channels", ("access_token", "refresh_token")),
+            ("youtube_oauth_states", ("verifier",)),
+            ("youtube_uploads", ("session_url",)),
+        ):
+            if table not in tables:
+                continue
+            for column in columns:
+                for row in conn.execute(
+                    f"SELECT rowid,{column} FROM {table}"
+                ).fetchall():
+                    value = row[column]
+                    if value and not value.startswith(PREFIX):
+                        conn.execute(
+                            f"UPDATE {table} SET {column}=? WHERE rowid=?",
+                            (protect_secret(value), row["rowid"]),
+                        )
+                        changed = True
+    if changed:
+        # Remove old plaintext pages from the active SQLite journal after commit.
+        with sqlite3.connect(DATA_DIR / "shortforge.db", timeout=30) as connection:
+            connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
 
 def public_settings() -> dict:
@@ -359,12 +426,16 @@ def update_job(job_id: str, **fields):
 
 
 def get_job(job_id: str) -> dict:
+    from .security import refresh_media_links
+
     with connect() as conn:
         row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     if row is None:
         raise HTTPException(404, "Job not found.")
     result = dict(row)
-    result["result"] = json.loads(result["result"]) if result["result"] else None
+    result["result"] = (
+        refresh_media_links(json.loads(result["result"])) if result["result"] else None
+    )
     return result
 
 

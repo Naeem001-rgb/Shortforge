@@ -214,7 +214,11 @@ def _stored_channel(channel_id: str) -> dict:
         raise HTTPException(
             401, "The Google app credentials changed. Reconnect this channel."
         )
-    return dict(row)
+    return {
+        **dict(row),
+        "access_token": db.reveal_secret(row["access_token"]),
+        "refresh_token": db.reveal_secret(row["refresh_token"]),
+    }
 
 
 def get_channel(channel_id: str) -> dict:
@@ -269,8 +273,8 @@ def get_access_token(channel_id: str) -> str:
                 "UPDATE youtube_channels SET access_token=?,refresh_token=?,expires_at=?,scopes=?,"
                 "title=?,thumbnail_url=? WHERE id=? AND client_fingerprint=?",
                 (
-                    token,
-                    refresh_token,
+                    db.protect_secret(token),
+                    db.protect_secret(refresh_token),
                     expiry,
                     scopes,
                     identity["title"],
@@ -318,7 +322,7 @@ def configure(body: YouTubeConfig):
                 conn.execute(
                     "INSERT INTO settings(key,value) VALUES (?,?) "
                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-                    (key, json.dumps(value)),
+                    (key, db.setting_value(key, value)),
                 )
             if changed:
                 conn.execute("DELETE FROM youtube_channels")
@@ -373,7 +377,7 @@ def start():
                 "INSERT INTO youtube_oauth_states VALUES (?,?,?,?,?)",
                 (
                     hashlib.sha256(state.encode()).hexdigest(),
-                    verifier,
+                    db.protect_secret(verifier),
                     redirect_uri,
                     _fingerprint(credentials),
                     time.time() + STATE_LIFETIME,
@@ -462,7 +466,7 @@ def callback(state: str = "", code: str = "", error: str = ""):
                     "client_id": credentials[0],
                     "client_secret": credentials[1],
                     "code": code,
-                    "code_verifier": pending["verifier"],
+                    "code_verifier": db.reveal_secret(pending["verifier"]),
                     "redirect_uri": pending["redirect_uri"],
                     "grant_type": "authorization_code",
                 },
@@ -495,8 +499,8 @@ def callback(state: str = "", code: str = "", error: str = ""):
                         identity["id"],
                         identity["title"],
                         identity["thumbnail_url"],
-                        token,
-                        refresh_token,
+                        db.protect_secret(token),
+                        db.protect_secret(refresh_token),
                         expiry,
                         scopes,
                         pending["client_fingerprint"],

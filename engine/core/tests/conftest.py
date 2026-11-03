@@ -8,7 +8,7 @@ means the three core test files cannot drift apart.
 from fastapi.testclient import TestClient
 import pytest
 
-from engine.core import db
+from engine.core import db, security
 from engine.core.app import app
 
 
@@ -19,4 +19,5 @@ def client(tmp_path, monkeypatch):
     for key in db.SECRET_SETTINGS:
         monkeypatch.delenv(key.upper(), raising=False)
     with TestClient(app, base_url="http://localhost") as session:
+        session.headers["Authorization"] = "Bearer " + security.local_client()["token"]
         yield session

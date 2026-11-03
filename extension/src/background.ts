@@ -9,8 +9,8 @@ import {
 import { matchesCandidate } from "./parsers";
 
 import { canonicalSourceUrl, candidateIdFromUrl, isScoutUrl } from "./sources";
+import { connectCode, engineFetch } from "../../shared/engine-client";
 
-const API = "http://127.0.0.1:8787/api";
 let state: ScoutState;
 let serial: Promise<unknown> = Promise.resolve();
 async function load() {
@@ -83,7 +83,7 @@ async function save() {
 async function api(path: string, body?: object) {
   let response: Response;
   try {
-    response = await fetch(`${API}${path}`, {
+    response = await engineFetch(`/api${path}`, {
       method: body ? "POST" : "GET",
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
@@ -757,6 +757,38 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 });
 chrome.runtime.onInstalled.addListener(() => {
   chrome.alarms.create("retry-pending", { periodInMinutes: 1 });
+});
+// Only our dashboard can deliver the one-use grant minted for this extension.
+// Content scripts never receive a credential or access to this storage key.
+void chrome.storage.local.setAccessLevel?.({ accessLevel: "TRUSTED_CONTEXTS" });
+chrome.runtime.onMessageExternal?.addListener((message, sender, respond) => {
+  let origin = "";
+  try {
+    origin = new URL(sender.url || "").origin;
+  } catch {
+    return;
+  }
+  if (
+    sender.frameId !== 0 ||
+    ![
+      "http://127.0.0.1:8787",
+      "http://localhost:8787",
+      "http://127.0.0.1:5173",
+      "http://localhost:5173",
+    ].includes(origin) ||
+    message?.type !== "connect-engine" ||
+    typeof message.code !== "string"
+  )
+    return;
+  connectCode(message.code).then(
+    () => respond({ connected: true }),
+    () =>
+      respond({
+        connected: false,
+        error: "Start ShortForge again and reconnect Scout from Settings.",
+      }),
+  );
+  return true;
 });
 chrome.runtime.onStartup.addListener(() => {
   serial = serial.then(async () => {

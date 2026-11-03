@@ -3,6 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import os
+import signal
 from pathlib import Path
 import subprocess
 from threading import Event
@@ -274,7 +275,8 @@ def test_native_launch_uses_literal_project_path_and_desktop_environment(
     concat.launch_desktop(binary, project)
     assert reaped.wait(2)
     command, options = calls[0]
-    assert command == [str(binary), "--project", str(project)]
+    assert command[-3:] == [str(binary), "--project", str(project)]
+    assert "--unshare-net" in command or command[0] == "sandbox-exec"
     assert options.get("shell", False) is False
     assert options["start_new_session"] is True
     assert options["env"]["DISPLAY"] == ":2"
@@ -403,12 +405,15 @@ def test_real_library_video_opens_in_desktop_concat(client, monkeypatch, tmp_pat
         )
         assert len(processes) == 1
         assert processes[0].poll() is None
-        assert processes[0].args == [
+        assert processes[0].args[-3:] == [
             str(concat.find_binary()),
             "--project",
             finished["result"]["project_path"],
         ]
     finally:
         for process in processes:
-            process.terminate()
+            if os.name == "posix":
+                os.killpg(process.pid, signal.SIGTERM)
+            else:
+                process.terminate()
             process.wait(timeout=15)

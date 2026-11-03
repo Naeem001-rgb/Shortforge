@@ -174,7 +174,9 @@ def test_queued_thumbnails_leave_workers_for_health_checks(client, monkeypatch):
         responses = []
         try:
             async with httpx.AsyncClient(
-                transport=httpx.ASGITransport(app=app), base_url="http://localhost"
+                transport=httpx.ASGITransport(app=app),
+                base_url="http://localhost",
+                headers={"Authorization": client.headers["Authorization"]},
             ) as session:
 
                 async def request(clip_id):

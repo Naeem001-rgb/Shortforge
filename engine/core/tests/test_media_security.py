@@ -119,7 +119,7 @@ def test_ffprobe_and_fallback_both_restrict_demuxers(
             stderr="Duration: 00:00:08.00\nStream #0:0: Video: h264, yuv420p, 32x32"
         )
 
-    monkeypatch.setattr(editor_media.subprocess, "run", run)
+    monkeypatch.setattr(editor_media, "run_media", run)
     path = tmp_path / "footage.mp4"
     path.write_bytes(b"fixture")
     result = editor_media.probe_media(path)

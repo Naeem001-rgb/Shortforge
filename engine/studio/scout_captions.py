@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import signal
 import subprocess
+from engine.core.sandbox import clean_environment, run_media, worker_command
 import sys
 import tempfile
 from threading import BoundedSemaphore, Event, Lock
@@ -446,7 +447,7 @@ def normalize_source(path: Path) -> Path:
         str(output),
     ]
     try:
-        converted = subprocess.run(command, capture_output=True, timeout=120)
+        converted = run_media(command, capture_output=True, timeout=120)
         if converted.returncode or not output.is_file() or not output.stat().st_size:
             raise ValueError(
                 "FFmpeg could not decode the complete video for caption checking. This clip was skipped."
@@ -681,7 +682,13 @@ def run_worker(config: dict, directory: Path, cancel: Event, progress=None) -> d
     config_path = directory / "request.json"
     config_path.write_text(json.dumps(config))
     process = subprocess.Popen(
-        [sys.executable, "-m", "engine.studio.scout_captions", str(config_path)],
+        worker_command(
+            [sys.executable, "-m", "engine.studio.scout_captions", str(config_path)],
+            reads=[db.DATA_DIR / "models"] if (db.DATA_DIR / "models").is_dir() else [],
+            writes=[directory],
+            network=True,
+        ),
+        env={**clean_environment(), "SHORTFORGE_DATA_DIR": str(db.DATA_DIR)},
         cwd=Path(__file__).resolve().parents[2],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

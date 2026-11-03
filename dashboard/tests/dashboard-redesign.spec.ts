@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import type { Clip } from "../src/api";
 
 test("an unavailable engine does not present an empty library as fact", async ({

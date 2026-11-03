@@ -133,7 +133,7 @@ def test_reel_uses_safe_input_thumbnail_and_records_only_real_rights(client, thu
         license_status="cc_by",
         workflow_status="downloaded",
     )
-    assert clip["thumbnail_url"] == f"/api/clips/{clip['id']}/thumbnail"
+    assert clip["thumbnail_url"].split("?")[0] == f"/api/clips/{clip['id']}/thumbnail"
     assert db.get_clip(clip["id"])["thumbnail_url"] == thumbnail
     assert clip["title"] == f"Instagram Reel · {SHORTCODE}"
     assert clip["license_status"] == "unknown"
@@ -161,7 +161,7 @@ def test_untrusted_thumbnails_are_ignored(thumbnail):
 
 def test_reel_without_thumbnail_never_gets_youtube_image(client):
     clip = import_reel(client)
-    assert clip["thumbnail_url"] == f"/api/clips/{clip['id']}/thumbnail"
+    assert clip["thumbnail_url"].split("?")[0] == f"/api/clips/{clip['id']}/thumbnail"
     assert db.get_clip(clip["id"])["thumbnail_url"] == ""
 
 

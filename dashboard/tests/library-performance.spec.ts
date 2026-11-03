@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import type { Clip } from "../src/api";
 
 function fixtures(size: number): Clip[] {

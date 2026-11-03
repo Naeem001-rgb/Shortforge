@@ -7,7 +7,6 @@ import hashlib
 import importlib.util
 import json
 import math
-import os
 from pathlib import Path
 import re
 import shutil
@@ -18,6 +17,7 @@ import time
 from urllib import error, request
 
 from engine.studio.media import audio_duration, approximate_words, ffmpeg_binary
+from engine.core.sandbox import clean_environment, run_media, worker_command
 
 LOCAL_VOICE_LOCK = Lock()
 VOICE_CACHE: dict[str, tuple[float, list[dict]]] = {}
@@ -287,7 +287,16 @@ def synthesize(
         ]
         with LOCAL_VOICE_LOCK:
             process = subprocess.run(
-                command, input=text, text=True, capture_output=True, timeout=600
+                worker_command(
+                    command,
+                    reads=[Path(model), Path(model + ".json")],
+                    writes=[output.parent],
+                ),
+                input=text,
+                text=True,
+                capture_output=True,
+                timeout=600,
+                env=clean_environment(),
             )
         if process.returncode:
             raise ValueError(
@@ -314,12 +323,13 @@ def synthesize(
         ]
         with LOCAL_VOICE_LOCK:
             process = subprocess.run(
-                command,
+                worker_command(command, writes=[output.parent]),
                 input=text,
                 text=True,
                 encoding="utf-8",
                 capture_output=True,
                 timeout=120,
+                env=clean_environment(),
             )
         if process.returncode:
             raise ValueError(
@@ -398,7 +408,7 @@ def synthesize(
     elif provider == "clone":
         if reference is None:
             raise ValueError("Choose a saved voice reference first.")
-        environment = {**os.environ, "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1"}
+        environment = clean_environment()
         payload = {
             "model_dir": str(Path(settings["clone_model_path"]).expanduser().resolve()),
             "reference": str(reference),
@@ -407,7 +417,14 @@ def synthesize(
         }
         with LOCAL_VOICE_LOCK:
             process = subprocess.run(
-                [sys.executable, "-m", "engine.ai.clone_worker"],
+                worker_command(
+                    [sys.executable, "-m", "engine.ai.clone_worker"],
+                    reads=[
+                        reference,
+                        Path(settings["clone_model_path"]).expanduser().resolve(),
+                    ],
+                    writes=[output.parent],
+                ),
                 input=json.dumps(payload),
                 text=True,
                 capture_output=True,
@@ -421,7 +438,7 @@ def synthesize(
             )
         if speed != 1:
             adjusted = output.with_name(output.stem + "-paced.wav")
-            process = subprocess.run(
+            process = run_media(
                 [
                     ffmpeg_binary(),
                     "-y",

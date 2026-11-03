@@ -1,6 +1,8 @@
-# ShortForge shared contract v1
+# ShortForge shared contract v2
 
-Engine: http://127.0.0.1:8787. Dashboard: http://localhost:5173. JSON except multipart uploads, file responses and SSE. Errors use FastAPI `{detail: string}`. IDs are UUID strings. Times ISO8601 UTC. All paths saved in SQLite are relative to data directory. No absolute paths from clients.
+Engine and production dashboard: http://127.0.0.1:8787. Vite at http://localhost:5173 is for development. JSON except multipart uploads, file responses and SSE. Errors use FastAPI `{detail: string}`. IDs are UUID strings. Times ISO8601 UTC. All paths saved in SQLite are relative to data directory. No absolute paths from clients.
+
+Private API requests require `Authorization: Bearer <connection token>`. Only health, `POST /api/security/pair`, and Google's OAuth callback are public. Pairing codes are minted by the local launcher, expire after five minutes, are single-use and origin-bound. `GET /api/security/session` checks access; `DELETE /api/security/session` revokes it. Authenticated web clients use `POST /api/security/scout-grant` to obtain a one-use grant for this checkout's extension. Engine restarts invalidate all client tokens. Media URLs include `expires` and an exact-path `access` signature valid for at most two hours and only the current engine run; these signatures authorize GET/HEAD for that asset only. Regenerate media links from API responses after a restart. Missing credentials return 401, unapproved origins 403, size violations 413, busy/rate-limited work 429 and storage-growth limits 507. Do not put full connection tokens in media URLs.
 
 YouTube services: see [YOUTUBE.md](YOUTUBE.md) for connection, upload, progress and recovery routes. Channel connection Settings remain available, but the previous editor's Publish to YouTube/Publish kit UI was removed and Concat has no publishing handoff. OAuth credentials and upload sessions never appear in public responses.
 
@@ -59,7 +61,7 @@ DELETE /api/voices/{id} -> {ok:true}
 
 The custom editor and its `/api/editor/*`, `/api/editor-capabilities`, `/api/presets`, `/api/captions/detect` and `/api/export` routes were removed. Do not build new clients against those routes. Concat uses its own native project format and renderer; no WebCodecs exporter remains in the dashboard.
 
-GET /api/studio/capabilities -> {available:boolean, editor:'Concat', version?:string, message:string}. Reports native Concat readiness. Normal project setup automatically downloads and verifies the pinned runtime on supported platforms; this read-only endpoint does not install software.
+GET /api/studio/capabilities -> {available:boolean, editor:'Concat', version?:string, message:string, network_isolated?:boolean}. Reports native Concat readiness. Normal project setup automatically downloads and verifies the pinned runtime on supported platforms; this read-only endpoint does not install software.
 
 POST /api/studio/open {clip_id?:string|null} -> Job type `studio-open`. Omitting `clip_id` opens Concat independently. A supplied id must identify an existing Library video; missing ids return 404, invalid ids or extra fields return 422, and unavailable runtimes return 503 before downloading media. Clients cannot choose an executable or arbitrary source path. Concurrent queued/running opens for the same clip reuse one job.
 

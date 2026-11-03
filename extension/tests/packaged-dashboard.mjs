@@ -112,6 +112,14 @@ try {
     context.serviceWorkers()[0] ||
     (await context.waitForEvent("serviceworker"));
   const id = new URL(worker.url()).hostname;
+  await worker.evaluate(async () => {
+    await chrome.storage.local.set({
+      "shortforge-engine-access": {
+        token: "a".repeat(43),
+        expires_at: Date.now() / 1000 + 3600,
+      },
+    });
+  });
   const page = await context.newPage();
   await page.goto(`chrome-extension://${id}/dashboard/index.html`);
   await page
@@ -162,8 +170,10 @@ try {
   await page.goto(
     `chrome-extension://${id}/dashboard/index.html?studio=${clip.id}`,
   );
+  await page.getByRole("button", { name: "Open Concat", exact: true }).click();
   await page.getByText("Opened in Concat", { exact: true }).waitFor();
   await page.reload();
+  await page.getByRole("button", { name: "Open Concat", exact: true }).click();
   await page.getByText("Opened in Concat", { exact: true }).waitFor();
   assert.equal(new URL(page.url()).protocol, "chrome-extension:");
   assert.equal(context.pages().length, tabs);

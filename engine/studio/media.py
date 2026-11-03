@@ -1,9 +1,10 @@
 """Media utilities with no mandatory model or network dependencies."""
 
 import json
+import math
 from pathlib import Path
 import re
-import subprocess
+from engine.core.sandbox import run_media
 import wave
 
 from engine.core.media import find_ffmpeg, find_ffprobe
@@ -33,7 +34,7 @@ def probe_media(path: Path, *, input_format: str | None = None) -> dict:
         input_options.extend(["-f", input_format])
     ffprobe = find_ffprobe()
     if ffprobe:
-        process = subprocess.run(
+        process = run_media(
             [
                 ffprobe,
                 "-v",
@@ -51,8 +52,13 @@ def probe_media(path: Path, *, input_format: str | None = None) -> dict:
         )
         if process.returncode == 0:
             info = json.loads(process.stdout)
+            duration = float(info.get("format", {}).get("duration", 0))
+            if not math.isfinite(duration) or duration <= 0:
+                raise ValueError(
+                    "This file could not be read as audio or video with a known duration."
+                )
             return {
-                "duration": float(info.get("format", {}).get("duration", 0)),
+                "duration": duration,
                 "audio": any(
                     s.get("codec_type") == "audio" for s in info.get("streams", [])
                 ),
@@ -61,7 +67,7 @@ def probe_media(path: Path, *, input_format: str | None = None) -> dict:
                 ),
             }
     # The small packaged FFmpeg binary does not ship ffprobe.
-    process = subprocess.run(
+    process = run_media(
         [ffmpeg_binary(), "-hide_banner", *input_options, "-i", str(path)],
         capture_output=True,
         text=True,

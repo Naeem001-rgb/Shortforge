@@ -121,7 +121,7 @@ def test_probe_limits_protocols_and_container_for_ffprobe_and_fallback(
             stderr="Duration: 00:00:08.00\nStream #0:0: Audio: pcm_s16le"
         )
 
-    monkeypatch.setattr(studio_media.subprocess, "run", run)
+    monkeypatch.setattr(studio_media, "run_media", run)
     path = tmp_path / "recording.wav"
     assert studio_media.probe_media(path, input_format="wav") == {
         "duration": 8,

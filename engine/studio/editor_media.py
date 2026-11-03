@@ -6,7 +6,7 @@ import json
 import math
 from pathlib import Path
 import re
-import subprocess
+from engine.core.sandbox import run_media
 
 from engine.core import db
 from engine.core.media import find_ffprobe
@@ -61,7 +61,7 @@ def _probe(path: str, modified: int, size: int) -> dict:
     ffprobe = find_ffprobe()
     info = None
     if ffprobe:
-        process = subprocess.run(
+        process = run_media(
             [
                 ffprobe,
                 "-v",
@@ -116,7 +116,7 @@ def _probe(path: str, modified: int, size: int) -> dict:
         if abs(rotation) % 180 == 90:
             width, height = height, width
     else:
-        result = subprocess.run(
+        result = run_media(
             [
                 ffmpeg_binary(),
                 "-hide_banner",
@@ -169,7 +169,7 @@ def _probe(path: str, modified: int, size: int) -> dict:
 
 def normalize_browser_video(path: Path) -> Path:
     """Return browser-playable MP4, keeping external originals untouched."""
-    inspection = subprocess.run(
+    inspection = run_media(
         [
             ffmpeg_binary(),
             "-hide_banner",
@@ -234,7 +234,7 @@ def normalize_browser_video(path: Path) -> Path:
     command += ["-c:a", "copy"] if audio_compatible else ["-c:a", "aac", "-b:a", "192k"]
     command += ["-movflags", "+faststart", str(output)]
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=1800)
+        result = run_media(command, capture_output=True, text=True, timeout=1800)
         if result.returncode:
             raise ValueError(
                 "This video could not be converted for playback. Try a different MP4 file."
@@ -290,7 +290,7 @@ def media_thumbnail(path: Path, metadata: dict) -> Path:
                 "3",
                 str(output),
             ]
-            result = subprocess.run(command, capture_output=True, timeout=30)
+            result = run_media(command, capture_output=True, timeout=30)
             if result.returncode or not output.is_file():
                 raise ValueError(
                     "A preview frame could not be generated. The media is still available."
