@@ -25,10 +25,15 @@ async def lifespan(app: FastAPI):
             "UPDATE jobs SET status='failed',error='ShortForge restarted before this job finished. Please run it again.' WHERE status IN ('queued','running')"
         )
     from .youtube_uploads import recover_uploads
+    from .publishing import recover_publications, stop_publications
 
     recover_uploads()
+    recover_publications()
     await run_in_threadpool(db.migrate_secrets)
-    yield
+    try:
+        yield
+    finally:
+        stop_publications()
 
 
 app = FastAPI(
@@ -70,6 +75,7 @@ app.include_router(security.router)
 app.include_router(router)
 for module_name in (
     "engine.core.concat",
+    "engine.core.publishing",
     "engine.core.youtube_auth",
     "engine.core.youtube_uploads",
     "engine.core.scout_routes",

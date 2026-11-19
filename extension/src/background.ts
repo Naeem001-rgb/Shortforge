@@ -243,6 +243,13 @@ async function cancelCaptionCheck() {
     }
   }
 }
+async function haltSession() {
+  // Persist the stopped state before messaging a tab or waiting for the engine.
+  await save();
+  await tellTab("halt");
+  await cancelCaptionCheck();
+  await save();
+}
 function settingsFrom(value: unknown): Settings {
   const candidate = value as Settings;
   if (
@@ -543,10 +550,7 @@ async function handle(
         ? "Paused. Resume when you are ready."
         : "Stopped. Your collected clips stay in the Library.";
     log(state.reason);
-    await save();
-    await tellTab("halt");
-    await cancelCaptionCheck();
-    await save();
+    await haltSession();
     return { state };
   }
   if (message.type === "retry") {
@@ -565,10 +569,7 @@ async function handle(
     state.status = "paused";
     state.reason = String(message.reason).slice(0, 400);
     log(state.reason);
-    await save();
-    await tellTab("halt");
-    await cancelCaptionCheck();
-    await save();
+    await haltSession();
     return { state };
   }
   if (
@@ -582,10 +583,7 @@ async function handle(
     state.reason =
       "Finished this account’s available Shorts or Reels. Your matches are in the Library.";
     log(state.reason);
-    await save();
-    await tellTab("halt");
-    await cancelCaptionCheck();
-    await save();
+    await haltSession();
     return { running: false, state };
   }
   if (
@@ -845,10 +843,7 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
         state.reason =
           "This tab left Shorts or Reels. Handle any prompt, return to a video, then resume.";
         log(state.reason);
-        await save();
-        await tellTab("halt");
-        await cancelCaptionCheck();
-        await save();
+        await haltSession();
       }
     })
     .catch(() => {});

@@ -1,0 +1,36 @@
+{
+  "runner": "bash -c 'test \"$#\" -gt 0 || exit 1; evidence=\"${GSTACK_ROOT:-$HOME/.codex/skills/gstack}/bin/gstack-evidence\"; pids=(); \"$evidence\" run --label backend -- \"SHORTFORGE_DATA_DIR=\\$(mktemp -d) .venv/bin/python -m pytest -q\" & pids+=($!); \"$evidence\" run --label extension -- \"npm --prefix extension test\" & pids+=($!); \"$evidence\" run --label dashboard -- \"npm --prefix dashboard test\" & pids+=($!); rc=0; for pid in \"${pids[@]}\"; do wait \"$pid\" || rc=1; done; exit \"$rc\"' shortforge-tests {files}",
+  "dependencies": {
+    "docs/**": [],
+    "*.md": [],
+    ".impeccable/**": [],
+    ".gitignore": [],
+    ".gstack/pregate.json": [],
+    "engine/**": [
+      "engine/core/tests/test_publishing.py",
+      "engine/core/tests/test_youtube_auth.py",
+      "engine/core/tests/test_youtube_uploads.py",
+      "engine/core/tests/test_launcher.py"
+    ],
+    "dashboard/**": [
+      "dashboard/tests/publishing.spec.ts",
+      "dashboard/tests/youtube-callback.spec.ts",
+      "dashboard/tests/concat-studio.spec.ts",
+      "dashboard/tests/workspace.spec.ts"
+    ],
+    "extension/**": [
+      "extension/tests/background.test.ts",
+      "extension/tests/dashboard-api.test.ts",
+      "extension/tests/build-cache.test.mjs",
+      "extension/tests/node-setup.test.mjs"
+    ],
+    "scripts/**": [
+      "engine/core/tests/test_launcher.py",
+      "engine/core/tests/test_media_runtime_setup.py",
+      "extension/tests/node-setup.test.mjs"
+    ],
+    "start.sh": ["engine/core/tests/test_launcher.py"],
+    "pyproject.toml": ["engine/core/tests/test_launcher.py"],
+    "shared/**": ["extension/tests/dashboard-api.test.ts"]
+  }
+}

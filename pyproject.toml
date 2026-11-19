@@ -1,6 +1,5 @@
 [tool.ruff]
-# The engine targets Python 3.11+ (see AGENT.md section 5), so ruff checks against
-# the oldest version we promise to support even when a newer one is installed.
+# Ruff targets the engine's minimum supported Python version (3.11).
 target-version = "py311"
 line-length = 88
 # "data" holds downloads and the on-demand model runtimes - not our code.

@@ -71,11 +71,15 @@ function ClipArtwork({ clip, eager = false }: { clip: Clip; eager?: boolean }) {
   );
 }
 
+const savedDateFormat = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+});
 function savedDate(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? "Saved locally"
-    : date.toLocaleDateString("en", { month: "short", day: "numeric" });
+    : savedDateFormat.format(date);
 }
 
 export function LibraryPage({

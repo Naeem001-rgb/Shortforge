@@ -39,7 +39,7 @@ node tests/browser-fixture.mjs
 node tests/instagram-fixture.mjs
 ```
 
-See [QA harnesses](QA-HARNESS.md) for fixture coverage and [progress](PROGRESS.md) for dated results. Markdown is excluded from bulk formatting.
+See [QA harnesses](QA-HARNESS.md) for fixture coverage and [change history](PROGRESS.md) for dated milestones. Markdown is excluded from bulk formatting.
 
 ## Audit regressions and local benchmark
 
@@ -62,7 +62,7 @@ Run `.venv/bin/python scripts/benchmark_engine.py` for a bounded comparison of e
 4. Export from Concat to a local folder and play the result to check picture and sound.
 5. Choose **Back to Library**, then **Studio** in the sidebar. Confirm Concat opens independently.
 
-Native export quality requires a manual check. The browser suite exercises launch status, retries and navigation with a simulated launch; it does not automate Concat's timeline. The removed browser editor, caption-removal and Publish kit checklists are [archived](archive/browser-editor/TESTING.md).
+Broad native export quality requires a manual check. The browser suite exercises launch and publishing controls with simulated providers. `SHORTFORGE_TEST_NATIVE_CONCAT=1 .venv/bin/python -m pytest engine/core/tests/test_publishing.py -k real_concat -q` additionally renders generated footage in the real Concat runtime and checks the exact MP4 against a fake upload receiver. Use the same isolated data/private-key directories as other native tests.
 
 ## Install Scout in Chrome the first time
 
@@ -146,4 +146,14 @@ Use disposable test clips for these steps.
 4. Resize to phone width; use the menu and confirm there is no sideways scrolling.
 5. Review [YouTube setup](YOUTUBE-PUBLISHING.md), connect a test channel, verify its name, and disconnect when finished. Real Google authorization is a separate manual check.
 
-YouTube channel Settings and backend services remain available. Concat exports have no automatic publishing handoff; use YouTube Studio to upload a finished file yourself.
+## Studio publishing and scheduling
+
+1. Save an edit in Concat and return to its Studio page. Confirm Library metadata is prefilled and that refreshing or changing fields does not start a render or upload.
+2. Choose a connected channel, review the title/description/tags and audience. Choose **Publish now** with Private for a private test upload, then submit once. Confirm Creating video → Uploading → YouTube processing and the resulting video link. Merely selecting the mode must not submit.
+3. Choose **Schedule**, confirm the displayed time zone, select a future time with enough rendering/upload lead time, and submit. The request must contain private visibility and the correct UTC instant. The app must say Scheduled only after YouTube confirms it; private-only/API-approval restrictions must produce honest status.
+4. Reload or return to the same Studio clip. Confirm draft fields, immutable job details and progress/history survive. A repeat request for the same edit/channel must not create another video.
+5. Cancel a queued/rendering job and confirm no upload begins. Simulate an upload interruption and retry: the same file/session must be used without a second render. An unknown final outcome must require checking YouTube Studio, never blindly posting again.
+6. Select a past time or let a queued render outlast its schedule. Confirm that it does not fall back to immediate public publishing. A failed attempt known not to have completed can be replaced by a new reviewed future time.
+7. Verify keyboard operation, phone layouts and dark theme. Pause the tab's periodic polls when hidden, restore them on focus, and retain the last known jobs on a refresh error.
+
+Automated publishing tests never send a real Google upload. Live private uploads and public scheduling are separate manual checks after the owner completes [Google setup](YOUTUBE-PUBLISHING.md). Do not publish a real fixture just to satisfy an automated test.

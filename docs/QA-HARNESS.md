@@ -25,4 +25,4 @@ node tests/instagram-fixture.mjs
 
 The dashboard suite uses `CHROME_PATH` or `/usr/bin/google-chrome`. The packaged extension fixture uses Playwright's Chromium. These fixtures do not require a logged-in social account. Generated reports and screenshots remain ignored by Git.
 
-Report failures and retries separately. Passing these checks does not verify live social markup, real Google authorization, full accessibility, or native Concat exports. The removed timeline harness and its scripts are described only in the [historical archive](archive/browser-editor/QA-HARNESS.md).
+Report failures and retries separately. Passing these checks does not verify live social markup, real Google authorization, full accessibility, or native Concat exports.

@@ -5,6 +5,7 @@ An uncertain final request is always probed before anything can be sent again.
 """
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -17,7 +18,14 @@ from threading import BoundedSemaphore
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    field_validator,
+    model_validator,
+)
 
 from . import db, youtube_auth
 
@@ -36,6 +44,7 @@ _PUBLIC_FIELDS = (
     "channel_title",
     "title",
     "privacy_status",
+    "publish_at",
     "status",
     "progress",
     "error",
@@ -47,7 +56,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS youtube_uploads (
     id TEXT PRIMARY KEY, clip_id TEXT NOT NULL, asset_id TEXT NOT NULL,
     channel_id TEXT NOT NULL, channel_title TEXT NOT NULL, title TEXT NOT NULL,
-    privacy_status TEXT NOT NULL, metadata TEXT NOT NULL,
+    privacy_status TEXT NOT NULL, metadata TEXT NOT NULL, publish_at TEXT,
     status TEXT NOT NULL, progress REAL NOT NULL DEFAULT 0, error TEXT,
     video_id TEXT, retryable INTEGER NOT NULL DEFAULT 0,
     session_url TEXT, bytes_uploaded INTEGER NOT NULL DEFAULT 0,
@@ -61,17 +70,42 @@ CREATE INDEX IF NOT EXISTS youtube_uploads_by_clip ON youtube_uploads(clip_id, c
 """
 
 
-class UploadRequest(BaseModel):
+def schedule_time(value: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise ValueError("Choose a valid date and time for publishing.") from None
+    if parsed.tzinfo is None or "T" not in value:
+        raise ValueError("The scheduled time must include its time zone.")
+    return parsed.astimezone(timezone.utc)
+
+
+class PublicationMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    clip_id: str = Field(min_length=1)
-    asset_id: str = Field(min_length=1)
-    channel_id: str = Field(min_length=1)
+    channel_id: str = Field(min_length=1, max_length=128)
     title: str = Field(max_length=100)
     description: str = ""
     tags: list[str] = Field(default_factory=list)
     privacy_status: Literal["private", "unlisted", "public"] = "private"
+    publish_at: str | None = Field(default=None, max_length=64)
     self_declared_made_for_kids: StrictBool
     contains_synthetic_media: StrictBool
+
+    @field_validator("publish_at")
+    @classmethod
+    def valid_publish_at(cls, value):
+        if value is None:
+            return None
+        return schedule_time(value).isoformat().replace("+00:00", "Z")
+
+    @model_validator(mode="after")
+    def valid_schedule(self):
+        if self.publish_at:
+            if self.privacy_status != "private":
+                raise ValueError("Scheduled videos must upload as private first.")
+            if schedule_time(self.publish_at) <= datetime.now(timezone.utc):
+                raise ValueError("Choose a future date and time for publishing.")
+        return self
 
     @field_validator("title")
     @classmethod
@@ -105,9 +139,20 @@ class UploadRequest(BaseModel):
         return tags
 
 
+class UploadRequest(PublicationMetadata):
+    clip_id: str = Field(min_length=1, max_length=64)
+    asset_id: str = Field(min_length=1, max_length=64)
+
+
 def init_storage():
     with db.connect() as conn:
         conn.executescript(_SCHEMA)
+        conn.execute("BEGIN IMMEDIATE")
+        columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(youtube_uploads)")
+        }
+        if "publish_at" not in columns:
+            conn.execute("ALTER TABLE youtube_uploads ADD COLUMN publish_at TEXT")
 
 
 def _row(upload_id):
@@ -175,6 +220,14 @@ def _fingerprint(stream):
 
 @router.post("/uploads")
 def create_upload(payload: UploadRequest, background: BackgroundTasks):
+    row, created = register_upload(payload)
+    if created:
+        background.add_task(_schedule_upload, row["id"])
+    return row
+
+
+def register_upload(payload: UploadRequest) -> tuple[dict, bool]:
+    """Persist before scheduling, so a render can durably attach its upload."""
     init_storage()
     with db.connect() as conn:
         existing = conn.execute(
@@ -184,7 +237,7 @@ def create_upload(payload: UploadRequest, background: BackgroundTasks):
     if existing:
         if existing["clip_id"] != payload.clip_id:
             raise HTTPException(422, "Choose a saved export belonging to this project.")
-        return _public(dict(existing))
+        return _public(dict(existing)), False
     channel = youtube_auth.get_channel(payload.channel_id)
     path = _export_path(payload.clip_id, payload.asset_id)
     with path.open("rb") as stream:
@@ -203,14 +256,16 @@ def create_upload(payload: UploadRequest, background: BackgroundTasks):
     }
     if payload.tags:
         metadata["snippet"]["tags"] = payload.tags
+    if payload.publish_at:
+        metadata["status"]["publishAt"] = payload.publish_at
     now = db.now()
     upload_id = str(uuid4())
     with db.connect() as conn:
         created = conn.execute(
             """INSERT OR IGNORE INTO youtube_uploads
-            (id,clip_id,asset_id,channel_id,channel_title,title,privacy_status,metadata,status,
+            (id,clip_id,asset_id,channel_id,channel_title,title,privacy_status,publish_at,metadata,status,
              file_size,file_sha256,created_at,updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 upload_id,
                 payload.clip_id,
@@ -219,6 +274,7 @@ def create_upload(payload: UploadRequest, background: BackgroundTasks):
                 channel["title"],
                 payload.title,
                 payload.privacy_status,
+                payload.publish_at,
                 json.dumps(metadata),
                 "queued",
                 size,
@@ -233,9 +289,7 @@ def create_upload(payload: UploadRequest, background: BackgroundTasks):
                 (payload.asset_id, payload.channel_id),
             ).fetchone()
         )
-    if created:
-        background.add_task(_schedule_upload, upload_id)
-    return _public(row)
+    return _public(row), bool(created)
 
 
 @router.get("/uploads")
@@ -253,7 +307,7 @@ def list_uploads(clip_id: str):
 def get_upload(upload_id: str):
     init_storage()
     row = _row(upload_id)
-    if row["status"] == "processing" and row["video_id"]:
+    if row["status"] in {"processing", "scheduled"} and row["video_id"]:
         _poll_processing(row)
         row = _row(upload_id)
     return _public(row)
@@ -263,7 +317,7 @@ def get_upload(upload_id: str):
 def retry_upload(upload_id: str, background: BackgroundTasks):
     init_storage()
     row = _row(upload_id)
-    if row["status"] in {"queued", "uploading", "processing", "completed"}:
+    if row["status"] in {"queued", "uploading", "processing", "scheduled", "completed"}:
         return _public(row)
     if not row["retryable"] or row["video_id"]:
         raise HTTPException(
@@ -415,6 +469,7 @@ def _session_url(value):
 
 
 def _start_session(client, row, mime):
+    _check_schedule(row)
     response = client.post(
         UPLOAD_URL,
         params={"uploadType": "resumable", "part": "snippet,status"},
@@ -524,6 +579,7 @@ def _transfer(client, row, stream, mime, session, offset):
         session = _start_session(client, row, mime)
     _update(row["id"], bytes_uploaded=offset, progress=100 * offset / row["file_size"])
     while offset < row["file_size"]:
+        _check_schedule(row)
         if _row(row["id"])["next_attempt_at"] > time.time():
             raise UploadFailure(
                 "YouTube asked ShortForge to pause. Retry this upload later."
@@ -647,7 +703,7 @@ def _poll_processing(row):
     now = time.time()
     with db.connect() as conn:
         claimed = conn.execute(
-            "UPDATE youtube_uploads SET process_checked_at=? WHERE id=? AND process_checked_at<? AND status='processing'",
+            "UPDATE youtube_uploads SET process_checked_at=? WHERE id=? AND process_checked_at<? AND status IN ('processing','scheduled')",
             (now, row["id"], now - POLL_SECONDS),
         ).rowcount
     if not claimed:
@@ -685,6 +741,18 @@ def _poll_processing(row):
             )
         elif status.get("uploadStatus") == "processed" or processing == "succeeded":
             fields.update(status="completed", progress=100, retryable=0)
+            if row["publish_at"] and status.get("privacyStatus") != "public":
+                try:
+                    confirmed = schedule_time(status.get("publishAt", ""))
+                except (ValueError, TypeError, AttributeError):
+                    confirmed = None
+                if confirmed == schedule_time(row["publish_at"]):
+                    fields["status"] = "scheduled"
+                else:
+                    fields.update(
+                        status="needs_attention",
+                        error="The video uploaded, but YouTube did not confirm its scheduled time. Check this video in YouTube Studio. New API projects may be restricted to private uploads until YouTube approves them.",
+                    )
         _update(row["id"], **fields)
     except UploadFailure as exc:
         _update(row["id"], error=str(exc))
@@ -692,6 +760,17 @@ def _poll_processing(row):
         _update(
             row["id"],
             error="The video was uploaded, but YouTube's processing status is unavailable. Check again shortly.",
+        )
+
+
+def _check_schedule(row):
+    if row.get("publish_at") and schedule_time(row["publish_at"]) <= datetime.now(
+        timezone.utc
+    ):
+        raise UploadFailure(
+            "The scheduled time passed before the upload finished. Choose a later time for a new attempt. Check YouTube Studio first if the final upload was already attempted.",
+            retryable=False,
+            attention=bool(row["final_attempted"]),
         )
 
 

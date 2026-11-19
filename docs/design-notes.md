@@ -1,5 +1,7 @@
 # Research and design direction
 
+Historical research for the removed browser editor. See [Concat setup](CONCAT.md) for current editing.
+
 Research on 2026-09-29, bounded to six references. Dribbble video-editor searches surfaced Flush, VEED library, and caption-dashboard work; 21st.dev public docs describe segmented lists, sidebars, and command search. Mobbin and Apple HIG pages were reachable but their detailed examples require client rendering/login; no claim to have inspected gated screens.
 
 - https://dribbble.com/search/video-editor-dashboard — media-first hierarchy and restrained editor chrome.

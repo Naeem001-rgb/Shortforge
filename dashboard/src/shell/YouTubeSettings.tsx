@@ -162,7 +162,7 @@ export function YouTubeSettings() {
     try {
       const result = await post<{ authorization_url: string }>(
         "/youtube/oauth/start",
-        {},
+        { theme: document.documentElement.dataset.theme || "system" },
       );
       const url = new URL(result.authorization_url);
       if (url.origin !== "https://accounts.google.com")

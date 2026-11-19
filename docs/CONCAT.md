@@ -7,7 +7,7 @@ ShortForge opens the real [Concat editor](https://github.com/jub0t/Concat) in it
 1. Start ShortForge normally and reload the Scout extension after updating its build.
 2. Click a saved video's picture or title in Library, or use **Edit** in table view. ShortForge shows launch progress in the current browser tab, downloads the source if needed, and opens Concat with that video on a 1080×1920 timeline.
 3. Save your changes in Concat. Clicking the same Library video again reopens that project without resetting its edits.
-4. Use Concat's **Export** controls to save the finished video to a folder on your computer.
+4. To publish, return to ShortForge's **Studio → Publish to YouTube** form. Review the details, then choose **Publish now** or **Schedule**. ShortForge renders your saved edit and uploads it. Concat's **Export** controls remain available for a separate local file.
 5. Return to ShortForge and choose **Back to Library** to select another video. The sidebar's **Studio** button opens Concat independently; **More about** and **Details** still open Library information and permission notes.
 
 Save in Concat before closing its window. Closing the browser tab does not close the native editor. Opening Studio does not download Concat's optional AI models.
@@ -49,7 +49,7 @@ Each Library clip gets an independent project under `data/concat/projects/<clip-
 
 Source acquisition or launch failures appear in Studio with a retry action. Preparing a new project uses a temporary folder and publishes it only after Concat imports, places, saves, and closes the video successfully. Existing project files are reopened without reimporting their source or resetting saved edits.
 
-File picking, editing and export use Concat's native controls on the local computer. ShortForge no longer forwards exports through a browser download. The old ShortForge Publish to YouTube/Publish kit interface was removed with the previous editor; YouTube channel Settings and backend services remain, but there is no Concat-to-publishing handoff.
+File picking and editing use Concat's native controls on the local computer. The Studio publishing form creates a per-job snapshot of the saved manifest and runs Concat's local headless renderer, then uploads the exact registered MP4. Snapshot/output files live under `data/concat/publishing/<job-id>/`; original project/media files remain unchanged. Unsaved edits are not included. Ordinary Concat exports never trigger publishing. See [YouTube setup, scheduling and recovery](YOUTUBE-PUBLISHING.md).
 
 This is a local, single-user desktop workflow. It does not provide an editor for remote website visitors.
 
@@ -61,4 +61,6 @@ The native interoperability check imports real video, checks the vertical timeli
 SHORTFORGE_TEST_CONCAT=1 .venv/bin/python -m pytest engine/core/tests/test_concat.py -q
 ```
 
-On October 25, the real Library button opened the previously selected video in desktop Concat with no new browser tab or streaming request; the saved project manifest was unchanged. The native tests passed real import/save/reopen and desktop launch checks. Linux setup checks, installer failure/retry tests, dashboard tests and both builds passed; counts are recorded in [PROGRESS.md](PROGRESS.md). The October 24 browser tests are historical evidence for the removed streaming approach. Windows/macOS installers were tested with fixtures but not executed on those systems. Full native editing/export and optional AI tools were not retested during this revert.
+On October 25, the real Library button opened the previously selected video in desktop Concat with no new browser tab or streaming request; the saved project manifest was unchanged. The native tests passed real import/save/reopen and desktop launch checks. Linux setup checks, installer failure/retry tests, dashboard tests and both builds passed. The October 24 browser tests are historical evidence for the removed streaming approach. Windows/macOS installers were tested with fixtures but not executed on those systems. Full native editing/export and optional AI tools were not retested during this revert.
+
+The November 5 publishing check ran a real Concat render on generated footage with audio, trimmed the saved timeline to half a second at 160×284, decoded the resulting MP4, verified its duration/audio/dimensions and that the original manifest stayed unchanged, and compared the result byte-for-byte with a fake YouTube upload receiver. This is native rendering/handoff evidence for a small fixture, not certification of every Concat effect, audio mix or platform. Live Google authorization and scheduled public release require the owner's connected channel.

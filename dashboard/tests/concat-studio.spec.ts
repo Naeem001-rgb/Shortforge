@@ -44,6 +44,24 @@ async function fixture(context: BrowserContext) {
   await context.route("**/api/clips", (route) =>
     route.fulfill({ json: { clips: [clip] } }),
   );
+  await context.route("**/api/studio/publishing?*", (route) =>
+    route.fulfill({
+      json: {
+        project: {
+          ready: false,
+          revision: null,
+          saved_at: null,
+          error: "Save your edit in Concat first.",
+        },
+        defaults: {
+          title: clip.title,
+          description: clip.description,
+          tags: [],
+        },
+        publications: [],
+      },
+    }),
+  );
   await context.route("**/api/studio/open", (route) => {
     const id = route.request().postDataJSON().clip_id;
     opened.push(id);

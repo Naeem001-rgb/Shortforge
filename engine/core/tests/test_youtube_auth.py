@@ -2,14 +2,16 @@
 
 import base64
 import hashlib
+import html
 import json
+import re
 from urllib.parse import parse_qs, urlsplit
 
 from fastapi import HTTPException
 import httpx
 import pytest
 
-from engine.core import db, youtube_auth as auth
+from engine.core import db, security, youtube_auth as auth
 
 
 CHANNEL_ID = "UC" + "a" * 22
@@ -160,6 +162,82 @@ def test_pkce_channel_identity_and_single_use_callback(client, google):
         == 400
     )
     assert len(google["requests"]) == 2
+
+
+@pytest.mark.parametrize("extension", [False, True])
+def test_callback_preserves_workspace_theme_and_returns_to_its_settings(
+    client, google, extension
+):
+    start(client)
+    origin = security.scout_origin() if extension else "http://127.0.0.1:8787"
+    headers = {
+        "Origin": origin,
+        "Authorization": "Bearer " + security.local_client(origin)["token"],
+    }
+    response = client.post(
+        "/api/youtube/oauth/start", json={"theme": "dark"}, headers=headers
+    )
+    state = parse_qs(urlsplit(response.json()["authorization_url"]).query)["state"][0]
+    callback = client.get(
+        "/api/youtube/oauth/callback", params={"state": state, "code": "private-code"}
+    )
+    expected = (
+        origin + ("/dashboard/index.html" if extension else "/") + "?settings=youtube"
+    )
+    assert f'href="{expected}"' in callback.text
+    assert 'data-theme="dark"' in callback.text
+    assert 'data-result="success"' in callback.text
+    assert "My chosen channel" in callback.text
+    assert "__OAUTH_" not in callback.text
+    assets = re.findall(r'(?:src|href)="(/assets/[^\"]+)"', callback.text)
+    assert assets
+    for asset in assets:
+        assert client.get(asset).status_code == 200
+    assert "unsafe-inline" not in callback.headers["content-security-policy"]
+
+
+def test_callback_escapes_channel_identity_and_never_substitutes_its_text(
+    client, google
+):
+    title = '<img src=x onerror="alert(1)"> & __OAUTH_TITLE__'
+    google["identity"]["items"][0]["snippet"]["title"] = title
+    response = connect(client)
+    assert title not in response.text
+    assert html.escape(title) in response.text
+    assert "YouTube is connected." in response.text
+
+
+def test_callback_cannot_redirect_to_an_untrusted_return_destination(client, google):
+    params = start(client)
+    with db.connect() as conn:
+        conn.execute(
+            "UPDATE youtube_oauth_states SET return_to='https://example.com/steal'"
+        )
+    response = client.get(
+        "/api/youtube/oauth/callback",
+        params={"state": params["state"][0], "code": "private-code"},
+    )
+    assert 'href="/?settings=youtube"' in response.text
+    assert "example.com/steal" not in response.text
+
+
+def test_existing_pending_connections_migrate_without_losing_their_state(client):
+    with db.connect() as conn:
+        conn.execute("DROP TABLE IF EXISTS youtube_oauth_states")
+        conn.execute(
+            "CREATE TABLE youtube_oauth_states (state_hash TEXT PRIMARY KEY, verifier TEXT NOT NULL, redirect_uri TEXT NOT NULL, client_fingerprint TEXT NOT NULL, expires_at REAL NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO youtube_oauth_states VALUES ('existing-state','verifier','uri','fingerprint',123)"
+        )
+    auth.init_storage()
+    auth.init_storage()
+    with db.connect() as conn:
+        row = conn.execute("SELECT * FROM youtube_oauth_states").fetchone()
+    assert row["state_hash"] == "existing-state"
+    assert row["verifier"] == "verifier"
+    assert row["return_to"] == "/?settings=youtube"
+    assert row["theme"] == "system"
 
 
 @pytest.mark.parametrize(

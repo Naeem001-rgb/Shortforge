@@ -42,6 +42,8 @@ export function App() {
     return () => query.removeEventListener("change", change);
   }, []);
   const [page, setPage] = useState<Page>(() => {
+    if (new URLSearchParams(location.search).get("settings") === "youtube")
+      return "settings";
     if (new URLSearchParams(location.search).has("studio")) return "studio";
     const saved = localStorage.getItem("shortforge-page");
     return ["library", "scout", "settings"].includes(saved || "")
@@ -115,6 +117,7 @@ export function App() {
     setMenu(false);
     const url = new URL(location.href);
     url.searchParams.set("studio", id || "new");
+    url.searchParams.delete("settings");
     url.hash = "";
     history.replaceState(null, "", url);
     setStudioClip(id);
@@ -230,6 +233,7 @@ export function App() {
     }
     const url = new URL(location.href);
     url.searchParams.delete("studio");
+    url.searchParams.delete("settings");
     history.replaceState(null, "", url);
     setDetail(null);
     setPage(next);
@@ -427,6 +431,7 @@ export function App() {
               autoOpen={studioAttempt > 0}
               onComplete={() => void refresh()}
               onBack={() => navigate("library")}
+              onSettings={() => navigate("settings")}
             />
           )}
           {page === "settings" && <SettingsPage health={health} />}

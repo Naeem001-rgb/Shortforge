@@ -1,6 +1,7 @@
 """No real OAuth, uploads, or background threads: exercise the saved protocol state."""
 
 import json
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
@@ -196,6 +197,121 @@ def test_valid_boundary_metadata_and_explicit_audience_required(setup):
     payload = dict(setup["payload"])
     del payload["self_declared_made_for_kids"]
     assert setup["client"].post("/api/youtube/uploads", json=payload).status_code == 422
+
+
+@pytest.mark.parametrize(
+    "value", ["2020-01-01T00:00:00Z", "2090-01-01T12:00:00", "tomorrow", "2090-01-01"]
+)
+def test_schedule_requires_a_future_instant_with_a_time_zone(setup, value):
+    response = setup["client"].post(
+        "/api/youtube/uploads", json={**setup["payload"], "publish_at": value}
+    )
+    assert response.status_code == 422
+    assert setup["scheduled"] == []
+
+
+def test_scheduled_upload_requires_private_visibility(setup):
+    response = setup["client"].post(
+        "/api/youtube/uploads",
+        json={
+            **setup["payload"],
+            "publish_at": "2090-01-01T12:00:00Z",
+            "privacy_status": "public",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_confirmed_schedule_is_distinct_from_uploaded_and_public(setup, monkeypatch):
+    scheduled = "2090-01-01T07:00:00Z"
+    public = False
+
+    def provider(request):
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "status": {
+                            "uploadStatus": "processed",
+                            "privacyStatus": "public" if public else "private",
+                            **({} if public else {"publishAt": scheduled}),
+                        },
+                        "processingDetails": {"processingStatus": "succeeded"},
+                    }
+                ]
+            },
+        )
+
+    mock_provider(monkeypatch, provider)
+    job = create(setup, publish_at="2090-01-01T12:00:00+05:00")
+    youtube_row = uploads._row(job["id"])
+    assert json.loads(youtube_row["metadata"])["status"]["publishAt"] == scheduled
+    uploads._update(job["id"], status="processing", video_id=VIDEO)
+    ready = uploads.get_upload(job["id"])
+    assert ready["status"] == "scheduled" and ready["privacy_status"] == "private"
+    assert ready["publish_at"] == scheduled
+    public = True
+    uploads._update(job["id"], process_checked_at=0)
+    released = uploads.get_upload(job["id"])
+    assert released["status"] == "completed" and released["privacy_status"] == "public"
+
+
+def test_upload_without_confirmed_schedule_never_claims_scheduled(setup, monkeypatch):
+    mock_provider(
+        monkeypatch,
+        lambda _: httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "status": {
+                            "uploadStatus": "processed",
+                            "privacyStatus": "private",
+                        }
+                    }
+                ]
+            },
+        ),
+    )
+    job = create(setup, publish_at="2090-01-01T12:00:00Z")
+    uploads._update(job["id"], status="processing", video_id=VIDEO)
+    result = uploads.get_upload(job["id"])
+    assert result["status"] == "needs_attention"
+    assert "did not confirm" in result["error"]
+    assert result["video_url"] and not result["retryable"]
+
+
+def test_expired_schedule_never_starts_a_resumable_session(setup, monkeypatch):
+    when = datetime.now(timezone.utc) + timedelta(minutes=1)
+    job = create(setup, publish_at=when.isoformat())
+
+    class LateClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return when + timedelta(seconds=1)
+
+    monkeypatch.setattr(uploads, "datetime", LateClock)
+    calls = mock_provider(
+        monkeypatch,
+        lambda request: (
+            channel_response()
+            if request.url.path.endswith("/channels")
+            else pytest.fail("No session or file request after the scheduled time")
+        ),
+    )
+    uploads._run_upload(job["id"])
+    assert len(calls) == 1
+    failed = uploads._row(job["id"])
+    assert failed["status"] == "failed" and not failed["retryable"]
+    assert "scheduled time passed" in failed["error"]
+
+
+def test_scheduling_column_is_added_to_an_existing_database(setup):
+    with db.connect() as conn:
+        conn.execute("ALTER TABLE youtube_uploads DROP COLUMN publish_at")
+    uploads.init_storage()
+    assert create(setup)["publish_at"] is None
 
 
 @pytest.mark.parametrize("kind,clip_id", [("source", "clip"), ("export", "other")])

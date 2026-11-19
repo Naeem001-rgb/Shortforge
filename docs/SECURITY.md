@@ -10,7 +10,7 @@ The launcher opens a private local HTML file, which redirects to the dashboard w
 
 Scout connects automatically when the installed Chrome extension is available in that browser. Otherwise choose **Settings → Connect Scout**. After updating an unpacked extension, reload ShortForge Scout in Chrome's Extensions page once. The extension's existing ID, settings and pending clips are preserved. A moved checkout must be loaded from its new `extension/dist` path.
 
-Each engine restart invalidates previous browser/extension credentials. Use the fresh window opened by the launcher. An unrelated local app or extension cannot obtain access merely by claiming a localhost origin. Authentication does not protect against malware already controlling your user account or browser.
+Each engine restart invalidates previous browser/extension credentials. Use the fresh window opened by the launcher. With Linux automatic startup installed, open **ShortForge** from the application menu or run `./start.sh`; this creates a fresh private connection to the background engine without restarting it or invalidating other clients. The background service does not open a browser at login. An unrelated local app or extension cannot obtain access merely by claiming a localhost origin. Authentication does not protect against malware already controlling your user account or browser.
 
 ## Protections implemented
 

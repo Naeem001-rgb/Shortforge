@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { engineFetch } from "../../shared/engine-client";
+import {
+  ENGINE_ORIGIN,
+  engineFetch,
+  inExtension,
+} from "../../shared/engine-client";
 export type Clip = {
   id: string;
   video_id: string | null;
@@ -52,10 +56,7 @@ export type Job = {
 export type Settings = Record<string, string | number | boolean>;
 // Web development uses Vite's proxy; the packaged extension connects directly
 // to the local engine. Provider keys never belong in this connection setting.
-export const API_ORIGIN =
-  typeof location !== "undefined" && location.protocol === "chrome-extension:"
-    ? "http://127.0.0.1:8787"
-    : "";
+export const API_ORIGIN = inExtension() ? ENGINE_ORIGIN : "";
 export const resolveAssetUrl = (url: string) =>
   url.startsWith("/api/") ? `${API_ORIGIN}${url}` : url;
 export function resolveResponseAssets<T>(value: T): T {

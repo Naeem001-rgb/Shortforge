@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Clip } from "../api";
 import { useJob } from "../api";
 import { JobProgress, Notice } from "../ui";
+import { Publishing } from "./Publishing";
 import "./studio.css";
 
 export function StudioPage({
@@ -16,12 +17,14 @@ export function StudioPage({
   autoOpen,
   onComplete,
   onBack,
+  onSettings,
 }: {
   clip?: Clip;
   clipId: string;
   autoOpen: boolean;
   onComplete: () => void;
   onBack: () => void;
+  onSettings: () => void;
 }) {
   const {
     job,
@@ -108,6 +111,9 @@ export function StudioPage({
           </button>
         </div>
       </div>
+      {clipId && (
+        <Publishing key={clipId} clipId={clipId} onSettings={onSettings} />
+      )}
     </section>
   );
 }

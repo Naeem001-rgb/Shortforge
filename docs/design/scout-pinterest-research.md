@@ -8,7 +8,7 @@ The user asked to replace the basic extension panel using Pinterest ideas. This 
 - [Dark Reader extension popup](https://www.pinterest.com/pin/680676931154701801/): aligned controls and economical grouping. Scout keeps its own readable type and comfortable targets instead of copying the older dense styling.
 - [Dark analytics dashboard](https://www.pinterest.com/pin/493988652870598308/): neutral surface layers and violet focus. Scout uses those principles without decorative graphs or invented statistics.
 
-Pinterest page previews were downloaded and visually inspected under `.impeccable/research/scout/`. They are research references, not bundled artwork. The regular browser surface was unavailable and the web fetcher rejected the pin pages; public Pinterest page metadata and preview images were accessible with a normal read-only request.
+Pinterest page previews were downloaded and visually inspected during this research. They are research references, not bundled artwork. The regular browser surface was unavailable and the web fetcher rejected the pin pages; public Pinterest page metadata and preview images were accessible with a normal read-only request.
 
 ## Applied principles
 
@@ -23,4 +23,4 @@ Pinterest page previews were downloaded and visually inspected under `.impeccabl
 9. Pair light/dark colors while preserving the layout.
 10. Bundle the existing open-license Inter font locally; no runtime font or artwork requests.
 
-The three patterns are a compact branded header with a named Library action, a native radio selector with clear selected surfaces, and grouped criteria above a persistent session-control dock. The surface contract is `.impeccable/surfaces/extension-static-popup-html.md`.
+The three patterns are a compact branded header with a named Library action, a native radio selector with clear selected surfaces, and grouped criteria above a persistent session-control dock.

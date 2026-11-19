@@ -54,6 +54,7 @@ async function main() {
       "src",
       "public",
       "index.html",
+      "oauth.html",
       "vite.config.ts",
       "tsconfig.json",
       "package.json",

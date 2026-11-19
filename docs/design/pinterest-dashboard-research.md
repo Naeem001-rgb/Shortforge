@@ -36,4 +36,4 @@ Direct Pinterest search returned a signed-out JavaScript shell. The agents used 
 
 Coursie's saved pin title is “Corporate Website”; its image identifies the product as Coursie. Robovision's fetched pin identifies [1123437069579125613](https://in.pinterest.com/pin/1123437069579125613/) as its canonical page. EditorPro is identified by its visible product name and image hash `300ff5386413c6edf71f9fc563c712f7`; no pin ID was invented.
 
-The [machine-readable list](pinterest-dashboard-references.json) retains source URLs. Full reports: [SaaS and workspace](research-saas.md), [dashboard and productivity](research-dashboard.md), [creator and media](research-creator.md).
+The [machine-readable list](pinterest-dashboard-references.json) retains source URLs.

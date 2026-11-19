@@ -9,18 +9,20 @@ import hashlib
 import html
 import json
 import os
+from pathlib import Path
 import re
 import secrets
 import threading
 import time
+from typing import Literal
 from urllib.parse import urlencode, urlsplit
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
-from . import db
+from . import db, security
 
 
 router = APIRouter(prefix="/api/youtube", tags=["YouTube publishing"])
@@ -38,7 +40,9 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS youtube_oauth_states (
     state_hash TEXT PRIMARY KEY, verifier TEXT NOT NULL,
     redirect_uri TEXT NOT NULL, client_fingerprint TEXT NOT NULL,
-    expires_at REAL NOT NULL
+    expires_at REAL NOT NULL,
+    return_to TEXT NOT NULL DEFAULT '/?settings=youtube',
+    theme TEXT NOT NULL DEFAULT 'system'
 );
 CREATE TABLE IF NOT EXISTS youtube_channels (
     id TEXT PRIMARY KEY, title TEXT NOT NULL, thumbnail_url TEXT NOT NULL,
@@ -51,8 +55,20 @@ CREATE TABLE IF NOT EXISTS youtube_channels (
 
 def init_storage() -> None:
     # Do not cache initialization: tests and local installations can change DATA_DIR.
-    with db.connect() as conn:
+    with _auth_lock, db.connect() as conn:
         conn.executescript(SCHEMA)
+        columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(youtube_oauth_states)")
+        }
+        if "return_to" not in columns:
+            conn.execute(
+                "ALTER TABLE youtube_oauth_states ADD COLUMN return_to TEXT NOT NULL DEFAULT '/?settings=youtube'"
+            )
+        if "theme" not in columns:
+            conn.execute(
+                "ALTER TABLE youtube_oauth_states ADD COLUMN theme TEXT NOT NULL DEFAULT 'system'"
+            )
 
 
 def _credentials() -> tuple[str, str]:
@@ -347,8 +363,20 @@ def channels():
     }
 
 
+class OAuthAppearance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    theme: Literal["light", "dark", "system"] = "system"
+
+
+def _settings_return(origin: str | None) -> str:
+    if origin and security.allowed_origin(origin):
+        path = "/dashboard/index.html" if origin == security.scout_origin() else "/"
+        return origin + path + "?settings=youtube"
+    return "/?settings=youtube"
+
+
 @router.post("/oauth/start")
-def start():
+def start(request: Request, body: OAuthAppearance | None = None):
     with _auth_lock:
         init_storage()
         credentials = _credentials()
@@ -374,13 +402,19 @@ def start():
                 "(SELECT state_hash FROM youtube_oauth_states ORDER BY expires_at DESC LIMIT 9)"
             )
             conn.execute(
-                "INSERT INTO youtube_oauth_states VALUES (?,?,?,?,?)",
+                "INSERT INTO youtube_oauth_states "
+                "(state_hash,verifier,redirect_uri,client_fingerprint,expires_at,return_to,theme) "
+                "VALUES (?,?,?,?,?,?,?)",
                 (
                     hashlib.sha256(state.encode()).hexdigest(),
                     db.protect_secret(verifier),
                     redirect_uri,
                     _fingerprint(credentials),
                     time.time() + STATE_LIFETIME,
+                    _settings_return(
+                        request.headers.get("origin") or request.state.client["origin"]
+                    ),
+                    body.theme if body else "system",
                 ),
             )
     return {
@@ -402,19 +436,71 @@ def start():
     }
 
 
-def _callback_page(message: str, status_code: int = 200) -> HTMLResponse:
+def _callback_page(
+    message: str,
+    status_code: int = 200,
+    *,
+    result: str = "error",
+    return_to: str = "/?settings=youtube",
+    theme: str = "system",
+    channel_title: str = "",
+) -> HTMLResponse:
+    titles = {
+        "success": "YouTube is connected.",
+        "cancelled": "Connection cancelled.",
+        "expired": "This link has expired.",
+        "error": "Let’s try that again.",
+    }
+    title = titles.get(result, titles["error"])
+    # Only a known local workspace can be a return destination, even if a stale
+    # or damaged pending record is read. Google query parameters never set it.
+    parsed = urlsplit(return_to)
+    allowed_return = _settings_return(f"{parsed.scheme}://{parsed.netloc}")
+    if return_to != allowed_return:
+        return_to = "/?settings=youtube"
+    template_path = (
+        Path(__file__).resolve().parents[2] / "extension/dist/dashboard/oauth.html"
+    )
+    try:
+        template = template_path.read_text()
+        # Vite's relative base also supports packaged extension pages. This
+        # template is returned at a nested API URL, so its assets start at /.
+        template = template.replace('src="./', 'src="/').replace('href="./', 'href="/')
+    except FileNotFoundError:
+        # API-only installations still get an honest result and recovery path.
+        template = (
+            '<!doctype html><html lang="en"><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            "<title>__OAUTH_TITLE__ · ShortForge</title><body>"
+            "<h1>__OAUTH_TITLE__</h1><p>__OAUTH_MESSAGE__</p>"
+            '<a href="__OAUTH_RETURN__">Back to Settings</a></body></html>'
+        )
+    values = {
+        "TITLE": title,
+        "MESSAGE": message,
+        "RESULT": result if result in titles else "error",
+        "RETURN": return_to,
+        "THEME": theme if theme in {"light", "dark"} else "system",
+        "CHANNEL": channel_title,
+        "CHANNEL_HIDDEN": "" if result == "success" and channel_title else "hidden",
+    }
+    content = re.sub(
+        r"__OAUTH_([A-Z_]+)__",
+        lambda match: html.escape(values[match[1]], quote=True),
+        template,
+    )
     return HTMLResponse(
-        "<!doctype html><html lang='en'><meta charset='utf-8'>"
-        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-        "<title>ShortForge · YouTube connection</title><body>"
-        "<h1>ShortForge · YouTube connection</h1><p>" + html.escape(message) + "</p>"
-        "<p>You can close this tab and return to ShortForge Settings.</p></body></html>",
+        content,
         status_code=status_code,
         headers={
             "Cache-Control": "no-store",
             "Pragma": "no-cache",
             "Referrer-Policy": "no-referrer",
-            "Content-Security-Policy": "default-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+            "Content-Security-Policy": (
+                "default-src 'none'; script-src 'self'; style-src 'self'; "
+                "font-src 'self'; img-src 'self'; base-uri 'none'; "
+                "form-action 'none'; frame-ancestors 'none'"
+            ),
         },
     )
 
@@ -427,6 +513,7 @@ def callback(state: str = "", code: str = "", error: str = ""):
             return _callback_page(
                 "This connection request is invalid or expired. Start again in Settings.",
                 400,
+                result="expired",
             )
         state_hash = hashlib.sha256(state.encode()).hexdigest()
         with db.connect() as conn:
@@ -439,6 +526,14 @@ def callback(state: str = "", code: str = "", error: str = ""):
                 "DELETE FROM youtube_oauth_states WHERE state_hash=?", (state_hash,)
             )
         credentials = _credentials()
+        appearance = (
+            {
+                "return_to": pending["return_to"],
+                "theme": pending["theme"],
+            }
+            if pending
+            else {}
+        )
         if (
             pending is None
             or pending["expires_at"] <= time.time()
@@ -447,16 +542,21 @@ def callback(state: str = "", code: str = "", error: str = ""):
             return _callback_page(
                 "This connection request is invalid or expired. Start again in Settings.",
                 400,
+                result="expired",
+                **appearance,
             )
         if error:
             return _callback_page(
                 "YouTube connection was cancelled or denied. No new channel was connected.",
                 400,
+                result="cancelled",
+                **appearance,
             )
         if not code or len(code) > 8192:
             return _callback_page(
                 "Google did not supply a usable connection code. Start again in Settings.",
                 400,
+                **appearance,
             )
         try:
             result = _google_json(
@@ -508,9 +608,12 @@ def callback(state: str = "", code: str = "", error: str = ""):
                     ),
                 )
         except HTTPException as exc:
-            return _callback_page(exc.detail, exc.status_code)
+            return _callback_page(exc.detail, exc.status_code, **appearance)
         return _callback_page(
-            "Your YouTube channel is connected. Review its name in ShortForge before publishing."
+            "Review your channel in Settings, then choose a video to publish or schedule.",
+            result="success",
+            channel_title=identity["title"],
+            **appearance,
         )
 
 

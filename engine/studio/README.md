@@ -13,5 +13,3 @@ Studio now opens the native Concat desktop editor. This package retains local me
 FFmpeg and FFprobe discovery is shared with `engine/core/media.py`. Optional models are never installed by a page visit or scouting request. See [Scout speech setup](SCOUT_SPEECH.md), [Concat integration](../../docs/CONCAT.md), and [test instructions](../../docs/TESTING.md).
 
 Run `.venv/bin/python -m pytest engine/studio -q` from the project root after installing `requirements-dev.txt`. Tests generate their own media; optional installed-model checks may skip.
-
-The removed renderer's documentation is [archived](../../docs/archive/browser-editor/LEGACY-ENGINE.md).

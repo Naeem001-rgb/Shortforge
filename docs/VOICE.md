@@ -11,7 +11,7 @@ The dashboard no longer includes script rewriting, voice generation or the brows
 
 Use an environment supported by the optional package; the engine itself targets Python 3.11+. Install only the providers you need from `engine/requirements-optional.txt`. No page visit, capability check or generation request downloads models automatically. Model installation is a separate explicit step.
 
-The old `engine/studio/setup_transcription.py` installer was removed with the browser editor. Its former UI and setup instructions are [historical](archive/browser-editor/VOICE.md).
+The old `engine/studio/setup_transcription.py` installer was removed with the browser editor.
 
 ## Scout screening
 

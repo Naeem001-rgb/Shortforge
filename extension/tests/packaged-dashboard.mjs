@@ -77,6 +77,12 @@ await context.route("http://127.0.0.1:8787/api/**", async (route) => {
   if (path === "/clips") json = { clips: [clip] };
   else if (path === "/health")
     json = { status: "ok", tools: {}, version: "test" };
+  else if (path === "/youtube/channels")
+    json = {
+      configured: false,
+      channels: [],
+      redirect_uri: "http://127.0.0.1:8787/api/youtube/oauth/callback",
+    };
   else if (path === `/clips/${clip.id}`) json = clip;
   else if (path === "/studio/open") {
     const body = route.request().postDataJSON();
@@ -121,6 +127,21 @@ try {
     });
   });
   const page = await context.newPage();
+  await context.route("http://127.0.0.1:8787/fixture-return", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: `<a href="chrome-extension://${id}/dashboard/index.html?settings=youtube">Back to Settings</a>`,
+    }),
+  );
+  await page.goto("http://127.0.0.1:8787/fixture-return");
+  await page.getByRole("link", { name: "Back to Settings" }).click();
+  await page
+    .getByRole("heading", { name: "YouTube publishing", exact: true })
+    .waitFor();
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByTitle("Library", { exact: true })
+    .click();
   await page.goto(`chrome-extension://${id}/dashboard/index.html`);
   await page
     .getByRole("heading", { name: "Your library", exact: true })

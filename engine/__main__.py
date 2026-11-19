@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import os
 from pathlib import Path
 import socket
@@ -9,6 +10,8 @@ import shutil
 from threading import Thread
 import time
 import webbrowser
+from urllib.error import URLError
+from urllib.request import ProxyHandler, build_opener
 
 from dotenv import load_dotenv
 
@@ -18,15 +21,65 @@ if environment_file.is_file() and not environment_file.is_symlink() and os.name 
 load_dotenv(environment_file)
 
 
+def open_connected_dashboard():
+    from engine.core import security
+
+    url = security.launch_file().as_uri()
+    browser = webbrowser
+    for name in ("google-chrome", "chromium", "chromium-browser"):
+        if shutil.which(name):
+            try:
+                browser = webbrowser.get(name)
+                break
+            except webbrowser.Error:
+                pass
+    if not browser.open_new_tab(url):
+        print(
+            "Open this private, one-use link within five minutes:\n" + url, flush=True
+        )
+
+
+def wait_for_engine(timeout=120):
+    # Ignore proxy settings: this check must reach the loopback listener directly.
+    opener = build_opener(ProxyHandler({}))
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with opener.open("http://127.0.0.1:8787/api/health", timeout=2) as response:
+                health = json.load(response)
+            if (
+                isinstance(health, dict)
+                and health.get("status") == "ok"
+                and health.get("version") == "0.2.0"
+                and isinstance(health.get("runtime"), dict)
+                and health["runtime"].get("started_at")
+            ):
+                return
+            raise SystemExit("Port 8787 is occupied by an unrecognized server.")
+        except (URLError, OSError, ValueError):
+            time.sleep(0.25)
+    raise SystemExit(
+        "ShortForge did not become ready. Check: journalctl --user -u shortforge.service -n 50"
+    )
+
+
 def main():
     import uvicorn
-    from engine.core import security
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--open", action="store_true", help="Open a connected dashboard."
     )
+    parser.add_argument(
+        "--open-existing",
+        action="store_true",
+        help="Open a fresh connection to the running background engine.",
+    )
     args = parser.parse_args()
+    if args.open_existing:
+        wait_for_engine()
+        open_connected_dashboard()
+        return
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
@@ -54,24 +107,11 @@ def main():
     def open_dashboard():
         for _ in range(120):
             if server.started:
-                url = security.launch_file().as_uri()
                 print(
                     "ShortForge: opening your connected workspace. Press Ctrl+C to stop.",
                     flush=True,
                 )
-                browser = webbrowser
-                for name in ("google-chrome", "chromium", "chromium-browser"):
-                    if shutil.which(name):
-                        try:
-                            browser = webbrowser.get(name)
-                            break
-                        except webbrowser.Error:
-                            pass
-                if not browser.open_new_tab(url):
-                    print(
-                        "Open this private, one-use link within five minutes:\n" + url,
-                        flush=True,
-                    )
+                open_connected_dashboard()
                 return
             if server.should_exit:
                 return
