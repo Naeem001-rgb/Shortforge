@@ -11,4 +11,6 @@ if errorlevel 1 exit /b 1
 if errorlevel 1 echo Concat setup needs attention; Library and Scout will still start. Restart ShortForge to retry.
 call npm --prefix extension run build -- --if-needed
 if errorlevel 1 exit /b 1
+.venv\Scripts\python.exe -m engine.scout_host --install
+if errorlevel 1 exit /b 1
 .venv\Scripts\python.exe -m engine --open

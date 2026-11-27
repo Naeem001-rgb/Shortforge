@@ -3,7 +3,7 @@
   "name": "ShortForge Scout",
   "version": "0.5.1",
   "description": "Discover YouTube Shorts and Instagram Reels, manage your Library, and open saved videos in Concat Studio with your local engine.",
-  "permissions": ["storage", "tabs", "alarms"],
+  "permissions": ["storage", "tabs", "alarms", "nativeMessaging"],
   "host_permissions": ["http://127.0.0.1:8787/*", "http://localhost:8787/*"],
   "externally_connectable": {
     "matches": ["http://127.0.0.1/*", "http://localhost/*"]

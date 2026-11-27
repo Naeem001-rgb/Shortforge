@@ -9,6 +9,8 @@ cd ShortForge
 ./start.sh
 ```
 
+Click **ShortForge Scout → Library** in Chrome to open this workspace. Scout connects automatically and starts the local engine when needed.
+
 The launcher opens a privately connected window at **http://127.0.0.1:8787**. The header should say **Engine connected**. Normal startup installs the app dependencies and automatically downloads and verifies Concat when it is missing on a supported platform. You do not need to install Concat separately. Later launches reuse verified runtimes and the reviewed dependency lock. Startup does not download speech models. Without automatic startup, Ctrl+C stops the engine; save your Concat edits before closing its window.
 
 Automatic startup is installed on this machine. ShortForge runs in the background after desktop login, survives closing the terminal or browser, and restarts after a crash. Open **ShortForge** from the application menu or use `./start.sh` to open a fresh private connection to the same engine. It does not open a browser automatically at login.

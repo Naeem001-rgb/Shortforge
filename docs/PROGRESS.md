@@ -2,6 +2,10 @@
 
 Dated milestones for the local, single-user application. Linked validation reports describe checks performed on those dates; see [Testing](TESTING.md) for current commands and limits.
 
+## November 28, 2026 — Scout Library connection
+
+The installed Chrome extension can open the Library, start a stopped engine and reconnect its private session automatically.
+
 ## November 10, 2026 — Cleanup and scaling review
 
 Removed redundant styles and Scout halt sequences, batched publishing-history reads, and reused publishing draft initialization, date formatters and saved-manifest bytes. See the [cleanup report](CLEANUP-2026-11-10.md) for measurements, historical test results, optional checks and the limits of public multi-user hosting.

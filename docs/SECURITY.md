@@ -2,6 +2,8 @@
 
 Updated November 2, 2026. ShortForge is a local, single-user application. These protections reduce specific risks; they do not make the computer or third-party software impossible to compromise.
 
+The Scout Library button can start the engine and renew the extension’s own session through a user-installed Chrome native messaging host. Only the extension ID for this checkout is allowed. Connection credentials stay in trusted extension storage.
+
 ## Using the protected workspace
 
 Start with `start.sh` or `start.bat`. The launcher opens a connected dashboard at **http://127.0.0.1:8787**. Normal startup serves the built dashboard rather than a Vite development server.

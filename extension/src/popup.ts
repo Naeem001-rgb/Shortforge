@@ -297,22 +297,15 @@ button("clear-mode").addEventListener("click", () => {
     option.checked = false;
   byId("settings").dispatchEvent(new Event("change", { bubbles: true }));
 });
-const START_HINT =
-  "ShortForge is not running. Open the ShortForge folder, run ./start.sh (Windows: double-click start.bat), leave that window open, then click again.";
-// The dashboard is packaged with the extension. Only the engine must be running.
 button("dashboard").addEventListener("click", async () => {
   error();
   button("dashboard").disabled = true;
   try {
-    const response = await fetch("http://127.0.0.1:8787/api/health", {
-      signal: AbortSignal.timeout(2500),
-    });
-    if (!response.ok) throw new Error(START_HINT);
     await chrome.tabs.create({
       url: chrome.runtime.getURL("dashboard/index.html"),
     });
   } catch {
-    error(START_HINT);
+    error("Chrome could not open the Library tab. Try again.");
   } finally {
     button("dashboard").disabled = false;
   }
