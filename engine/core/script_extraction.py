@@ -307,6 +307,7 @@ def gemini_transcript(video_id: str, settings: dict) -> dict:
         "If there is no intelligible speech, return an empty text string. Do not invent missing speech."
     )
     payload = {
+        "systemInstruction": {"parts": [{"text": prompt}]},
         "contents": [
             {
                 "role": "user",
@@ -316,7 +317,6 @@ def gemini_transcript(video_id: str, settings: dict) -> dict:
                             "fileUri": f"https://www.youtube.com/watch?v={video_id}"
                         }
                     },
-                    {"text": prompt},
                 ],
             }
         ],
@@ -360,7 +360,7 @@ def gemini_transcript(video_id: str, settings: dict) -> dict:
         ) from None
     try:
         candidate = body["candidates"][0]
-        if candidate.get("finishReason") not in {None, "STOP"}:
+        if candidate.get("finishReason") != "STOP":
             raise ValueError(
                 "Gemini did not finish the transcript. Retry or paste the complete narration."
             )

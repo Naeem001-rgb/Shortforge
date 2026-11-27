@@ -1,5 +1,9 @@
 # ShortForge progress
 
+## November 28, 2026 — Gemini request handling
+
+Separated application instructions from source text, earlier drafts, topic metadata, language preferences and video input in the Gemini writing and transcription requests. Generated narration stays within the 30,000-character script limit. Regression tests inspect the outgoing provider messages for both writing modes, retries and transcription.
+
 ## November 2, 2026 — Local security hardening
 
 Added authenticated local clients, exact origin checks, one-use browser/Scout pairing and restart revocation. The normal launcher now serves the production dashboard on port 8787 and opens a private local redirect file, keeping the connection secret out of process arguments and HTTP URL logs. Scout's existing extension ID, preferences and pending clips are retained. Media links carry scoped, expiring signatures; cached jobs refresh those links after restart.

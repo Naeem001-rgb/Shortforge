@@ -434,13 +434,19 @@ def test_explicit_gemini_uses_video_not_metadata_and_preserves_original_language
     def post(url, **kwargs):
         assert kwargs["headers"]["x-goog-api-key"] == "key-test"
         assert "key-test" not in url
-        parts = kwargs["json"]["contents"][0]["parts"]
-        assert (
-            parts[0]["fileData"]["fileUri"]
-            == f"https://www.youtube.com/watch?v={VIDEO_ID}"
-        )
-        assert "verbatim" in parts[1]["text"]
-        assert "Do not translate" in parts[1]["text"]
+        payload = kwargs["json"]
+        (message,) = payload["contents"]
+        assert message == {
+            "role": "user",
+            "parts": [
+                {"fileData": {"fileUri": f"https://www.youtube.com/watch?v={VIDEO_ID}"}}
+            ],
+        }
+        instruction = payload["systemInstruction"]["parts"][0]["text"]
+        assert "verbatim" in instruction
+        assert "Do not translate" in instruction
+        assert VIDEO_ID not in instruction
+        assert "tools" not in payload
         assert clip["title"] not in json.dumps(kwargs["json"])
         return httpx.Response(
             200,
@@ -473,7 +479,8 @@ def test_explicit_gemini_uses_video_not_metadata_and_preserves_original_language
 
 
 @pytest.mark.parametrize(
-    "content,reason", [("", "STOP"), ("Some speech", "MAX_TOKENS")]
+    "content,reason",
+    [("", "STOP"), ("Some speech", "MAX_TOKENS"), ("Partial speech", None)],
 )
 def test_gemini_rejects_empty_or_truncated_transcript(monkeypatch, content, reason):
     response = httpx.Response(
