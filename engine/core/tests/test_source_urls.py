@@ -250,23 +250,15 @@ def test_reel_download_uses_canonical_instagram_transport_and_saves_asset(
     assert db.get_clip(clip["id"])["license_status"] == "unknown"
 
 
-@pytest.mark.parametrize("provider", ["auto", "gemini"])
-def test_reel_script_extraction_does_not_send_instagram_to_youtube(
-    client, monkeypatch, provider
-):
+def test_reel_script_extraction_does_not_send_instagram_to_youtube(client, monkeypatch):
     clip = import_reel(client)
     monkeypatch.setattr(
         script_extraction,
         "youtube_captions",
         lambda *_: pytest.fail("Not a YouTube clip"),
     )
-    monkeypatch.setattr(
-        script_extraction,
-        "gemini_transcript",
-        lambda *_: pytest.fail("Instagram URLs are not Gemini YouTube input"),
-    )
     response = client.post(
-        f"/api/clips/{clip['id']}/extract-script", json={"provider": provider}
+        f"/api/clips/{clip['id']}/extract-script", json={"provider": "auto"}
     )
     job = client.get(f"/api/jobs/{response.json()['id']}").json()
     assert job["status"] == "failed", job

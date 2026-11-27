@@ -1,8 +1,8 @@
 # ShortForge progress
 
-## November 28, 2026 — Gemini request handling
+## November 28, 2026 — Retired Gemini integration
 
-Separated application instructions from source text, earlier drafts, topic metadata, language preferences and video input in the Gemini writing and transcription requests. Generated narration stays within the 30,000-character script limit. Regression tests inspect the outgoing provider messages for both writing modes, retries and transcription.
+Removed cloud script generation and video transcription, the provider’s settings and setup links. Upgrades delete its saved key and model. Existing scripts remain editable. Extraction continues to use saved text, public YouTube captions and local Whisper.
 
 ## November 2, 2026 — Local security hardening
 

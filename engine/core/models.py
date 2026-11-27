@@ -48,7 +48,7 @@ class TranscribeInput(StrictModel):
 
 
 class ExtractScriptInput(StrictModel):
-    provider: Literal["auto", "gemini"] = "auto"
+    provider: Literal["auto"] = "auto"
     replace_existing: bool = False
 
 
@@ -93,10 +93,6 @@ class TranscriptInput(StrictModel):
 
 
 class SettingsPatch(StrictModel):
-    gemini_model: str | None = Field(
-        default=None, min_length=1, max_length=150, pattern=r"^[a-zA-Z0-9._-]+$"
-    )
-    gemini_api_key: str | None = Field(default=None, max_length=500)
     youtube_api_key: str | None = Field(default=None, max_length=500)
     elevenlabs_api_key: str | None = Field(default=None, max_length=500)
     niche: str | None = Field(default=None, max_length=1000)

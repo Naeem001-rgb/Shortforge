@@ -246,7 +246,6 @@ class WorkLimitMiddleware:
                     "/api/upload",
                     "/api/voices/clone",
                     "/api/tts",
-                    "/api/rewrite",
                     "/api/studio/open",
                     "/api/scout/caption-check",
                 }

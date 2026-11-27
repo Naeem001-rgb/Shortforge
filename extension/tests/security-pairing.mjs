@@ -20,7 +20,6 @@ const environment = {
   PYTHONDONTWRITEBYTECODE: "1",
 };
 for (const key of [
-  "GEMINI_API_KEY",
   "YOUTUBE_API_KEY",
   "ELEVENLABS_API_KEY",
   "YOUTUBE_CLIENT_ID",

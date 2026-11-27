@@ -30,7 +30,7 @@ Follow the user's requested scope. Verify behaviour in the implementation when a
 - **Screening:** maintain full-duration coverage and the existing OCR sample interval/thresholds. Unreadable frames, incomplete tails and unverifiable speech must not pass. Early speech rejection reports zero OCR frames and unknown caption measurements. Optional models require explicit setup; scouting never downloads them automatically.
 - **Rights:** permission and credit are metadata, not an editing/download gate. Never promote an unknown external source to owned. Attribution is not permission.
 - **Publishing:** YouTube channel Settings and backend services remain. The old Publish kit UI and Concat-to-publishing handoff are absent. Opening, editing or exporting a video must never automatically publish it.
-- **AI interface:** script rewriting, AI voice generation and the former SEO workflow are not dashboard features. Retained backend routes do not imply a current interface or Concat integration.
+- **AI interface:** script rewriting, AI voice generation and the former SEO workflow are not dashboard features. The backend supports manual script storage and voice generation.
 
 ## 3. Code ownership map
 
@@ -46,7 +46,7 @@ Follow the user's requested scope. Verify behaviour in the implementation when a
 | OCR/speech workers | `engine/core/scout_routes.py`, `engine/studio/scout_captions.py`, `scout_speech.py` |
 | Concat preparation and launch | `engine/core/concat.py`, `concat_rpc.py`, `scripts/setup-concat.py` |
 | YouTube services | `engine/core/youtube_auth.py`, `youtube_uploads.py` |
-| Retained AI services | `engine/ai/routes.py`, `writing.py`, `voice.py` |
+| Script storage and voice services | `engine/ai/routes.py`, `voice.py` |
 | Build and startup | `extension/build.mjs`, `start.sh`, `start.bat` |
 
 ## 4. Make the smallest complete change

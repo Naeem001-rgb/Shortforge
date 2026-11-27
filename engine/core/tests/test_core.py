@@ -195,37 +195,19 @@ def test_unknown_source_can_store_transcripts_without_fabricating_permission(
     assert result["permission_note"] == ""
 
 
-def test_library_reference_can_rewrite_script_without_unlocking_footage(
-    client, monkeypatch
-):
-    from engine.ai import routes as writing_routes
-
-    clip = import_one(client)
-    received = []
-
-    def generate(text, settings):
-        received.append(text)
-        return {
-            "original_text": text,
-            "rewritten_text": "Different narration",
-            "words_original": 2,
-            "words_rewritten": 2,
-            "within_tolerance": True,
-            "exact_word_count": True,
-            "attempts": 1,
-        }
-
-    monkeypatch.setattr(writing_routes, "rewrite_script", generate)
-    response = client.post(
-        "/api/rewrite",
-        json={"clip_id": clip["id"], "text": "Existing narration", "mode": "rewrite"},
+def test_generated_writing_removed_and_saved_scripts_still_editable(client):
+    clip_id = import_one(client)["id"]
+    saved = {"original_text": "Original narration", "rewritten_text": "My own draft"}
+    assert client.put(f"/api/scripts/{clip_id}", json=saved).status_code == 200
+    assert (
+        client.post(
+            "/api/rewrite", json={"clip_id": clip_id, "text": "New text"}
+        ).status_code
+        == 404
     )
-    assert response.status_code == 200
-    assert received == ["Existing narration"]
-    detail = client.get(f"/api/clips/{clip['id']}").json()
-    assert detail["script"]["original_text"] == "Existing narration"
+    detail = client.get(f"/api/clips/{clip_id}").json()
+    assert detail["script"]["rewritten_text"] == saved["rewritten_text"]
     assert detail["license_status"] == "unknown"
-    assert db.require_editable(clip["id"])["license_status"] == "unknown"
 
 
 def test_uploaded_video_is_owned_and_can_be_served_with_ranges(client):
@@ -286,21 +268,21 @@ def test_unknown_rights_do_not_block_existing_local_files(client):
 def test_settings_never_echo_keys_and_unknown_fields_are_rejected(client):
     key = "my-super-secret-api-key"
     response = client.put(
-        "/api/settings", json={"gemini_api_key": key, "scout_mode": "narrated"}
+        "/api/settings", json={"elevenlabs_api_key": key, "scout_mode": "narrated"}
     )
     assert response.status_code == 200
     assert key not in response.text
-    assert response.json()["gemini_api_key_set"] is True
+    assert response.json()["elevenlabs_api_key_set"] is True
     assert key not in client.get("/api/settings").text
-    assert db.get_settings()["gemini_api_key"] == key
+    assert db.get_settings()["elevenlabs_api_key"] == key
     rejected = client.put(
-        "/api/settings", json={"gemini_api_key": key, "anything": key}
+        "/api/settings", json={"elevenlabs_api_key": key, "anything": key}
     )
     assert rejected.status_code == 422
     assert key not in rejected.text
     assert (
-        client.put("/api/settings", json={"gemini_api_key": ""}).json()[
-            "gemini_api_key_set"
+        client.put("/api/settings", json={"elevenlabs_api_key": ""}).json()[
+            "elevenlabs_api_key_set"
         ]
         is False
     )
@@ -382,7 +364,7 @@ def test_transcript_validation_and_persistence(client):
 
 
 def test_job_updates_mask_secrets_and_sse_finishes(client):
-    client.put("/api/settings", json={"gemini_api_key": "secret-123"})
+    client.put("/api/settings", json={"elevenlabs_api_key": "secret-123"})
     job = db.new_job("test", None)
     db.update_job(
         job["id"], status="failed", progress=120, error="Provider leaked secret-123"

@@ -511,7 +511,6 @@ def extract_script(
         script_extraction.extract_script_job,
         job["id"],
         clip_id,
-        body.provider,
         body.replace_existing,
     )
     return job
