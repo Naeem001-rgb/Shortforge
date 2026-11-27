@@ -1,1 +1,1 @@
-"""Optional writing and voice tools; models are never downloaded automatically."""
+"""Optional voice tools with explicit model setup."""

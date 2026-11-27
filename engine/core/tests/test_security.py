@@ -234,13 +234,14 @@ def test_dashboard_cannot_be_framed_and_has_no_external_script_permission(client
 def test_settings_are_encrypted_and_reserved_prefix_is_treated_as_user_data(client):
     secret = PREFIX + "a-literal-user-key"
     assert (
-        client.put("/api/settings", json={"gemini_api_key": secret}).status_code == 200
+        client.put("/api/settings", json={"elevenlabs_api_key": secret}).status_code
+        == 200
     )
-    assert db.get_settings()["gemini_api_key"] == secret
+    assert db.get_settings()["elevenlabs_api_key"] == secret
     with db.connect() as connection:
         stored = json.loads(
             connection.execute(
-                "SELECT value FROM settings WHERE key='gemini_api_key'"
+                "SELECT value FROM settings WHERE key='elevenlabs_api_key'"
             ).fetchone()[0]
         )
     assert stored.startswith(PREFIX) and secret not in stored
@@ -248,12 +249,52 @@ def test_settings_are_encrypted_and_reserved_prefix_is_treated_as_user_data(clie
     assert secret not in client.get("/api/settings").text
 
 
+def test_retired_writing_settings_are_purged_on_upgrade(client, monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "ignored-env-key")
+    clip = client.post(
+        "/api/clips", json={"clips": [{"video_id": "abcdefghijk"}]}
+    ).json()["clips"][0]
+    db.save_script(clip["id"], "Saved source", "Saved draft")
+    assert (
+        client.put("/api/settings", json={"niche": "Keep this preference"}).status_code
+        == 200
+    )
+    for key in ("gemini_api_key", "gemini_model"):
+        assert client.put("/api/settings", json={key: "retired"}).status_code == 422
+    for value in ("old-key", db.protect_secret("old-key")):
+        with db.connect() as conn:
+            conn.executemany(
+                "INSERT INTO settings(key,value) VALUES(?,?)",
+                [
+                    ("gemini_api_key", json.dumps(value)),
+                    ("gemini_model", json.dumps("old-model")),
+                ],
+            )
+        db.migrate_secrets()
+        db.migrate_secrets()
+        with db.connect() as conn:
+            assert (
+                conn.execute(
+                    "SELECT COUNT(*) FROM settings WHERE key IN ('gemini_api_key','gemini_model')"
+                ).fetchone()[0]
+                == 0
+            )
+    assert "gemini_api_key" not in db.get_settings()
+    public = client.get("/api/settings").json()
+    assert "gemini_api_key_set" not in public and "gemini_model" not in public
+    assert public["niche"] == "Keep this preference"
+    assert (
+        client.get(f"/api/clips/{clip['id']}").json()["script"]["rewritten_text"]
+        == "Saved draft"
+    )
+
+
 def test_legacy_secret_migration_preserves_values_and_clears_plaintext(client):
     youtube_auth.init_storage()
     with db.connect() as connection:
         connection.execute(
             "INSERT INTO settings VALUES(?,?)",
-            ("gemini_api_key", json.dumps("legacy-private-key")),
+            ("elevenlabs_api_key", json.dumps("legacy-private-key")),
         )
         connection.execute(
             "INSERT INTO youtube_channels VALUES(?,?,?,?,?,?,?,?,?)",
@@ -270,7 +311,7 @@ def test_legacy_secret_migration_preserves_values_and_clears_plaintext(client):
             ),
         )
     db.migrate_secrets()
-    assert db.get_settings()["gemini_api_key"] == "legacy-private-key"
+    assert db.get_settings()["elevenlabs_api_key"] == "legacy-private-key"
     with db.connect() as connection:
         access, refresh = connection.execute(
             "SELECT access_token,refresh_token FROM youtube_channels"
@@ -304,7 +345,7 @@ def test_media_version_floor_checks_the_executable(
 
 def test_worker_environment_does_not_inherit_provider_or_unrelated_keys(monkeypatch):
     for key in (
-        "GEMINI_API_KEY",
+        "ELEVENLABS_API_KEY",
         "OPENAI_API_KEY",
         "AWS_SECRET_ACCESS_KEY",
         "HTTP_PROXY",
@@ -336,7 +377,7 @@ def test_real_worker_cannot_read_unmounted_files_or_connect_to_host(
 import json,os,socket,sys
 from pathlib import Path
 allowed,outside,output,port=sys.argv[1:]
-result={'allowed':Path(allowed).read_text(),'secret_environment':os.getenv('GEMINI_API_KEY')}
+result={'allowed':Path(allowed).read_text(),'secret_environment':os.getenv('ELEVENLABS_API_KEY')}
 try: Path(outside).read_bytes(); result['outside_read']=True
 except OSError: result['outside_read']=False
 try: Path(outside).write_text('changed'); result['outside_write']=True
@@ -345,7 +386,7 @@ try: socket.create_connection(('127.0.0.1',int(port)),timeout=.2); result['netwo
 except OSError: result['network']=False
 Path(output,'result.json').write_text(json.dumps(result))
 """
-    monkeypatch.setenv("GEMINI_API_KEY", "private-fixture-value")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "private-fixture-value")
     command = sandbox.worker_command(
         [
             sys.executable,

@@ -1,6 +1,6 @@
 # Optional voice and speech services
 
-The dashboard no longer includes script rewriting, voice generation or the browser editor's **Script and voice** panel. Retained backend routes remain documented in the [API contract](../shared/contract/API.md) and [AI service guide](../engine/ai/README.md). They do not add narration to a Concat project automatically.
+The dashboard no longer includes script rewriting, voice generation or the browser editor's **Script and voice** panel. Manual script storage and voice endpoints are documented in the [API contract](../shared/contract/API.md) and [AI service guide](../engine/ai/README.md). They do not add narration to a Concat project automatically.
 
 ## Local providers
 

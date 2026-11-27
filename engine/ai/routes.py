@@ -1,4 +1,4 @@
-"""Writing and voice API. Provider calls happen only after an explicit action."""
+"""Script storage and voice API. Provider calls happen only after an explicit action."""
 
 import json
 from pathlib import Path
@@ -19,7 +19,6 @@ from .voice import (
     provider_list,
     synthesize,
 )
-from .writing import original_script, rewrite_script
 
 router = APIRouter(prefix="/api")
 AUDIO_REFERENCE_FORMATS = {
@@ -30,13 +29,6 @@ AUDIO_REFERENCE_FORMATS = {
     ".flac": "flac",
     ".webm": "matroska",
 }
-
-
-class RewriteRequest(BaseModel):
-    clip_id: str
-    text: str = Field(default="", max_length=30000)
-    mode: Literal["rewrite", "original"] = "rewrite"
-    topic: str = Field(default="", max_length=30000)
 
 
 class ScriptRequest(BaseModel):
@@ -52,27 +44,6 @@ class TTSRequest(BaseModel):
     speed: float = Field(default=1, ge=0.7, le=1.2)
     stability: float = Field(default=0.5, ge=0, le=1)
     pitch: float = Field(default=0, ge=-50, le=50)
-
-
-@router.post("/rewrite")
-def rewrite(payload: RewriteRequest):
-    clip = db.get_clip(payload.clip_id)
-    # Script work is available for Library references without changing source
-    # rights metadata. Cloud writing only runs after this explicit request.
-    try:
-        if payload.mode == "original":
-            # Unknown footage is never fetched or transcribed for this mode.
-            topic = (
-                payload.topic.strip()
-                or f"{clip['title']}\n{clip.get('description', '')}"
-            )[:2000]
-            result = original_script(topic, db.get_settings())
-        else:
-            result = rewrite_script(payload.text, db.get_settings())
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from None
-    db.save_script(payload.clip_id, result["original_text"], result["rewritten_text"])
-    return result
 
 
 @router.put("/scripts/{clip_id}")

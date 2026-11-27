@@ -25,8 +25,8 @@ Backend auth module `engine/core/youtube_auth.py` exposes `get_access_token(chan
 
 Upload workers run on the engine and persist resumable session state outside generic jobs. `engine/core/youtube_uploads.py` exposes `router` and `recover_uploads()` to convert interrupted jobs into explicit recoverable states at startup. Use bounded chunks, timeouts and provider errors without secrets. Verify channel identity before upload; only the connected authorization determines destination. Private is the default. Never claim publicly visible just because upload completed.
 
-## UI integration
+## Archived browser editor UI
 
-The existing Publish kit page stays reachable as `seo`, retains optional Gemini suggestions and adds a manual publishing form that works without Gemini. Select a specific export, preview it, edit title/description/tags, select a connected channel and visibility/audience/synthetic-media settings, review, then explicitly publish. Show setup link when not configured, connect action when no channel, no-export guidance, progress/processing, recovery and final video link. Keep history visible after navigation/reload.
+The archived Publish kit page provided a manual publishing form. Select a specific export, preview it, edit title/description/tags, select a connected channel and visibility/audience/synthetic-media settings, review, then explicitly publish. Show setup link when not configured, connect action when no channel, no-export guidance, progress/processing, recovery and final video link. Keep history visible after navigation/reload.
 
 SEOPage accepts optional `onSettings: () => void` and `initialExportId?: string` from the shell. Settings mounts `YouTubeSettings` connection/setup controls. The export panel's `Publish to YouTube` action passes the saved asset ID through Studio to the publishing page. This exact ID overrides remembered draft selection; a missing handoff asset blocks publishing instead of substituting an older export.

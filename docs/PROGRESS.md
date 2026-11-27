@@ -1,5 +1,9 @@
 # ShortForge progress
 
+## November 28, 2026 — Retired Gemini integration
+
+Removed cloud script generation and video transcription, the provider’s settings and setup links. Upgrades delete its saved key and model. Existing scripts remain editable. Extraction continues to use saved text, public YouTube captions and local Whisper.
+
 ## November 2, 2026 — Local security hardening
 
 Added authenticated local clients, exact origin checks, one-use browser/Scout pairing and restart revocation. The normal launcher now serves the production dashboard on port 8787 and opens a private local redirect file, keeping the connection secret out of process arguments and HTTP URL logs. Scout's existing extension ID, preferences and pending clips are retained. Media links carry scoped, expiring signatures; cached jobs refresh those links after restart.

@@ -5,7 +5,6 @@ import json
 import sys
 from types import SimpleNamespace
 
-import httpx
 import pytest
 
 from engine.core import db, media, script_extraction as extraction
@@ -109,26 +108,6 @@ def test_extraction_keeps_concurrent_original_and_rewrite_edits(client, monkeypa
     assert detail["transcript"]["text"] == caption_result()["text"]
 
 
-def test_gemini_also_preserves_existing_original_unless_replacement_is_requested(
-    client, monkeypatch
-):
-    clip = import_clip(client)
-    db.save_script(clip["id"], "Saved original narration", "My draft")
-    monkeypatch.setattr(
-        extraction,
-        "gemini_transcript",
-        lambda *_: pytest.fail("Existing original must not spend quota or be replaced"),
-    )
-    job = run_job(client, clip["id"], {"provider": "gemini"})
-    assert job["status"] == "completed"
-    assert job["result"]["source"] == "saved-script"
-    assert job["result"]["original_updated"] is False
-    assert (
-        client.get(f"/api/clips/{clip['id']}").json()["script"]["rewritten_text"]
-        == "My draft"
-    )
-
-
 def test_explicit_extraction_replaces_old_topic_but_preserves_rewrite(
     client, monkeypatch
 ):
@@ -187,49 +166,40 @@ def test_transcription_helper_preserves_rewrite_and_advanced_workflow(client):
     assert detail["workflow_status"] == "exported"
 
 
-def test_absent_captions_fail_actionably_without_inventing_or_spending(
+def test_absent_captions_preserve_empty_transcript_and_suggest_local_options(
     client, monkeypatch
 ):
     clip = import_clip(client)
-    client.put("/api/settings", json={"gemini_api_key": "unused-secret"})
     monkeypatch.setattr(
         extraction,
         "youtube_captions",
         lambda _: (_ for _ in ()).throw(ValueError(extraction.NO_CAPTIONS)),
     )
     monkeypatch.setattr(
-        extraction,
-        "gemini_transcript",
-        lambda *_: pytest.fail("Auto must never spend Gemini quota"),
-    )
-    monkeypatch.setattr(
         media, "get_source", lambda _: pytest.fail("Unknown footage must not be opened")
     )
     job = run_job(client, clip["id"])
     assert job["status"] == "failed"
-    assert "Transcribe with Gemini" in job["error"]
+    assert "local transcription" in job["error"]
     assert "paste" in job["error"]
     detail = client.get(f"/api/clips/{clip['id']}").json()
     assert detail["script"] is None
     assert detail["transcript"] is None
 
 
-def test_missing_key_and_invalid_provider_fail_without_network(client, monkeypatch):
-    clip = import_clip(client)
-    monkeypatch.setattr(
-        extraction.httpx,
-        "post",
-        lambda *_args, **_kwargs: pytest.fail("No key, no call"),
+def test_retired_extraction_provider_is_rejected_before_creating_a_job(client):
+    clip_id = import_clip(client)["id"]
+    response = client.post(
+        f"/api/clips/{clip_id}/extract-script", json={"provider": "gemini"}
     )
-    job = run_job(client, clip["id"], {"provider": "gemini"})
-    assert job["status"] == "failed"
-    assert "Settings" in job["error"]
-    assert (
-        client.post(
-            f"/api/clips/{clip['id']}/extract-script", json={"provider": "paid"}
-        ).status_code
-        == 422
-    )
+    assert response.status_code == 422
+    with db.connect() as conn:
+        assert (
+            conn.execute(
+                "SELECT COUNT(*) FROM jobs WHERE clip_id=?", (clip_id,)
+            ).fetchone()[0]
+            == 0
+        )
     assert client.post("/api/clips/missing/extract-script").status_code == 404
 
 
@@ -420,78 +390,3 @@ def test_public_caption_fetch_is_text_only_and_tries_second_format(monkeypatch):
 )
 def test_caption_track_urls_are_restricted(url):
     assert not extraction._caption_url(url)
-
-
-def test_explicit_gemini_uses_video_not_metadata_and_preserves_original_language(
-    client, monkeypatch
-):
-    clip = import_clip(client)
-    client.put(
-        "/api/settings",
-        json={"gemini_api_key": "key-test", "gemini_model": "gemini-3.8-flash"},
-    )
-
-    def post(url, **kwargs):
-        assert kwargs["headers"]["x-goog-api-key"] == "key-test"
-        assert "key-test" not in url
-        parts = kwargs["json"]["contents"][0]["parts"]
-        assert (
-            parts[0]["fileData"]["fileUri"]
-            == f"https://www.youtube.com/watch?v={VIDEO_ID}"
-        )
-        assert "verbatim" in parts[1]["text"]
-        assert "Do not translate" in parts[1]["text"]
-        assert clip["title"] not in json.dumps(kwargs["json"])
-        return httpx.Response(
-            200,
-            request=httpx.Request("POST", url),
-            json={
-                "candidates": [
-                    {
-                        "finishReason": "STOP",
-                        "content": {
-                            "parts": [
-                                {
-                                    "text": json.dumps(
-                                        {"text": "یہ اصل کہانی ہے", "language": "ur"}
-                                    )
-                                }
-                            ]
-                        },
-                    }
-                ]
-            },
-        )
-
-    monkeypatch.setattr(extraction.httpx, "post", post)
-    job = run_job(client, clip["id"], {"provider": "gemini"})
-    assert job["status"] == "completed", job
-    assert job["result"]["text"] == "یہ اصل کہانی ہے"
-    assert job["result"]["language"] == "ur"
-    assert job["result"]["words"] == []
-    assert job["result"]["source"] == "gemini"
-
-
-@pytest.mark.parametrize(
-    "content,reason", [("", "STOP"), ("Some speech", "MAX_TOKENS")]
-)
-def test_gemini_rejects_empty_or_truncated_transcript(monkeypatch, content, reason):
-    response = httpx.Response(
-        200,
-        request=httpx.Request("POST", "https://example.test"),
-        json={
-            "candidates": [
-                {
-                    "finishReason": reason,
-                    "content": {
-                        "parts": [
-                            {"text": json.dumps({"text": content, "language": "en"})}
-                        ]
-                    },
-                }
-            ]
-        },
-    )
-    monkeypatch.setattr(extraction.httpx, "post", lambda *_args, **_kwargs: response)
-    with pytest.raises(ValueError):
-        extraction.gemini_transcript(VIDEO_ID, {"gemini_api_key": "test"})

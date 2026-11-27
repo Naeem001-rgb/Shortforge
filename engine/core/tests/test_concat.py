@@ -191,10 +191,10 @@ def test_source_acquisition_keeps_unknown_rights_as_metadata(client, monkeypatch
 
 
 def test_native_environment_does_not_receive_provider_keys(monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", "private-gemini")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "private-voice-key")
     monkeypatch.setenv("YOUTUBE_CLIENT_SECRET", "private-oauth")
     env = concat.runtime_env()
-    assert "GEMINI_API_KEY" not in env
+    assert "ELEVENLABS_API_KEY" not in env
     assert "YOUTUBE_CLIENT_SECRET" not in env
     assert concat.rpc_env()["CONCAT_MCP_ROOTS"] == str(db.DATA_DIR.resolve())
 
@@ -254,7 +254,7 @@ def test_native_launch_uses_literal_project_path_and_desktop_environment(
 ):
     monkeypatch.setenv("DISPLAY", ":2")
     monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
-    monkeypatch.setenv("GEMINI_API_KEY", "secret")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "secret")
     reaped = Event()
     calls = []
 
@@ -281,7 +281,7 @@ def test_native_launch_uses_literal_project_path_and_desktop_environment(
     assert options["start_new_session"] is True
     assert options["env"]["DISPLAY"] == ":2"
     assert options["env"]["WAYLAND_DISPLAY"] == "wayland-0"
-    assert "GEMINI_API_KEY" not in options["env"]
+    assert "ELEVENLABS_API_KEY" not in options["env"]
 
 
 def test_native_launch_reports_startup_failure(monkeypatch, tmp_path):

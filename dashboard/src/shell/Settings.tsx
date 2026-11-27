@@ -16,12 +16,10 @@ import { YouTubeSettings } from "./YouTubeSettings";
 import { ScoutConnection } from "./Connection";
 export function SettingsPage({ health }: { health: Health | null }) {
   const [settings, setSettings] = useState<Settings>({
-    gemini_model: "",
     niche: "",
     language: "",
   });
   const [keys, setKeys] = useState({
-    gemini_api_key: "",
     youtube_api_key: "",
     elevenlabs_api_key: "",
   });
@@ -54,7 +52,6 @@ export function SettingsPage({ health }: { health: Health | null }) {
       });
       setSettings(data);
       setKeys({
-        gemini_api_key: "",
         youtube_api_key: "",
         elevenlabs_api_key: "",
       });
@@ -103,73 +100,10 @@ export function SettingsPage({ health }: { health: Health | null }) {
               <div>
                 <h2>Optional connections</h2>
                 <p>
-                  Connect discovery, writing, and voice tools. Video editing
-                  runs locally.
+                  Connect discovery and voice tools. Video editing runs locally.
                 </p>
               </div>
             </div>
-            <div className="provider-heading">
-              <h3>Google Gemini</h3>
-              <span
-                className={`badge ${settings.gemini_api_key_set ? "good" : "neutral"}`}
-              >
-                {settings.gemini_api_key_set
-                  ? "Key saved"
-                  : "Optional connection"}
-              </span>
-            </div>
-            <label className="field">
-              Gemini API key
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={keys.gemini_api_key}
-                disabled={loading || busy}
-                onChange={(e) => {
-                  setKeys({ ...keys, gemini_api_key: e.target.value });
-                  setSaved(false);
-                }}
-                placeholder={
-                  settings.gemini_api_key_set
-                    ? "A key is saved. Paste to replace."
-                    : "Paste your API key"
-                }
-              />
-            </label>
-            <label className="field">
-              Model
-              <input
-                value={String(settings.gemini_model || "")}
-                disabled={loading || busy}
-                onChange={(e) => change("gemini_model", e.target.value)}
-                placeholder="gemini-3.8-flash"
-              />
-              <small>Used for transcript extraction.</small>
-            </label>
-            <div className="settings-link-row">
-              <a
-                className="inline-link"
-                href="https://aistudio.google.com/apikey"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Get a Gemini API key <ArrowUpRight size={15} />
-              </a>
-              <a
-                className="inline-link"
-                href="https://aistudio.google.com/usage?timeRange=last-28-days&tab=rate-limit"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Check your free quota <ArrowUpRight size={15} />
-              </a>
-            </div>
-            <p className="help-text">
-              Free limits vary by model and account. ShortForge cannot guarantee
-              1,500 requests or prevent billing if you enable a paid Google
-              project. Use a project without billing for a free-only setup.
-            </p>
-            <hr />
             <div className="provider-heading">
               <h3>ElevenLabs</h3>
               <span
@@ -304,10 +238,6 @@ export function SettingsPage({ health }: { health: Health | null }) {
             <p>
               Your library, footage, and saved media are stored locally. Saved
               keys are never returned to the dashboard or stored in video files.
-            </p>
-            <p>
-              Gemini receives text when you request transcript extraction. Your
-              library and Scout work without either connection.
             </p>
             <p>
               YouTube receives video and post details for uploads. Channel

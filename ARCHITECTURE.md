@@ -41,7 +41,7 @@ The dashboard manages discovery, Library data, settings and launch status. The n
 | Media | [media.py](engine/core/media.py), [editor_media.py](engine/studio/editor_media.py) | Acquisition, probing, stream normalization and thumbnails; the `editor_media` name survives the old editor |
 | Native Studio | [Studio.tsx](dashboard/src/studio/Studio.tsx), [concat.py](engine/core/concat.py), [concat_rpc.py](engine/core/concat_rpc.py) | Current-job launch UI, project preparation, stdio MCP and desktop process launch |
 | YouTube services | [youtube_auth.py](engine/core/youtube_auth.py), [youtube_uploads.py](engine/core/youtube_uploads.py) | Channel OAuth and retained upload/recovery backend; channel Settings remain in the UI |
-| AI services | [engine/ai/routes.py](engine/ai/routes.py) | Retained rewrite/script/voice/TTS endpoints, without the former dashboard workflow |
+| AI services | [engine/ai/routes.py](engine/ai/routes.py) | Script storage, voice and TTS endpoints, without the former dashboard workflow |
 | Packaging | [extension/build.mjs](extension/build.mjs), [manifest.json](extension/static/manifest.json) | esbuild/Vite outputs, local dashboard assets, strict MV3 script policy and content-hash build reuse |
 
 ## Startup and packaging

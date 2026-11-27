@@ -1,12 +1,8 @@
-# Writing and voice integrations
+# Voice integrations
 
 These are retained backend services. The dashboard has no script/voice panel or Publish kit, and generation does not add media to Concat automatically. See the [API contract](../../shared/contract/API.md).
 
-Nothing here downloads a speech model, installs a library, or calls a paid provider on startup. Provider requests run only for an explicit API request. Script text is sent to the selected cloud provider; local audio references stay on the computer.
-
-## Gemini
-
-Set `gemini_api_key` and `gemini_model` in Settings. The default model is `gemini-3.8-flash`; available models and free quota depend on the user's Google project. No promise of 1,500 requests per day is made. The adapter uses Google's [generateContent REST API](https://ai.google.dev/api/generate-content) with the key in a request header, and requests JSON output for SEO. Rewrite counts are checked locally, with at most two corrective retries. An unsuccessful third result is returned with `within_tolerance: false`, never a false success. Original mode uses the topic/title/description only and has no same-length requirement.
+Nothing here downloads a speech model, installs a library, or calls a paid provider on startup. Provider requests run only for an explicit API request. When you select a cloud voice, the provider receives the text to speak. Local voice references stay on the computer.
 
 ## Piper: default CPU narration
 
@@ -46,6 +42,6 @@ Generated voiceovers are aligned against the newly generated audio using the ins
 
 ## Tests
 
-From the project root, run `.venv/bin/python -m unittest engine.ai.test_writing engine.ai.test_voice -v` on Linux/macOS, or `.venv\Scripts\python.exe -m unittest engine.ai.test_writing engine.ai.test_voice -v` on Windows. `engine.ai.test_voice` covers the provider adapters described above. Its eSpeak case is skipped when the executable is absent rather than reporting a false pass; the ElevenLabs cases are contract tests against a stubbed HTTP layer, so they need no key and make no live request.
+From the project root, run `.venv/bin/python -m unittest engine.ai.test_voice -v` on Linux/macOS, or `.venv\Scripts\python.exe -m unittest engine.ai.test_voice -v` on Windows. `engine.ai.test_voice` covers the provider adapters described above. Its eSpeak case is skipped when the executable is absent rather than reporting a false pass; the ElevenLabs cases are contract tests against a stubbed HTTP layer, so they need no key and make no live request.
 
 The whole backend suite is `.venv/bin/python -m pytest engine/core/tests engine/studio engine/ai -q`, which is what has to be green before pushing.

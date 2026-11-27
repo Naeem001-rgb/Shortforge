@@ -20,7 +20,6 @@ DATA_DIR = Path(
     os.getenv("SHORTFORGE_DATA_DIR", Path(__file__).resolve().parents[2] / "data")
 ).resolve()
 DEFAULT_SETTINGS = {
-    "gemini_model": "gemini-3.8-flash",
     "niche": "",
     "language": "English",
     "min_likes": 5000,
@@ -36,7 +35,6 @@ DEFAULT_SETTINGS = {
 }
 SECRET_SETTINGS = {
     "youtube_api_key",
-    "gemini_api_key",
     "elevenlabs_api_key",
     "youtube_client_id",
     "youtube_client_secret",
@@ -292,12 +290,18 @@ def setting_value(key: str, value) -> str:
 
 
 def migrate_secrets() -> None:
-    """Encrypt legacy credentials atomically, without changing their values."""
+    """Remove retired settings and encrypt supported legacy credentials atomically."""
     from .private_storage import PREFIX
 
-    changed = False
     with connect() as conn:
         conn.execute("BEGIN IMMEDIATE")
+        changed = (
+            conn.execute(
+                "DELETE FROM settings WHERE key IN (?,?)",
+                ("gemini_api_key", "gemini_model"),
+            ).rowcount
+            > 0
+        )
         for row in conn.execute("SELECT key,value FROM settings").fetchall():
             if row["key"] not in SECRET_SETTINGS:
                 continue
