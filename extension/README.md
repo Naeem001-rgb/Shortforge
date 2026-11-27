@@ -1,12 +1,12 @@
 # ShortForge Scout and Studio
 
-After starting ShortForge, its connected dashboard automatically pairs the installed Chrome extension. If needed, choose **Settings → Connect Scout**. Reload an updated unpacked extension once in Chrome's Extensions page. Existing Scout settings and pending clips are retained. The production dashboard is now at **http://127.0.0.1:8787**; use the private window opened by the launcher after each engine restart. See [security and recovery](../docs/SECURITY.md).
+Click **Library** in the Scout popup. After one-time setup, Scout can start the engine and connect the packaged dashboard automatically. Existing Scout settings and pending clips are retained. [Security and recovery](../docs/SECURITY.md)
 
 A local Chrome extension for collecting YouTube Shorts and Instagram Reels into ShortForge. Scout reads the page in your browser, checks your criteria, and saves matches in the same Library. It can scout the current video feed or a specific creator's account. The optional **Small Chinese text + no speech** filter checks audio locally for speech. Other modes do not check narration; no mode identifies AI voices.
 
 ## Scout an account and avoid persistent captions
 
-1. Start ShortForge with `./start.sh` (Windows: `start.bat`), reload **ShortForge Scout** in `chrome://extensions`, and refresh any open YouTube/Instagram tab.
+1. Complete the one-time ShortForge setup, load or reload **ShortForge Scout** in Chrome, and refresh any open YouTube/Instagram tab.
 2. Open Scout and paste a **YouTube channel** or **Instagram account** URL in **Account or channel URL**. Leave it empty to scout an already-open Short/Reel feed.
 3. Set **Minimum likes**, **Minimum views**, and **Clips to collect**. The defaults of 5,000 likes and 10,000 views are editable, not fixed requirements. For example, 100 likes and 1,000 views allow a 242-like/15,381-view Reel to reach the next check. **0** disables that count requirement, including hidden counts. Instagram may show views only on profile tiles; Scout uses those when available.
 4. Under **Captions and speech**, keep **Brief captions only** for the existing text-time limit, choose **Small Chinese text + no speech** for small Chinese annotations with no detected speech, or **Any captions** to disable both checks. **Text allowance (sec.)** defaults to 3; in the small-text option, **Other text (sec.)** applies only to text that does not qualify for the exception.

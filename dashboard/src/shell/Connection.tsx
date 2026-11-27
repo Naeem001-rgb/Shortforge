@@ -8,6 +8,7 @@ import {
   ENGINE_ORIGIN,
   engineFetch,
   inExtension,
+  openScoutWorkspace,
   watchAccess,
 } from "../../../shared/engine-client";
 import { Notice } from "../ui";
@@ -21,9 +22,17 @@ export function Connection({ children }: { children: ReactNode }) {
   const opening = useRef<Promise<void> | null>(null);
   const alive = useRef(true);
 
-  async function check() {
+  async function check(openFromScout = false) {
     setBusy(true);
     try {
+      if (openFromScout && inExtension()) {
+        await openScoutWorkspace();
+        if (alive.current) {
+          setReady(true);
+          setError("");
+        }
+        return;
+      }
       const token = await accessToken();
       if (!token) {
         if (alive.current) setReady(false);
@@ -36,10 +45,14 @@ export function Connection({ children }: { children: ReactNode }) {
         setReady(response.ok);
         if (response.ok) setError("");
       }
-    } catch {
+    } catch (cause) {
       if (alive.current) {
         setReady(false);
-        setError("The engine is offline. Start ShortForge, then try again.");
+        setError(
+          inExtension() && cause instanceof Error
+            ? cause.message
+            : "The engine is offline. Open Library from the ShortForge Scout icon and try again.",
+        );
       }
     } finally {
       if (alive.current) setBusy(false);
@@ -65,11 +78,11 @@ export function Connection({ children }: { children: ReactNode }) {
       }
     };
     if (!opening.current) opening.current = connectFromLink();
-    void opening.current.then(check);
+    void opening.current.then(() => check(true));
     const newLink = () => {
       if (!new URLSearchParams(location.hash.slice(1)).has("connect")) return;
       opening.current = connectFromLink();
-      void opening.current.then(check);
+      void opening.current.then(() => check());
     };
     window.addEventListener("hashchange", newLink);
     const unwatch = watchAccess(() => {
@@ -90,15 +103,15 @@ export function Connection({ children }: { children: ReactNode }) {
         <h1>{busy ? "Opening your workspace…" : "Open your workspace."}</h1>
         <p>
           {inExtension()
-            ? "Start ShortForge, then choose Connect Scout in Settings. Your collected clips stay saved while you reconnect."
-            : "Start ShortForge with its usual launcher. It opens a connected window automatically, keeping your Library private."}
+            ? "Scout connects to the Library on this computer."
+            : "Open the ShortForge Scout icon in Chrome and choose Library to connect to your workspace."}
         </p>
         {error && <Notice>{error}</Notice>}
         <div className="connection-actions">
           <button
             className="button primary"
             disabled={busy}
-            onClick={() => void check()}
+            onClick={() => void check(true)}
           >
             {busy ? (
               <LoaderCircle size={17} className="spin" aria-hidden="true" />

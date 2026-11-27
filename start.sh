@@ -9,4 +9,5 @@ if ! .venv/bin/python scripts/setup-concat.py; then
   printf '\nConcat setup needs attention; Library and Scout will still start.\n'
 fi
 npm --prefix extension run build -- --if-needed
+.venv/bin/python -m engine.scout_host --install
 exec .venv/bin/python -m engine --open

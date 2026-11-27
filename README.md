@@ -9,6 +9,8 @@ cd ShortForge
 ./start.sh
 ```
 
+After one-time setup, click **ShortForge Scout → Library** in Chrome. Scout opens your Library and starts the engine when needed. You can close the original setup window.
+
 The launcher opens a privately connected window at **http://127.0.0.1:8787**. The header should say **Engine connected**. Normal startup installs the app dependencies and automatically downloads and verifies Concat when it is missing on a supported platform. You do not need to install Concat separately. Later launches reuse verified runtimes and the reviewed dependency lock. Startup does not download speech models. Press Ctrl+C to stop the dashboard and engine; save your Concat edits before closing its window.
 
 Startup checks JavaScript packages against the lockfiles and repairs stale or incomplete installs. It reuses the extension/dashboard build when inputs and output hashes are unchanged. An explicit `npm --prefix extension run build` forces a rebuild. The Library shows 50 videos per page; search covers all videos, and selections survive page/filter changes. See the [performance and quality results](docs/PERFORMANCE-RESULTS-2026-10-26.md).

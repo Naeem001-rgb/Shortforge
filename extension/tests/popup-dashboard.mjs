@@ -1,6 +1,6 @@
 // The dashboard link used to be a bare <a href>, so a stopped dev server
 // produced Chrome's "localhost refused to connect" page. These checks load
-// the real built popup and confirm it explains the problem instead.
+// the real built popup and confirm it opens the workspace even before the engine starts.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -95,15 +95,14 @@ try {
     engineUp: false,
     dashboardUp: true,
   });
-  assert.deepEqual(
-    await engineDown.evaluate(() => globalThis.fixture.opened),
-    [],
-  );
-  assert.match(await engineDown.locator("#error").textContent(), /start\.sh/);
+  assert.deepEqual(await engineDown.evaluate(() => globalThis.fixture.opened), [
+    "chrome-extension://" + "a".repeat(32) + "/dashboard/index.html",
+  ]);
+  assert.equal(await engineDown.locator("#error").isHidden(), true);
   await engineDown.close();
 
   console.log(
-    "Popup check passed: the dashboard button opens the bundled Library with only the engine running and explains how to restart a stopped engine.",
+    "Library opens the packaged dashboard whether the engine is running or stopped.",
   );
 } finally {
   await browser.close();

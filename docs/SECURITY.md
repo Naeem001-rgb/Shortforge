@@ -6,11 +6,13 @@ Updated November 2, 2026. ShortForge is a local, single-user application. These 
 
 Start with `start.sh` or `start.bat`. The launcher opens a connected dashboard at **http://127.0.0.1:8787**. Normal startup serves the built dashboard rather than a Vite development server.
 
+After setup, **Scout → Library** opens the packaged dashboard directly. Chrome registers a native messaging host for the current user and the exact installed Scout extension ID. If the existing session expires, the host starts or reuses the loopback engine and issues a fresh credential bound to Scout through Chrome’s private messaging channel. The dashboard verifies it with the engine before saving it in trusted extension storage. The host accepts only the Library action. Website tabs still use a one-use connection link. If the checkout moves, rerun setup and load the extension from its new path.
+
 The launcher opens a private local HTML file, which redirects to the dashboard with a random, one-use code in the URL fragment. The browser command contains only the private file path, so the code is not exposed in process arguments. The code expires after five minutes, is removed from the dashboard URL when consumed, and is never sent as an HTTP URL/query string. The local file is removed after redemption when possible. If the browser cannot open automatically, open the private file link printed by the launcher in your browser’s address bar; do not share the file. Chrome is preferred when available so Scout can connect automatically.
 
 Scout connects automatically when the installed Chrome extension is available in that browser. Otherwise choose **Settings → Connect Scout**. After updating an unpacked extension, reload ShortForge Scout in Chrome's Extensions page once. The extension's existing ID, settings and pending clips are preserved. A moved checkout must be loaded from its new `extension/dist` path.
 
-Each engine restart invalidates previous browser/extension credentials. Use the fresh window opened by the launcher. An unrelated local app or extension cannot obtain access merely by claiming a localhost origin. Authentication does not protect against malware already controlling your user account or browser.
+Each engine restart invalidates previous browser/extension credentials. Click Library again in Scout, or use a fresh launcher link for a website tab. An unrelated local app or extension cannot obtain access merely by claiming a localhost origin. Authentication does not protect against malware already controlling your user account or browser.
 
 ## Protections implemented
 

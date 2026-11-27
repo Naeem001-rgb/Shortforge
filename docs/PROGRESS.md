@@ -1,5 +1,9 @@
 # ShortForge progress
 
+## November 28, 2026 — Open the Library from Scout
+
+The Library button opens the packaged dashboard even when the engine is stopped. The installed extension can start the engine and renew its own local session through a native messaging host.
+
 ## November 28, 2026 — Retired Gemini integration
 
 Removed cloud script generation and video transcription, the provider’s settings and setup links. Upgrades delete its saved key and model. Existing scripts remain editable. Extraction continues to use saved text, public YouTube captions and local Whisper.

@@ -4,6 +4,10 @@ export const ACCESS_KEY = "shortforge-engine-access";
 type Access = { token: string; expires_at: number };
 type Bridge = {
   runtime?: {
+    sendNativeMessage?: (
+      name: string,
+      message: { action: "open-library" },
+    ) => Promise<Partial<Access> & { error?: string }>;
     sendMessage: (
       id: string,
       message: unknown,
@@ -81,6 +85,69 @@ export async function engineFetch(
       window.dispatchEvent(new Event("shortforge-connection-needed"));
   }
   return response;
+}
+
+async function connectInstalledScout(): Promise<void> {
+  if (await accessToken()) {
+    try {
+      if (
+        (
+          await engineFetch("/api/security/session", {
+            signal: AbortSignal.timeout(4000),
+          })
+        ).ok
+      )
+        return;
+    } catch {
+      // The native host can start a stopped engine.
+    }
+  }
+  if (window.top !== window.self)
+    throw new Error("Open Library in its own tab.");
+  const runtime = bridge()?.runtime;
+  const setup =
+    "Scout could not reach its local connection helper. Run ShortForge setup once, then try Library again.";
+  if (!runtime?.sendNativeMessage) throw new Error(setup);
+  let reply;
+  try {
+    reply = await runtime.sendNativeMessage("com.shortforge.scout", {
+      action: "open-library",
+    });
+  } catch {
+    throw new Error(setup);
+  }
+  if (reply?.error) throw new Error(reply.error);
+  if (
+    !reply ||
+    typeof reply.token !== "string" ||
+    !/^[A-Za-z0-9_-]{43}$/.test(reply.token) ||
+    typeof reply.expires_at !== "number" ||
+    reply.expires_at <= Date.now() / 1000
+  ) {
+    throw new Error(
+      "Scout could not connect to your workspace. Try Library again.",
+    );
+  }
+  const response = await fetch(ENGINE_ORIGIN + "/api/security/session", {
+    headers: { Authorization: "Bearer " + reply.token },
+    signal: AbortSignal.timeout(8000),
+    redirect: "error",
+  });
+  if (!response.ok)
+    throw new Error(
+      "The local engine could not verify this installation. Try Library again.",
+    );
+  await saveAccess({ token: reply.token, expires_at: reply.expires_at });
+}
+
+let openingScout: Promise<void> | undefined;
+export function openScoutWorkspace(): Promise<void> {
+  if (!inExtension())
+    throw new Error("Open Library from the ShortForge Scout extension.");
+  // Chrome and React can notify the dashboard while a connection is being saved.
+  return (openingScout ??= connectInstalledScout().finally(() => {
+    openingScout = undefined;
+  }));
 }
 
 export async function connectCode(value: string): Promise<void> {
